@@ -5215,10 +5215,10 @@ vscode-jsonrpc@^4.0.0:
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-4.0.0.tgz#a7bf74ef3254d0a0c272fab15c82128e378b3be9"
   integrity sha512-perEnXQdQOJMTDFNv+UF3h1Y0z4iSiaN9jIlb0OqIYgosPCZGYh/MCUlkFtV2668PL69lRDO32hmvL2yiidUYg==
 
-vsls@1.0.3015:
-  version "1.0.3015"
-  resolved "https://registry.yarnpkg.com/vsls/-/vsls-1.0.3015.tgz#346b034990aa2ff875c769fb7bf2abab085bb1d6"
-  integrity sha512-c+hG4X/aNdR4PM2nxUeooTEyDav8TQ8exfLSWIWp+h+us1jjhxGk2K+PDCrJxJmeIra/Ku4sdqMRv7P9hF6MRA==
+vsls@1.0.4753:
+  version "1.0.4753"
+  resolved "https://registry.yarnpkg.com/vsls/-/vsls-1.0.4753.tgz#1b0957fc987fddd2b4d8c03925d086fb701d11fa"
+  integrity sha512-hmrsMbhjuLoU8GgtVfqhbV4ZkGvDpLV2AFmzx+cCOGNra2qk0Q36dYkfwENqy/vJVQ/2/lhxcn+69FYnKQRhgg==
   dependencies:
     "@microsoft/servicehub-framework" "^2.6.74"
 
