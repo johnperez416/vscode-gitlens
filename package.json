@@ -11209,7 +11209,7 @@
 	},
 	"dependencies": {
 		"@octokit/core": "3.6.0",
-		"@vscode/codicons": "0.0.30",
+		"@vscode/codicons": "0.0.31",
 		"@vscode/webview-ui-toolkit": "1.0.0",
 		"ansi-regex": "6.0.1",
 		"billboard.js": "3.4.1",
