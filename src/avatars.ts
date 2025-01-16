@@ -1,16 +1,21 @@
 import { EventEmitter, Uri } from 'vscode';
-import { GravatarDefaultStyle } from './config';
-import { configuration } from './configuration';
+import { md5 } from '@env/crypto';
+import type { GravatarDefaultStyle } from './config';
+import type { StoredAvatar } from './constants.storage';
 import { Container } from './container';
-import type { GitRevisionReference } from './git/models/reference';
+import type { CommitAuthor } from './git/models/author';
 import { getGitHubNoReplyAddressParts } from './git/remotes/github';
-import type { StoredAvatar } from './storage';
 import { debounce } from './system/function';
 import { filterMap } from './system/iterable';
-import { base64, equalsIgnoreCase, md5 } from './system/string';
+import { base64, equalsIgnoreCase } from './system/string';
+import { configuration } from './system/vscode/configuration';
+import { getContext } from './system/vscode/context';
 import type { ContactPresenceStatus } from './vsls/vsls';
 
-const maxSmallIntegerV8 = 2 ** 30; // Max number that can be stored in V8's smis (small integers)
+const maxSmallIntegerV8 = 2 ** 30 - 1; // Max number that can be stored in V8's smis (small integers)
+
+let avatarCache: Map<string, Avatar> | undefined;
+const avatarQueue = new Map<string, Promise<Uri>>();
 
 const _onDidFetchAvatar = new EventEmitter<{ email: string }>();
 _onDidFetchAvatar.event(
@@ -31,13 +36,11 @@ _onDidFetchAvatar.event(
 						),
 				  ]
 				: undefined;
-		void Container.instance.storage.store('avatars', avatars);
+		void Container.instance.storage.store('avatars', avatars).catch();
 	}, 1000),
 );
 
-export namespace Avatars {
-	export const onDidFetch = _onDidFetchAvatar.event;
-}
+export const onDidFetchAvatar = _onDidFetchAvatar.event;
 
 interface Avatar {
 	uri?: Uri;
@@ -45,9 +48,6 @@ interface Avatar {
 	timestamp: number;
 	retries: number;
 }
-
-let avatarCache: Map<string, Avatar> | undefined;
-const avatarQueue = new Map<string, Promise<Uri>>();
 
 const missingGravatarHash = '00000000000000000000000000000000';
 
@@ -69,19 +69,41 @@ const retryDecay = [
 
 export function getAvatarUri(
 	email: string | undefined,
-	repoPathOrCommit: undefined,
+	repoPathOrCommit?: undefined,
 	options?: { defaultStyle?: GravatarDefaultStyle; size?: number },
 ): Uri;
 export function getAvatarUri(
 	email: string | undefined,
-	repoPathOrCommit: string | GitRevisionReference,
+	repoPathOrCommit: string | { ref: string; repoPath: string },
 	options?: { defaultStyle?: GravatarDefaultStyle; size?: number },
 ): Uri | Promise<Uri>;
 export function getAvatarUri(
 	email: string | undefined,
-	repoPathOrCommit: string | GitRevisionReference | undefined,
+	repoPathOrCommit: string | { ref: string; repoPath: string } | undefined,
 	options?: { defaultStyle?: GravatarDefaultStyle; size?: number },
 ): Uri | Promise<Uri> {
+	return getAvatarUriCore(email, repoPathOrCommit, options);
+}
+
+export function getCachedAvatarUri(email: string | undefined, options?: { size?: number }): Uri | undefined {
+	return getAvatarUriCore(email, undefined, { ...options, cached: true });
+}
+
+function getAvatarUriCore(
+	email: string | undefined,
+	repoPathOrCommit: string | { ref: string; repoPath: string } | undefined,
+	options?: { cached: true; defaultStyle?: GravatarDefaultStyle; size?: number },
+): Uri | undefined;
+function getAvatarUriCore(
+	email: string | undefined,
+	repoPathOrCommit: string | { ref: string; repoPath: string } | undefined,
+	options?: { defaultStyle?: GravatarDefaultStyle; size?: number },
+): Uri | Promise<Uri>;
+function getAvatarUriCore(
+	email: string | undefined,
+	repoPathOrCommit: string | { ref: string; repoPath: string } | undefined,
+	options?: { cached?: boolean; defaultStyle?: GravatarDefaultStyle; size?: number },
+): Uri | Promise<Uri> | undefined {
 	ensureAvatarCache(avatarCache);
 
 	// Double the size to avoid blurring on the retina screen
@@ -98,26 +120,34 @@ export function getAvatarUri(
 		return avatar.uri ?? avatar.fallback!;
 	}
 
-	const hash = md5(email.trim().toLowerCase(), 'hex');
+	const hash = md5(email.trim().toLowerCase());
 	const key = `${hash}:${size}`;
 
 	const avatar = createOrUpdateAvatar(key, email, size, hash, options?.defaultStyle);
 	if (avatar.uri != null) return avatar.uri;
 
-	let query = avatarQueue.get(key);
-	if (query == null && repoPathOrCommit != null && hasAvatarExpired(avatar)) {
-		query = getAvatarUriFromRemoteProvider(avatar, key, email, repoPathOrCommit, { size: size }).then(
-			uri => uri ?? avatar.uri ?? avatar.fallback!,
-		);
-		avatarQueue.set(
-			key,
-			query.finally(() => avatarQueue.delete(key)),
-		);
+	if (
+		!options?.cached &&
+		repoPathOrCommit != null &&
+		getContext('gitlens:repos:withHostingIntegrationsConnected')?.includes(
+			typeof repoPathOrCommit === 'string' ? repoPathOrCommit : repoPathOrCommit.repoPath,
+		)
+	) {
+		let query = avatarQueue.get(key);
+		if (query == null && hasAvatarExpired(avatar)) {
+			query = getAvatarUriFromRemoteProvider(avatar, key, email, repoPathOrCommit, { size: size }).then(
+				uri => uri ?? avatar.uri ?? avatar.fallback!,
+			);
+			avatarQueue.set(
+				key,
+				query.finally(() => avatarQueue.delete(key)),
+			);
+		}
+
+		return query ?? avatar.fallback!;
 	}
 
-	if (query != null) return query;
-
-	return avatar.uri ?? avatar.fallback!;
+	return options?.cached ? avatar.uri : avatar.uri ?? avatar.fallback!;
 }
 
 function createOrUpdateAvatar(
@@ -162,12 +192,14 @@ function hasAvatarExpired(avatar: Avatar) {
 	return Date.now() >= avatar.timestamp + retryDecay[Math.min(avatar.retries, retryDecay.length - 1)];
 }
 
-function getAvatarUriFromGravatar(
-	hash: string,
-	size: number,
-	defaultStyle: GravatarDefaultStyle = GravatarDefaultStyle.Robot,
-): Uri {
-	return Uri.parse(`https://www.gravatar.com/avatar/${hash}?s=${size}&d=${defaultStyle}`);
+function getAvatarUriFromGravatar(hash: string, size: number, defaultStyle?: GravatarDefaultStyle): Uri {
+	return Uri.parse(
+		`https://www.gravatar.com/avatar/${hash}?s=${size}&d=${defaultStyle ?? getDefaultGravatarStyle()}`,
+	);
+}
+
+export function getAvatarUriFromGravatarEmail(email: string, size: number, defaultStyle?: GravatarDefaultStyle): Uri {
+	return getAvatarUriFromGravatar(md5(email.trim().toLowerCase()), size, defaultStyle);
 }
 
 function getAvatarUriFromGitHubNoReplyAddress(email: string, size: number = 16): Uri | undefined {
@@ -181,25 +213,32 @@ function getAvatarUriFromGitHubNoReplyAddress(email: string, size: number = 16):
 
 async function getAvatarUriFromRemoteProvider(
 	avatar: Avatar,
-	key: string,
+	_key: string,
 	email: string,
-	repoPathOrCommit: string | GitRevisionReference,
+	repoPathOrCommit: string | { ref: string; repoPath: string },
 	{ size = 16 }: { size?: number } = {},
 ) {
 	ensureAvatarCache(avatarCache);
 
 	try {
-		let account;
-		if (configuration.get('integrations.enabled')) {
-			// if (typeof repoPathOrCommit === 'string') {
-			// 	const remote = await Container.instance.git.getRichRemoteProvider(repoPathOrCommit);
-			// 	account = await remote?.provider.getAccountForEmail(email, { avatarSize: size });
-			// } else {
-			if (typeof repoPathOrCommit !== 'string') {
-				const remote = await Container.instance.git.getBestRemoteWithRichProvider(repoPathOrCommit.repoPath);
-				account = await remote?.provider.getAccountForCommit(repoPathOrCommit.ref, { avatarSize: size });
+		let account: CommitAuthor | undefined;
+		// if (typeof repoPathOrCommit === 'string') {
+		// 	const remote = await Container.instance.git.getRichRemoteProvider(repoPathOrCommit);
+		// 	account = await remote?.provider.getAccountForEmail(email, { avatarSize: size });
+		// } else {
+		if (typeof repoPathOrCommit !== 'string') {
+			const remote = await Container.instance.git
+				.remotes(repoPathOrCommit.repoPath)
+				.getBestRemoteWithIntegration();
+			if (remote?.hasIntegration()) {
+				account = await (
+					await remote.getIntegration()
+				)?.getAccountForCommit(remote.provider.repoDesc, repoPathOrCommit.ref, {
+					avatarSize: size,
+				});
 			}
 		}
+
 		if (account?.avatarUrl == null) {
 			// If we have no account assume that won't change (without a reset), so set the timestamp to "never expire"
 			avatar.uri = undefined;
@@ -214,7 +253,7 @@ async function getAvatarUriFromRemoteProvider(
 		avatar.retries = 0;
 
 		if (account.email != null && equalsIgnoreCase(email, account.email)) {
-			avatarCache.set(`${md5(account.email.trim().toLowerCase(), 'hex')}:${size}`, { ...avatar });
+			avatarCache.set(`${md5(account.email.trim().toLowerCase())}:${size}`, { ...avatar });
 		}
 
 		_onDidFetchAvatar.fire({ email: email });
@@ -275,4 +314,17 @@ export function resetAvatarCache(reset: 'all' | 'failed' | 'fallback') {
 			}
 			break;
 	}
+}
+
+let defaultGravatarsStyle: GravatarDefaultStyle | undefined = undefined;
+function getDefaultGravatarStyle() {
+	if (defaultGravatarsStyle == null) {
+		defaultGravatarsStyle = configuration.get('defaultGravatarsStyle', undefined, 'robohash');
+	}
+	return defaultGravatarsStyle;
+}
+
+export function setDefaultGravatarsStyle(style: GravatarDefaultStyle) {
+	defaultGravatarsStyle = style;
+	resetAvatarCache('fallback');
 }

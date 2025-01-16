@@ -1,27 +1,27 @@
 import type { Command, Uri } from 'vscode';
-import { MarkdownString, ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'vscode';
-import { CoreCommands } from '../../constants';
+import { ThemeIcon, TreeItem, TreeItemCollapsibleState } from 'vscode';
 import { StatusFileFormatter } from '../../git/formatters/statusFormatter';
 import { GitUri } from '../../git/gitUri';
 import type { GitFile } from '../../git/models/file';
-import type { GitMergeStatus } from '../../git/models/merge';
-import type { GitRebaseStatus } from '../../git/models/rebase';
-import { relativeDir } from '../../system/path';
+import type { GitPausedOperationStatus } from '../../git/models/pausedOperationStatus';
+import { createCoreCommand } from '../../system/vscode/command';
+import { relativeDir } from '../../system/vscode/path';
 import type { ViewsWithCommits } from '../viewBase';
+import { getFileTooltipMarkdown, ViewFileNode } from './abstract/viewFileNode';
+import type { ViewNode } from './abstract/viewNode';
+import { ContextValues } from './abstract/viewNode';
 import type { FileNode } from './folderNode';
 import { MergeConflictCurrentChangesNode } from './mergeConflictCurrentChangesNode';
 import { MergeConflictIncomingChangesNode } from './mergeConflictIncomingChangesNode';
-import type { ViewNode } from './viewNode';
-import { ContextValues, ViewFileNode } from './viewNode';
 
-export class MergeConflictFileNode extends ViewFileNode<ViewsWithCommits> implements FileNode {
+export class MergeConflictFileNode extends ViewFileNode<'conflict-file', ViewsWithCommits> implements FileNode {
 	constructor(
 		view: ViewsWithCommits,
 		parent: ViewNode,
 		file: GitFile,
-		public readonly status: GitMergeStatus | GitRebaseStatus,
+		public readonly status: GitPausedOperationStatus,
 	) {
-		super(GitUri.fromFile(file, status.repoPath, status.HEAD.ref), view, parent, file);
+		super('conflict-file', GitUri.fromFile(file, status.repoPath, status.HEAD.ref), view, parent, file);
 	}
 
 	override toClipboard(): string {
@@ -48,15 +48,7 @@ export class MergeConflictFileNode extends ViewFileNode<ViewsWithCommits> implem
 		item.description = this.description;
 		item.contextValue = `${ContextValues.File}+conflicted`;
 
-		const tooltip = StatusFileFormatter.fromTemplate(
-			`\${file}\${ \u2022 changesDetail}\${\\\\\ndirectory}\${\n\nstatus}\${ (originalPath)} in Index (staged)`,
-			this.file,
-		);
-		const markdown = new MarkdownString(tooltip, true);
-		markdown.isTrusted = true;
-		markdown.supportHtml = true;
-
-		item.tooltip = markdown;
+		item.tooltip = getFileTooltipMarkdown(this.file, 'in ```Index```');
 
 		// Use the file icon and decorations
 		item.resourceUri = this.view.container.git.getAbsoluteUri(this.file.path, this.repoPath);
@@ -116,17 +108,15 @@ export class MergeConflictFileNode extends ViewFileNode<ViewsWithCommits> implem
 		this._description = undefined;
 	}
 
-	override getCommand(): Command | undefined {
-		return {
-			title: 'Open File',
-			command: CoreCommands.Open,
-			arguments: [
-				this.view.container.git.getAbsoluteUri(this.file.path, this.repoPath),
-				{
-					preserveFocus: true,
-					preview: true,
-				},
-			],
-		};
+	override getCommand(): Command {
+		return createCoreCommand(
+			'vscode.open',
+			'Open File',
+			this.view.container.git.getAbsoluteUri(this.file.path, this.repoPath),
+			{
+				preserveFocus: true,
+				preview: true,
+			},
+		);
 	}
 }

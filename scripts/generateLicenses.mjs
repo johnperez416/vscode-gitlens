@@ -2,9 +2,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import * as fs from 'fs';
 import * as path from 'path';
-import fetch from 'node-fetch';
 import * as checker from 'license-checker-rseidelsohn';
-import { spawn } from 'child_process';
 
 /** @typedef { { licenses: string; repository: string; licenseFile: string } } PackageInfo **/
 
@@ -24,22 +22,6 @@ async function generateThirdpartyNotices(packages) {
 				licenseFile: 'https://raw.github.com/microsoft/vscode/main/LICENSE.txt',
 			},
 		],
-		[
-			'sindresorhus/string-width',
-			{
-				licenses: 'MIT',
-				repository: 'https://github.com/sindresorhus/string-width',
-				licenseFile: 'https://raw.github.com/sindresorhus/string-width/main/license',
-			},
-		],
-		[
-			'sindresorhus/is-fullwidth-code-point',
-			{
-				licenses: 'MIT',
-				repository: 'https://github.com/sindresorhus/is-fullwidth-code-point',
-				licenseFile: 'https://raw.github.com/sindresorhus/is-fullwidth-code-point/main/license',
-			},
-		],
 	];
 
 	const packageOutputs = [];
@@ -54,8 +36,8 @@ async function generateThirdpartyNotices(packages) {
 
 		const index = key.lastIndexOf('@');
 		if (index !== -1) {
-			name = key.substr(0, index);
-			version = key.substr(index + 1);
+			name = key.substring(0, index);
+			version = key.substring(index + 1);
 		} else {
 			name = key;
 		}
@@ -65,7 +47,7 @@ async function generateThirdpartyNotices(packages) {
 
 		let license;
 		if (data.licenseFile.startsWith('https://')) {
-			const response = await fetch(data.licenseFile);
+			const response = await fetch(data.licenseFile, { method: 'GET' });
 			license = await response.text();
 		} else {
 			license = fs.readFileSync(data.licenseFile, 'utf8');

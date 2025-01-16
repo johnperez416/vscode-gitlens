@@ -1,7 +1,9 @@
 import type { Uri } from 'vscode';
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports
+import { CancellationError as _CancellationError } from 'vscode';
 import type { Response } from '@env/fetch';
-import type { RequiredSubscriptionPlans, Subscription } from './subscription';
-import { isSubscriptionPaidPlan } from './subscription';
+import type { RequiredSubscriptionPlans, Subscription } from './plus/gk/account/subscription';
+import { isSubscriptionPaidPlan } from './plus/gk/account/subscription';
 
 export class AccessDeniedError extends Error {
 	public readonly subscription: Subscription;
@@ -12,9 +14,9 @@ export class AccessDeniedError extends Error {
 		if (subscription.account?.verified === false) {
 			message = 'Email verification required';
 		} else if (required != null && isSubscriptionPaidPlan(required)) {
-			message = 'Paid subscription required';
+			message = 'GitLens Pro required';
 		} else {
-			message = 'Subscription required';
+			message = 'Plan required';
 		}
 
 		super(message);
@@ -85,8 +87,27 @@ export class AuthenticationError extends Error {
 	}
 }
 
+export class AuthenticationRequiredError extends Error {
+	constructor() {
+		super('Authentication required');
+
+		Error.captureStackTrace?.(this, AuthenticationRequiredError);
+	}
+}
+
+export class CancellationError extends _CancellationError {
+	constructor(public readonly original?: Error) {
+		super();
+
+		Error.captureStackTrace?.(this, CancellationError);
+	}
+}
+
 export class ExtensionNotFoundError extends Error {
-	constructor(public readonly extensionId: string, public readonly extensionName: string) {
+	constructor(
+		public readonly extensionId: string,
+		public readonly extensionName: string,
+	) {
 		super(
 			`Unable to find the ${extensionName} extension (${extensionId}). Please ensure it is installed and enabled.`,
 		);
@@ -158,7 +179,11 @@ export class ProviderFetchError extends Error {
 		return this.response.statusText;
 	}
 
-	constructor(provider: string, public readonly response: Response, errors?: { message: string }[]) {
+	constructor(
+		provider: string,
+		public readonly response: Response,
+		errors?: { message: string }[],
+	) {
 		super(
 			`${provider} request failed: ${!response.ok ? `(${response.status}) ${response.statusText}. ` : ''}${
 				errors?.length ? errors[0].message : ''
@@ -176,8 +201,8 @@ export class ProviderNotFoundError extends Error {
 				pathOrUri == null
 					? String(pathOrUri)
 					: typeof pathOrUri === 'string'
-					? pathOrUri
-					: pathOrUri.toString(true)
+					  ? pathOrUri
+					  : pathOrUri.toString(true)
 			}'`,
 		);
 
@@ -185,30 +210,62 @@ export class ProviderNotFoundError extends Error {
 	}
 }
 
-export class ProviderRequestClientError extends Error {
-	constructor(public readonly original: Error) {
-		super(original.message);
+export class ProviderNotSupportedError extends Error {
+	constructor(provider: string) {
+		super(`Action is not supported on the ${provider} provider.`);
 
-		Error.captureStackTrace?.(this, ProviderRequestClientError);
+		Error.captureStackTrace?.(this, ProviderNotSupportedError);
 	}
 }
 
-export class ProviderRequestNotFoundError extends Error {
+export class RequestClientError extends Error {
 	constructor(public readonly original: Error) {
 		super(original.message);
 
-		Error.captureStackTrace?.(this, ProviderRequestNotFoundError);
+		Error.captureStackTrace?.(this, RequestClientError);
 	}
 }
 
-export class ProviderRequestRateLimitError extends Error {
+export class RequestNotFoundError extends Error {
+	constructor(public readonly original: Error) {
+		super(original.message);
+
+		Error.captureStackTrace?.(this, RequestNotFoundError);
+	}
+}
+
+export class RequestRateLimitError extends Error {
 	constructor(
 		public readonly original: Error,
-		public readonly token: string,
+		public readonly token: string | undefined,
 		public readonly resetAt: number | undefined,
 	) {
 		super(original.message);
 
-		Error.captureStackTrace?.(this, ProviderRequestRateLimitError);
+		Error.captureStackTrace?.(this, RequestRateLimitError);
+	}
+}
+
+export class RequestGoneError extends Error {
+	constructor(public readonly original: Error) {
+		super(original.message);
+
+		Error.captureStackTrace?.(this, RequestGoneError);
+	}
+}
+
+export class RequestUnprocessableEntityError extends Error {
+	constructor(public readonly original: Error) {
+		super(original.message);
+
+		Error.captureStackTrace?.(this, RequestUnprocessableEntityError);
+	}
+}
+
+export class RequestsAreBlockedTemporarilyError extends Error {
+	constructor() {
+		super('Requests are blocked');
+
+		Error.captureStackTrace?.(this, RequestsAreBlockedTemporarilyError);
 	}
 }

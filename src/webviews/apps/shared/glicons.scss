@@ -6,7 +6,7 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 	@font-face {
 		font-family: 'glicons';
 		font-display: block;
-		src: url("#{root}/dist/glicons.woff2?2e51fe40df2abdf6a27fbae6c29587b1") format("woff2");
+		src: url("#{root}/dist/glicons.woff2?e2ca1078510e43a3a9f0067b3df7bf3f") format("woff2");
 	}
 </style>
 */
@@ -143,12 +143,102 @@ Must be placed at the end of body in the HTML file of any webview that needs it 
 .glicon-list-auto:before {
 	content: '\f11a';
 }
-.glicon-arrow-up-force:before {
-	content: '\f11b';
-}
 .glicon-pinned-filled:before {
 	content: '\f11c';
 }
 .glicon-clock:before {
 	content: '\f11d';
+}
+.glicon-provider-azdo:before {
+	content: '\f11e';
+}
+.glicon-provider-bitbucket:before {
+	content: '\f11f';
+}
+.glicon-provider-gerrit:before {
+	content: '\f120';
+}
+.glicon-provider-gitea:before {
+	content: '\f121';
+}
+.glicon-provider-github:before {
+	content: '\f122';
+}
+.glicon-provider-gitlab:before {
+	content: '\f123';
+}
+.glicon-gitlens-inspect:before {
+	content: '\f124';
+}
+.glicon-workspaces-view:before {
+	content: '\f125';
+}
+.glicon-confirm-checked:before {
+	content: '\f126';
+}
+.glicon-confirm-unchecked:before {
+	content: '\f127';
+}
+.glicon-cloud-patch:before {
+	content: '\f128';
+}
+.glicon-cloud-patch-share:before {
+	content: '\f129';
+}
+.glicon-inspect:before {
+	content: '\f12a';
+}
+.glicon-repository-filled:before {
+	content: '\f12b';
+}
+.glicon-gitlens-filled:before {
+	content: '\f12c';
+}
+.glicon-code-suggestion:before {
+	content: '\f12d';
+}
+.glicon-provider-jira:before {
+	content: '\f133';
+}
+.glicon-play-button:before {
+	content: '\f134';
+}
+.glicon-rocket-filled:before {
+	content: '\f135';
+}
+.glicon-branches-view-filled:before {
+	content: '\f136';
+}
+.glicon-commits-view-filled:before {
+	content: '\f137';
+}
+.glicon-contributors-view-filled:before {
+	content: '\f138';
+}
+.glicon-remotes-view-filled:before {
+	content: '\f139';
+}
+.glicon-repositories-view-filled:before {
+	content: '\f13a';
+}
+.glicon-search-view-filled:before {
+	content: '\f13b';
+}
+.glicon-stashes-view-filled:before {
+	content: '\f13c';
+}
+.glicon-tags-view-filled:before {
+	content: '\f13d';
+}
+.glicon-worktrees-view-filled:before {
+	content: '\f13e';
+}
+.glicon-launchpad-view:before {
+	content: '\f13f';
+}
+.glicon-launchpad-view-filled:before {
+	content: '\f140';
+}
+.glicon-merge-target:before {
+	content: '\f141';
 }

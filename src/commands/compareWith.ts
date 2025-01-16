@@ -1,10 +1,10 @@
 import type { TextEditor, Uri } from 'vscode';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
-import { Logger } from '../logger';
 import { showGenericErrorMessage } from '../messages';
-import { RepositoryPicker } from '../quickpicks/repositoryPicker';
-import { command } from '../system/command';
+import { getBestRepositoryOrShowPicker } from '../quickpicks/repositoryPicker';
+import { Logger } from '../system/logger';
+import { command } from '../system/vscode/command';
 import type { CommandContext } from './base';
 import { ActiveEditorCommand, getCommandUri } from './base';
 
@@ -17,28 +17,28 @@ export interface CompareWithCommandArgs {
 export class CompareWithCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
 		super([
-			Commands.CompareWith,
-			Commands.CompareHeadWith,
-			Commands.CompareWorkingWith,
-			Commands.Deprecated_DiffHeadWith,
-			Commands.Deprecated_DiffWorkingWith,
+			GlCommand.CompareWith,
+			GlCommand.CompareHeadWith,
+			GlCommand.CompareWorkingWith,
+			GlCommand.Deprecated_DiffHeadWith,
+			GlCommand.Deprecated_DiffWorkingWith,
 		]);
 	}
 
 	protected override preExecute(context: CommandContext, args?: CompareWithCommandArgs) {
 		switch (context.command) {
-			case Commands.CompareWith:
+			case GlCommand.CompareWith:
 				args = { ...args };
 				break;
 
-			case Commands.CompareHeadWith:
-			case Commands.Deprecated_DiffHeadWith:
+			case GlCommand.CompareHeadWith:
+			case GlCommand.Deprecated_DiffHeadWith:
 				args = { ...args };
 				args.ref1 = 'HEAD';
 				break;
 
-			case Commands.CompareWorkingWith:
-			case Commands.Deprecated_DiffWorkingWith:
+			case GlCommand.CompareWorkingWith:
+			case GlCommand.Deprecated_DiffWorkingWith:
 				args = { ...args };
 				args.ref1 = '';
 				break;
@@ -68,13 +68,13 @@ export class CompareWithCommand extends ActiveEditorCommand {
 					break;
 			}
 
-			const repoPath = (await RepositoryPicker.getBestRepositoryOrShow(uri, editor, title))?.path;
+			const repoPath = (await getBestRepositoryOrShowPicker(uri, editor, title))?.path;
 			if (!repoPath) return;
 
 			if (args.ref1 != null && args.ref2 != null) {
-				await this.container.searchAndCompareView.compare(repoPath, args.ref1, args.ref2);
+				await this.container.views.searchAndCompare.compare(repoPath, args.ref1, args.ref2);
 			} else {
-				this.container.searchAndCompareView.selectForCompare(repoPath, args.ref1, { prompt: true });
+				this.container.views.searchAndCompare.selectForCompare(repoPath, args.ref1, { prompt: true });
 			}
 		} catch (ex) {
 			Logger.error(ex, 'CompareWithCommmand');

@@ -1,12 +1,15 @@
 import type { TextDocumentShowOptions, TextEditor, Uri } from 'vscode';
 import { window } from 'vscode';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri } from '../git/gitUri';
-import { GitRevision } from '../git/models/reference';
-import { Logger } from '../logger';
+import { createReference } from '../git/models/reference.utils';
+import { deletedOrMissing, uncommittedStaged } from '../git/models/revision';
 import { showGenericErrorMessage } from '../messages';
-import { command, executeCommand } from '../system/command';
+import { showRevisionFilesPicker } from '../quickpicks/revisionFilesPicker';
+import { Logger } from '../system/logger';
+import { command, executeCommand } from '../system/vscode/command';
+import { findOrOpenEditor } from '../system/vscode/utils';
 import { ActiveEditorCommand, getCommandUri } from './base';
 import type { DiffWithCommandArgs } from './diffWith';
 
@@ -15,12 +18,13 @@ export interface DiffWithWorkingCommandArgs {
 	uri?: Uri;
 	line?: number;
 	showOptions?: TextDocumentShowOptions;
+	lhsTitle?: string;
 }
 
 @command()
 export class DiffWithWorkingCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
-		super([Commands.DiffWithWorking, Commands.DiffWithWorkingInDiffLeft, Commands.DiffWithWorkingInDiffRight]);
+		super([GlCommand.DiffWithWorking, GlCommand.DiffWithWorkingInDiffLeft, GlCommand.DiffWithWorkingInDiffRight]);
 	}
 
 	async execute(editor?: TextEditor, uri?: Uri, args?: DiffWithWorkingCommandArgs): Promise<any> {
@@ -64,7 +68,7 @@ export class DiffWithWorkingCommand extends ActiveEditorCommand {
 
 			return;
 		}
-		if (gitUri.sha === GitRevision.deletedOrMissing) {
+		if (gitUri.sha === deletedOrMissing) {
 			void window.showWarningMessage('Unable to open compare. File has been deleted from the working tree');
 
 			return;
@@ -72,12 +76,12 @@ export class DiffWithWorkingCommand extends ActiveEditorCommand {
 
 		// If we are a fake "staged" sha, check the status
 		if (gitUri.isUncommittedStaged) {
-			const status = await this.container.git.getStatusForFile(gitUri.repoPath!, gitUri);
+			const status = await this.container.git.status(gitUri.repoPath!).getStatusForFile?.(gitUri);
 			if (status?.indexStatus != null) {
-				void (await executeCommand<DiffWithCommandArgs>(Commands.DiffWith, {
+				void (await executeCommand<DiffWithCommandArgs>(GlCommand.DiffWith, {
 					repoPath: gitUri.repoPath,
 					lhs: {
-						sha: GitRevision.uncommittedStaged,
+						sha: uncommittedStaged,
 						uri: gitUri.documentUri(),
 					},
 					rhs: {
@@ -94,18 +98,31 @@ export class DiffWithWorkingCommand extends ActiveEditorCommand {
 
 		uri = gitUri.toFileUri();
 
-		const workingUri = await this.container.git.getWorkingUri(gitUri.repoPath!, uri);
+		let workingUri = await this.container.git.getWorkingUri(gitUri.repoPath!, uri);
 		if (workingUri == null) {
-			void window.showWarningMessage('Unable to open compare. File has been deleted from the working tree');
+			const pickedUri = await showRevisionFilesPicker(this.container, createReference('HEAD', gitUri.repoPath!), {
+				ignoreFocusOut: true,
+				initialPath: gitUri.relativePath,
+				title: `Open File \u2022 Unable to open '${gitUri.relativePath}'`,
+				placeholder: 'Choose another working file to open',
+				keyboard: {
+					keys: ['right', 'alt+right', 'ctrl+right'],
+					onDidPressKey: async (_key, uri) => {
+						await findOrOpenEditor(uri, { ...args.showOptions, preserveFocus: true, preview: true });
+					},
+				},
+			});
+			if (pickedUri == null) return;
 
-			return;
+			workingUri = pickedUri;
 		}
 
-		void (await executeCommand<DiffWithCommandArgs>(Commands.DiffWith, {
+		void (await executeCommand<DiffWithCommandArgs>(GlCommand.DiffWith, {
 			repoPath: gitUri.repoPath,
 			lhs: {
 				sha: gitUri.sha,
 				uri: uri,
+				title: args?.lhsTitle,
 			},
 			rhs: {
 				sha: '',

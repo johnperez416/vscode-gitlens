@@ -8,22 +8,26 @@ import type {
 	TimelineItem,
 } from 'vscode';
 import { commands, Disposable, Uri, window } from 'vscode';
-import type { ActionContext } from '../api/gitlens';
-import type { Commands } from '../constants';
+import type { GlCommands } from '../constants.commands';
+import type { StoredNamedRef } from '../constants.storage';
 import type { GitBranch } from '../git/models/branch';
 import { isBranch } from '../git/models/branch';
 import type { GitCommit, GitStashCommit } from '../git/models/commit';
 import { isCommit } from '../git/models/commit';
-import { GitContributor } from '../git/models/contributor';
+import type { GitContributor } from '../git/models/contributor';
+import { isContributor } from '../git/models/contributor';
 import type { GitFile } from '../git/models/file';
 import type { GitReference } from '../git/models/reference';
-import { GitRemote } from '../git/models/remote';
+import type { GitRemote } from '../git/models/remote';
+import { isRemote } from '../git/models/remote';
 import { Repository } from '../git/models/repository';
 import type { GitTag } from '../git/models/tag';
 import { isTag } from '../git/models/tag';
-import { registerCommand } from '../system/command';
+import { CloudWorkspace, LocalWorkspace } from '../plus/workspaces/models';
 import { sequentialize } from '../system/function';
-import { ViewNode, ViewRefNode } from '../views/nodes/viewNode';
+import { registerCommand } from '../system/vscode/command';
+import { ViewNode } from '../views/nodes/abstract/viewNode';
+import { ViewRefFileNode, ViewRefNode } from '../views/nodes/abstract/viewRefNode';
 
 export function getCommandUri(uri?: Uri, editor?: TextEditor): Uri | undefined {
 	// Always use the editor.uri (if we have one), so we are correct for a split diff
@@ -38,6 +42,12 @@ export interface CommandBaseContext {
 	command: string;
 	editor?: TextEditor;
 	uri?: Uri;
+}
+
+export interface CommandEditorLineContext extends CommandBaseContext {
+	readonly type: 'editorLine';
+	readonly line: number;
+	readonly uri: Uri;
 }
 
 export interface CommandGitTimelineItemContext extends CommandBaseContext {
@@ -89,6 +99,10 @@ export interface CommandViewNodesContext extends CommandBaseContext {
 	readonly nodes: ViewNode[];
 }
 
+export function isCommandContextEditorLine(context: CommandContext): context is CommandEditorLineContext {
+	return context.type === 'editorLine';
+}
+
 export function isCommandContextGitTimelineItem(context: CommandContext): context is CommandGitTimelineItemContext {
 	return context.type === 'timeline-item:git';
 }
@@ -114,7 +128,7 @@ export function isCommandContextViewNodeHasContributor(
 ): context is CommandViewNodeContext & { node: ViewNode & { contributor: GitContributor } } {
 	if (context.type !== 'viewItem') return false;
 
-	return GitContributor.is((context.node as ViewNode & { contributor: GitContributor }).contributor);
+	return isContributor((context.node as ViewNode & { contributor: GitContributor }).contributor);
 }
 
 export function isCommandContextViewNodeHasFile(
@@ -149,10 +163,25 @@ export function isCommandContextViewNodeHasFileRefs(context: CommandContext): co
 	);
 }
 
+export function isCommandContextViewNodeHasComparison(context: CommandContext): context is CommandViewNodeContext & {
+	node: ViewNode & { compareRef: StoredNamedRef; compareWithRef: StoredNamedRef };
+} {
+	if (context.type !== 'viewItem') return false;
+
+	return (
+		typeof (context.node as ViewNode & { compareRef: StoredNamedRef; compareWithRef: StoredNamedRef }).compareRef
+			?.ref === 'string' &&
+		typeof (context.node as ViewNode & { compareRef: StoredNamedRef; compareWithRef: StoredNamedRef })
+			.compareWithRef?.ref === 'string'
+	);
+}
+
 export function isCommandContextViewNodeHasRef(
 	context: CommandContext,
 ): context is CommandViewNodeContext & { node: ViewNode & { ref: GitReference } } {
-	return context.type === 'viewItem' && context.node instanceof ViewRefNode;
+	return (
+		context.type === 'viewItem' && (context.node instanceof ViewRefNode || context.node instanceof ViewRefFileNode)
+	);
 }
 
 export function isCommandContextViewNodeHasRemote(
@@ -160,7 +189,7 @@ export function isCommandContextViewNodeHasRemote(
 ): context is CommandViewNodeContext & { node: ViewNode & { remote: GitRemote } } {
 	if (context.type !== 'viewItem') return false;
 
-	return GitRemote.is((context.node as ViewNode & { remote: GitRemote }).remote);
+	return isRemote((context.node as ViewNode & { remote: GitRemote }).remote);
 }
 
 export function isCommandContextViewNodeHasRepository(
@@ -187,7 +216,16 @@ export function isCommandContextViewNodeHasTag(
 	return isTag((context.node as ViewNode & { tag: GitTag }).tag);
 }
 
+export function isCommandContextViewNodeHasWorkspace(
+	context: CommandContext,
+): context is CommandViewNodeContext & { node: ViewNode & { workspace: CloudWorkspace | LocalWorkspace } } {
+	if (context.type !== 'viewItem') return false;
+	const workspace = (context.node as ViewNode & { workspace?: CloudWorkspace | LocalWorkspace }).workspace;
+	return workspace instanceof CloudWorkspace || workspace instanceof LocalWorkspace;
+}
+
 export type CommandContext =
+	| CommandEditorLineContext
 	| CommandGitTimelineItemContext
 	| CommandScmContext
 	| CommandScmGroupsContext
@@ -199,7 +237,7 @@ export type CommandContext =
 	| CommandViewNodeContext
 	| CommandViewNodesContext;
 
-function isScm(scm: any): scm is SourceControl {
+export function isScm(scm: any): scm is SourceControl {
 	if (scm == null) return false;
 
 	return (
@@ -244,19 +282,12 @@ function isGitTimelineItem(item: any): item is GitTimelineItem {
 	);
 }
 
-export abstract class Command implements Disposable {
-	static getMarkdownCommandArgsCore<T>(
-		command: Commands | `${Commands.ActionPrefix}${ActionContext['type']}`,
-		args: T,
-	): string {
-		return `command:${command}?${encodeURIComponent(JSON.stringify(args))}`;
-	}
-
+export abstract class GlCommandBase implements Disposable {
 	protected readonly contextParsingOptions: CommandContextParsingOptions = { expectsEditor: false };
 
 	private readonly _disposable: Disposable;
 
-	constructor(command: Commands | Commands[]) {
+	constructor(command: GlCommands | GlCommands[]) {
 		if (typeof command === 'string') {
 			this._disposable = registerCommand(command, (...args: any[]) => this._execute(command, ...args), this);
 
@@ -333,6 +364,20 @@ export function parseCommandContext(
 
 			args = args.slice(1);
 		} else if (editor == null) {
+			if (firstArg != null && typeof firstArg === 'object' && 'lineNumber' in firstArg && 'uri' in firstArg) {
+				const [, ...rest] = args;
+				return [
+					{
+						command: command,
+						type: 'editorLine',
+						editor: undefined,
+						line: firstArg.lineNumber - 1, // convert to zero-based
+						uri: firstArg.uri,
+					},
+					rest,
+				];
+			}
+
 			// If we are expecting an editor and we have no uri, then pass the active editor
 			editor = window.activeTextEditor;
 		}
@@ -402,12 +447,8 @@ export function parseCommandContext(
 	return [{ command: command, type: 'unknown', editor: editor, uri: editor?.document.uri }, args];
 }
 
-export abstract class ActiveEditorCommand extends Command {
+export abstract class ActiveEditorCommand extends GlCommandBase {
 	protected override readonly contextParsingOptions: CommandContextParsingOptions = { expectsEditor: true };
-
-	constructor(command: Commands | Commands[]) {
-		super(command);
-	}
 
 	protected override preExecute(context: CommandContext, ...args: any[]): Promise<any> {
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -427,10 +468,6 @@ export function getLastCommand() {
 }
 
 export abstract class ActiveEditorCachedCommand extends ActiveEditorCommand {
-	constructor(command: Commands | Commands[]) {
-		super(command);
-	}
-
 	protected override _execute(command: string, ...args: any[]): any {
 		lastCommand = {
 			command: command,
@@ -445,7 +482,7 @@ export abstract class ActiveEditorCachedCommand extends ActiveEditorCommand {
 export abstract class EditorCommand implements Disposable {
 	private readonly _disposable: Disposable;
 
-	constructor(command: Commands | Commands[]) {
+	constructor(command: GlCommands | GlCommands[]) {
 		if (!Array.isArray(command)) {
 			command = [command];
 		}
@@ -469,7 +506,7 @@ export abstract class EditorCommand implements Disposable {
 		this._disposable.dispose();
 	}
 
-	private executeCore(command: string, editor: TextEditor, edit: TextEditorEdit, ...args: any[]): any {
+	private executeCore(_command: string, editor: TextEditor, edit: TextEditorEdit, ...args: any[]): any {
 		return this.execute(editor, edit, ...args);
 	}
 

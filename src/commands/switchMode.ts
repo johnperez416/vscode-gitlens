@@ -1,28 +1,27 @@
 import { ConfigurationTarget } from 'vscode';
-import { configuration } from '../configuration';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
-import { ModePicker } from '../quickpicks/modePicker';
-import { command } from '../system/command';
-import { getLogScope, log } from '../system/decorators/log';
-import { Command } from './base';
+import { showModePicker } from '../quickpicks/modePicker';
+import { log } from '../system/decorators/log';
+import { getLogScope, setLogScopeExit } from '../system/logger.scope';
+import { command } from '../system/vscode/command';
+import { configuration } from '../system/vscode/configuration';
+import { GlCommandBase } from './base';
 
 @command()
-export class SwitchModeCommand extends Command {
+export class SwitchModeCommand extends GlCommandBase {
 	constructor(private readonly container: Container) {
-		super(Commands.SwitchMode);
+		super(GlCommand.SwitchMode);
 	}
 
 	@log({ args: false, scoped: true, singleLine: true, timed: false })
 	async execute() {
 		const scope = getLogScope();
 
-		const pick = await ModePicker.show();
+		const pick = await showModePicker();
 		if (pick === undefined) return;
 
-		if (scope != null) {
-			scope.exitDetails = ` \u2014 mode=${pick.key ?? ''}`;
-		}
+		setLogScopeExit(scope, ` \u2022 mode=${pick.key ?? ''}`);
 
 		const active = configuration.get('mode.active');
 		if (active === pick.key) return;
@@ -44,9 +43,9 @@ export class SwitchModeCommand extends Command {
 }
 
 @command()
-export class ToggleReviewModeCommand extends Command {
+export class ToggleReviewModeCommand extends GlCommandBase {
 	constructor(private readonly container: Container) {
-		super(Commands.ToggleReviewMode);
+		super(GlCommand.ToggleReviewMode);
 	}
 
 	@log({ args: false, singleLine: true, timed: false })
@@ -60,9 +59,9 @@ export class ToggleReviewModeCommand extends Command {
 }
 
 @command()
-export class ToggleZenModeCommand extends Command {
+export class ToggleZenModeCommand extends GlCommandBase {
 	constructor(private readonly container: Container) {
-		super(Commands.ToggleZenMode);
+		super(GlCommand.ToggleZenMode);
 	}
 
 	@log({ args: false, singleLine: true, timed: false })

@@ -1,7 +1,9 @@
-import type { RemotesConfig } from '../../configuration';
-import { CustomRemoteType } from '../../configuration';
+import type { RemotesConfig } from '../../config';
+import { SelfHostedIntegrationId } from '../../constants.integrations';
 import type { Container } from '../../container';
-import { Logger } from '../../logger';
+import type { ConfiguredIntegrationDescriptor } from '../../plus/integrations/authentication/models';
+import { Logger } from '../../system/logger';
+import { configuration } from '../../system/vscode/configuration';
 import { AzureDevOpsRemote } from './azure-devops';
 import { BitbucketRemote } from './bitbucket';
 import { BitbucketServerRemote } from './bitbucket-server';
@@ -28,12 +30,12 @@ const builtInProviders: RemoteProviders = [
 	{
 		custom: false,
 		matcher: 'github.com',
-		creator: (container: Container, domain: string, path: string) => new GitHubRemote(container, domain, path),
+		creator: (_container: Container, domain: string, path: string) => new GitHubRemote(domain, path),
 	},
 	{
 		custom: false,
 		matcher: 'gitlab.com',
-		creator: (container: Container, domain: string, path: string) => new GitLabRemote(container, domain, path),
+		creator: (_container: Container, domain: string, path: string) => new GitLabRemote(domain, path),
 	},
 	{
 		custom: false,
@@ -48,7 +50,7 @@ const builtInProviders: RemoteProviders = [
 	{
 		custom: false,
 		matcher: /\bgitlab\b/i,
-		creator: (container: Container, domain: string, path: string) => new GitLabRemote(container, domain, path),
+		creator: (_container: Container, domain: string, path: string) => new GitLabRemote(domain, path),
 	},
 	{
 		custom: false,
@@ -73,7 +75,10 @@ const builtInProviders: RemoteProviders = [
 	},
 ];
 
-export function loadRemoteProviders(cfg: RemotesConfig[] | null | undefined): RemoteProviders {
+export function loadRemoteProviders(
+	cfg: RemotesConfig[] | null | undefined,
+	configuredIntegrations?: ConfiguredIntegrationDescriptor[],
+): RemoteProviders {
 	const providers: RemoteProviders = [];
 
 	if (cfg?.length) {
@@ -97,6 +102,29 @@ export function loadRemoteProviders(cfg: RemotesConfig[] | null | undefined): Re
 		}
 	}
 
+	if (configuredIntegrations?.length) {
+		for (const ci of configuredIntegrations) {
+			if (ci.integrationId === SelfHostedIntegrationId.CloudGitHubEnterprise && ci.domain) {
+				const matcher = ci.domain.toLocaleLowerCase();
+				const providerCreator = (_container: Container, domain: string, path: string) =>
+					new GitHubRemote(domain, path);
+				const provider = {
+					custom: false,
+					matcher: matcher,
+					creator: providerCreator,
+				};
+
+				const indexOfCustomDuplication: number = providers.findIndex(p => p.matcher === matcher);
+
+				if (indexOfCustomDuplication !== -1) {
+					providers[indexOfCustomDuplication] = provider;
+				} else {
+					providers.push(provider);
+				}
+			}
+		}
+	}
+
 	providers.push(...builtInProviders);
 
 	return providers;
@@ -104,33 +132,33 @@ export function loadRemoteProviders(cfg: RemotesConfig[] | null | undefined): Re
 
 function getCustomProviderCreator(cfg: RemotesConfig) {
 	switch (cfg.type) {
-		case CustomRemoteType.AzureDevOps:
+		case 'AzureDevOps':
 			return (_container: Container, domain: string, path: string) =>
 				new AzureDevOpsRemote(domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.Bitbucket:
+		case 'Bitbucket':
 			return (_container: Container, domain: string, path: string) =>
 				new BitbucketRemote(domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.BitbucketServer:
+		case 'BitbucketServer':
 			return (_container: Container, domain: string, path: string) =>
 				new BitbucketServerRemote(domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.Custom:
+		case 'Custom':
 			return (_container: Container, domain: string, path: string) =>
 				new CustomRemote(domain, path, cfg.urls!, cfg.protocol, cfg.name);
-		case CustomRemoteType.Gerrit:
+		case 'Gerrit':
 			return (_container: Container, domain: string, path: string) =>
 				new GerritRemote(domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.GoogleSource:
+		case 'GoogleSource':
 			return (_container: Container, domain: string, path: string) =>
 				new GoogleSourceRemote(domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.Gitea:
+		case 'Gitea':
 			return (_container: Container, domain: string, path: string) =>
 				new GiteaRemote(domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.GitHub:
-			return (container: Container, domain: string, path: string) =>
-				new GitHubRemote(container, domain, path, cfg.protocol, cfg.name, true);
-		case CustomRemoteType.GitLab:
-			return (container: Container, domain: string, path: string) =>
-				new GitLabRemote(container, domain, path, cfg.protocol, cfg.name, true);
+		case 'GitHub':
+			return (_container: Container, domain: string, path: string) =>
+				new GitHubRemote(domain, path, cfg.protocol, cfg.name, true);
+		case 'GitLab':
+			return (_container: Container, domain: string, path: string) =>
+				new GitLabRemote(domain, path, cfg.protocol, cfg.name, true);
 		default:
 			return undefined;
 	}
@@ -138,8 +166,15 @@ function getCustomProviderCreator(cfg: RemotesConfig) {
 
 export function getRemoteProviderMatcher(
 	container: Container,
-	providers: RemoteProviders,
+	providers?: RemoteProviders,
 ): (url: string, domain: string, path: string) => RemoteProvider | undefined {
+	if (providers == null) {
+		providers = loadRemoteProviders(
+			configuration.get('remotes', null),
+			container.integrations.getConfiguredIntegrationDescriptors(),
+		);
+	}
+
 	return (url: string, domain: string, path: string) =>
 		createBestRemoteProvider(container, providers, url, domain, path);
 }
@@ -171,6 +206,7 @@ function createBestRemoteProvider(
 
 		return undefined;
 	} catch (ex) {
+		debugger;
 		Logger.error(ex, 'createRemoteProvider');
 		return undefined;
 	}

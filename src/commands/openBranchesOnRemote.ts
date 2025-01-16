@@ -1,12 +1,12 @@
 import type { TextEditor, Uri } from 'vscode';
-import { window } from 'vscode';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri } from '../git/gitUri';
 import { RemoteResourceType } from '../git/models/remoteResource';
-import { Logger } from '../logger';
-import { RepositoryPicker } from '../quickpicks/repositoryPicker';
-import { command, executeCommand } from '../system/command';
+import { showGenericErrorMessage } from '../messages';
+import { getBestRepositoryOrShowPicker } from '../quickpicks/repositoryPicker';
+import { Logger } from '../system/logger';
+import { command, executeCommand } from '../system/vscode/command';
 import type { CommandContext } from './base';
 import { ActiveEditorCommand, getCommandUri, isCommandContextViewNodeHasRemote } from './base';
 import type { OpenOnRemoteCommandArgs } from './openOnRemote';
@@ -20,9 +20,9 @@ export interface OpenBranchesOnRemoteCommandArgs {
 export class OpenBranchesOnRemoteCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
 		super([
-			Commands.OpenBranchesOnRemote,
-			Commands.Deprecated_OpenBranchesInRemote,
-			Commands.CopyRemoteBranchesUrl,
+			GlCommand.OpenBranchesOnRemote,
+			GlCommand.Deprecated_OpenBranchesInRemote,
+			GlCommand.CopyRemoteBranchesUrl,
 		]);
 	}
 
@@ -31,7 +31,7 @@ export class OpenBranchesOnRemoteCommand extends ActiveEditorCommand {
 			args = { ...args, remote: context.node.remote.name };
 		}
 
-		if (context.command === Commands.CopyRemoteBranchesUrl) {
+		if (context.command === GlCommand.CopyRemoteBranchesUrl) {
 			args = { ...args, clipboard: true };
 		}
 
@@ -44,16 +44,16 @@ export class OpenBranchesOnRemoteCommand extends ActiveEditorCommand {
 		const gitUri = uri != null ? await GitUri.fromUri(uri) : undefined;
 
 		const repoPath = (
-			await RepositoryPicker.getBestRepositoryOrShow(
+			await getBestRepositoryOrShowPicker(
 				gitUri,
 				editor,
-				args?.clipboard ? 'Copy Remote Branches Url' : 'Open Branches on Remote',
+				args?.clipboard ? 'Copy Remote Branches URL' : 'Open Branches on Remote',
 			)
 		)?.path;
 		if (!repoPath) return;
 
 		try {
-			void (await executeCommand<OpenOnRemoteCommandArgs>(Commands.OpenOnRemote, {
+			void (await executeCommand<OpenOnRemoteCommandArgs>(GlCommand.OpenOnRemote, {
 				resource: {
 					type: RemoteResourceType.Branches,
 				},
@@ -63,9 +63,7 @@ export class OpenBranchesOnRemoteCommand extends ActiveEditorCommand {
 			}));
 		} catch (ex) {
 			Logger.error(ex, 'OpenBranchesOnRemoteCommand');
-			void window.showErrorMessage(
-				'Unable to open branches on remote provider. See output channel for more details',
-			);
+			void showGenericErrorMessage('Unable to open branches on remote provider');
 		}
 	}
 }

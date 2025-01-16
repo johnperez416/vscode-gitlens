@@ -1,13 +1,13 @@
 import type { TextDocumentShowOptions, TextEditor, Uri } from 'vscode';
 import { Range, window } from 'vscode';
-import type { FileAnnotationType } from '../configuration';
-import { Commands } from '../constants';
+import type { FileAnnotationType } from '../config';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri, isGitUri } from '../git/gitUri';
-import { Logger } from '../logger';
 import { showGenericErrorMessage } from '../messages';
-import { command } from '../system/command';
-import { findOrOpenEditor } from '../system/utils';
+import { Logger } from '../system/logger';
+import { command } from '../system/vscode/command';
+import { findOrOpenEditor } from '../system/vscode/utils';
 import { ActiveEditorCommand, getCommandUri } from './base';
 
 export interface OpenWorkingFileCommandArgs {
@@ -20,7 +20,7 @@ export interface OpenWorkingFileCommandArgs {
 @command()
 export class OpenWorkingFileCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
-		super([Commands.OpenWorkingFile, Commands.OpenWorkingFileInDiffLeft, Commands.OpenWorkingFileInDiffRight]);
+		super([GlCommand.OpenWorkingFile, GlCommand.OpenWorkingFileInDiffLeft, GlCommand.OpenWorkingFileInDiffRight]);
 	}
 
 	async execute(editor: TextEditor, uri?: Uri, args?: OpenWorkingFileCommandArgs) {

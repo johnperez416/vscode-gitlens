@@ -1,13 +1,14 @@
 import type { TextEditor, Uri } from 'vscode';
 import { env } from 'vscode';
-import { configuration } from '../configuration';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri } from '../git/gitUri';
-import { Logger } from '../logger';
+import { shortenRevision } from '../git/models/revision.utils';
 import { showGenericErrorMessage } from '../messages';
-import { command } from '../system/command';
 import { first } from '../system/iterable';
+import { Logger } from '../system/logger';
+import { command } from '../system/vscode/command';
+import { configuration } from '../system/vscode/configuration';
 import type { CommandContext } from './base';
 import {
 	ActiveEditorCommand,
@@ -24,15 +25,13 @@ export interface CopyShaToClipboardCommandArgs {
 @command()
 export class CopyShaToClipboardCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
-		super(Commands.CopyShaToClipboard);
+		super(GlCommand.CopyShaToClipboard);
 	}
 
 	protected override preExecute(context: CommandContext, args?: CopyShaToClipboardCommandArgs) {
 		if (isCommandContextViewNodeHasCommit(context)) {
 			args = { ...args };
-			args.sha = configuration.get('advanced.abbreviateShaOnCopy')
-				? context.node.commit.shortSha
-				: context.node.commit.sha;
+			args.sha = context.node.commit.sha;
 			return this.execute(
 				context.editor,
 				context.node.commit.file?.uri ?? context.node.commit.getRepository()?.uri,
@@ -86,7 +85,9 @@ export class CopyShaToClipboardCommand extends ActiveEditorCommand {
 				}
 			}
 
-			await env.clipboard.writeText(args.sha);
+			await env.clipboard.writeText(
+				configuration.get('advanced.abbreviateShaOnCopy') ? shortenRevision(args.sha) : args.sha,
+			);
 		} catch (ex) {
 			Logger.error(ex, 'CopyShaToClipboardCommand');
 			void showGenericErrorMessage('Unable to copy commit SHA');

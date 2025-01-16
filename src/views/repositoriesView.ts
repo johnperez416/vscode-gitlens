@@ -1,11 +1,9 @@
 import type { CancellationToken, ConfigurationChangeEvent, Disposable, Event } from 'vscode';
 import { EventEmitter, ProgressLocation, window } from 'vscode';
-import type { RepositoriesViewConfig } from '../configuration';
-import { configuration, ViewBranchesLayout, ViewFilesLayout, ViewShowBranchComparison } from '../configuration';
-import { Commands, ContextKeys } from '../constants';
+import type { RepositoriesViewConfig, ViewBranchesLayout, ViewFilesLayout } from '../config';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
-import { setContext } from '../context';
-import { getRemoteNameFromBranchName } from '../git/models/branch';
+import { getRemoteNameFromBranchName } from '../git/models/branch.utils';
 import type { GitCommit } from '../git/models/commit';
 import { isCommit } from '../git/models/commit';
 import type { GitContributor } from '../git/models/contributor';
@@ -15,11 +13,13 @@ import type {
 	GitStashReference,
 	GitTagReference,
 } from '../git/models/reference';
-import { GitReference } from '../git/models/reference';
+import { getReferenceLabel } from '../git/models/reference.utils';
 import type { GitRemote } from '../git/models/remote';
 import type { GitWorktree } from '../git/models/worktree';
-import { executeCommand } from '../system/command';
 import { gate } from '../system/decorators/gate';
+import { executeCommand } from '../system/vscode/command';
+import { configuration } from '../system/vscode/configuration';
+import { setContext } from '../system/vscode/context';
 import { BranchesNode } from './nodes/branchesNode';
 import { BranchNode } from './nodes/branchNode';
 import { BranchOrTagFolderNode } from './nodes/branchOrTagFolderNode';
@@ -33,18 +33,17 @@ import { RemotesNode } from './nodes/remotesNode';
 import { RepositoriesNode } from './nodes/repositoriesNode';
 import { RepositoryNode } from './nodes/repositoryNode';
 import { StashesNode } from './nodes/stashesNode';
-import { StashNode } from './nodes/stashNode';
 import { TagsNode } from './nodes/tagsNode';
 import { WorktreeNode } from './nodes/worktreeNode';
 import { WorktreesNode } from './nodes/worktreesNode';
 import { ViewBase } from './viewBase';
 import { registerViewCommand } from './viewCommands';
 
-export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesViewConfig> {
+export class RepositoriesView extends ViewBase<'repositories', RepositoriesNode, RepositoriesViewConfig> {
 	protected readonly configKey = 'repositories';
 
-	constructor(container: Container) {
-		super(container, 'gitlens.views.repositories', 'Repositories', 'repositoriesView');
+	constructor(container: Container, grouped?: boolean) {
+		super(container, 'repositories', 'Repositories', 'repositoriesView', grouped);
 	}
 
 	private _onDidChangeAutoRefresh = new EventEmitter<void>();
@@ -52,21 +51,15 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 		return this._onDidChangeAutoRefresh.event;
 	}
 
-	override get canSelectMany(): boolean {
-		return false;
-	}
-
 	protected getRoot() {
 		return new RepositoriesNode(this);
 	}
 
 	protected registerCommands(): Disposable[] {
-		void this.container.viewCommands;
-
 		return [
 			registerViewCommand(
 				this.getQualifiedCommand('copy'),
-				() => executeCommand(Commands.ViewsCopy, this.activeSelection, this.selection),
+				() => executeCommand(GlCommand.ViewsCopy, this.activeSelection, this.selection),
 				this,
 			),
 			registerViewCommand(
@@ -79,27 +72,27 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			),
 			registerViewCommand(
 				this.getQualifiedCommand('setBranchesLayoutToList'),
-				() => this.setBranchesLayout(ViewBranchesLayout.List),
+				() => this.setBranchesLayout('list'),
 				this,
 			),
 			registerViewCommand(
 				this.getQualifiedCommand('setBranchesLayoutToTree'),
-				() => this.setBranchesLayout(ViewBranchesLayout.Tree),
+				() => this.setBranchesLayout('tree'),
 				this,
 			),
 			registerViewCommand(
 				this.getQualifiedCommand('setFilesLayoutToAuto'),
-				() => this.setFilesLayout(ViewFilesLayout.Auto),
+				() => this.setFilesLayout('auto'),
 				this,
 			),
 			registerViewCommand(
 				this.getQualifiedCommand('setFilesLayoutToList'),
-				() => this.setFilesLayout(ViewFilesLayout.List),
+				() => this.setFilesLayout('list'),
 				this,
 			),
 			registerViewCommand(
 				this.getQualifiedCommand('setFilesLayoutToTree'),
-				() => this.setFilesLayout(ViewFilesLayout.Tree),
+				() => this.setFilesLayout('tree'),
 				this,
 			),
 			registerViewCommand(
@@ -255,13 +248,15 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			!configuration.changed(e, 'defaultTimeFormat') &&
 			!configuration.changed(e, 'sortBranchesBy') &&
 			!configuration.changed(e, 'sortContributorsBy') &&
-			!configuration.changed(e, 'sortTagsBy')
+			!configuration.changed(e, 'sortTagsBy') &&
+			!configuration.changed(e, 'sortRepositoriesBy')
 		) {
 			return false;
 		}
 
 		return true;
 	}
+
 	protected override onConfigurationChanged(e: ConfigurationChangeEvent) {
 		if (configuration.changed(e, `views.${this.configKey}.autoRefresh` as const)) {
 			void this.setAutoRefresh(configuration.get('views.repositories.autoRefresh'));
@@ -275,10 +270,10 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	findBranch(branch: GitBranchReference, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(branch.repoPath);
+		const { repoPath } = branch;
 
 		if (branch.remote) {
-			return this.findNode((n: any) => n.branch !== undefined && n.branch.ref === branch.ref, {
+			return this.findNode((n: any) => n.branch?.ref === branch.ref, {
 				allowPaging: true,
 				maxDepth: 6,
 				canTraverse: n => {
@@ -286,7 +281,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 					if (n instanceof RepositoriesNode) return true;
 
 					if (n instanceof RemoteNode) {
-						if (!n.id.startsWith(repoNodeId)) return false;
+						if (n.repoPath !== repoPath) return false;
 
 						return branch.remote && n.remote.name === getRemoteNameFromBranchName(branch.name); //branch.getRemoteName();
 					}
@@ -297,7 +292,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 						n instanceof RemotesNode ||
 						n instanceof BranchOrTagFolderNode
 					) {
-						return n.id.startsWith(repoNodeId);
+						return n.repoPath === repoPath;
 					}
 
 					return false;
@@ -306,7 +301,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			});
 		}
 
-		return this.findNode((n: any) => n.branch !== undefined && n.branch.ref === branch.ref, {
+		return this.findNode((n: any) => n.branch?.ref === branch.ref, {
 			allowPaging: true,
 			maxDepth: 5,
 			canTraverse: n => {
@@ -314,7 +309,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode || n instanceof BranchesNode || n instanceof BranchOrTagFolderNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -324,35 +319,35 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	async findCommit(commit: GitCommit | { repoPath: string; ref: string }, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(commit.repoPath);
+		const { repoPath } = commit;
 
 		// Get all the branches the commit is on
-		let branches = await this.container.git.getCommitBranches(
-			commit.repoPath,
-			commit.ref,
-			isCommit(commit) ? { commitDate: commit.committer.date } : undefined,
-		);
+		let branches = await this.container.git
+			.branches(commit.repoPath)
+			.getBranchesForCommit(
+				[commit.ref],
+				undefined,
+				isCommit(commit) ? { commitDate: commit.committer.date } : undefined,
+			);
 		if (branches.length !== 0) {
-			return this.findNode((n: any) => n.commit !== undefined && n.commit.ref === commit.ref, {
+			return this.findNode((n: any) => n.commit?.ref === commit.ref, {
 				allowPaging: true,
 				maxDepth: 6,
 				canTraverse: async n => {
 					// Only search for commit nodes in the same repo within BranchNodes
 					if (n instanceof RepositoriesNode) return true;
 
-					if (n instanceof BranchNode) {
-						if (n.id.startsWith(repoNodeId) && branches.includes(n.branch.name)) {
-							await n.loadMore({ until: commit.ref });
-							return true;
-						}
-					}
-
 					if (
 						n instanceof RepositoryNode ||
 						n instanceof BranchesNode ||
 						n instanceof BranchOrTagFolderNode
 					) {
-						return n.id.startsWith(repoNodeId);
+						return n.repoPath === repoPath;
+					}
+
+					if (n instanceof BranchNode && n.repoPath === repoPath && branches.includes(n.branch.name)) {
+						await n.loadMore({ until: commit.ref });
+						return true;
 					}
 
 					return false;
@@ -362,16 +357,18 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 		}
 
 		// If we didn't find the commit on any local branches, check remote branches
-		branches = await this.container.git.getCommitBranches(
-			commit.repoPath,
-			commit.ref,
-			isCommit(commit) ? { commitDate: commit.committer.date, remotes: true } : { remotes: true },
-		);
+		branches = await this.container.git
+			.branches(commit.repoPath)
+			.getBranchesForCommit(
+				[commit.ref],
+				undefined,
+				isCommit(commit) ? { commitDate: commit.committer.date, remotes: true } : { remotes: true },
+			);
 		if (branches.length === 0) return undefined;
 
 		const remotes = branches.map(b => b.split('/', 1)[0]);
 
-		return this.findNode((n: any) => n.commit !== undefined && n.commit.ref === commit.ref, {
+		return this.findNode((n: any) => n.commit?.ref === commit.ref, {
 			allowPaging: true,
 			maxDepth: 8,
 			canTraverse: n => {
@@ -379,15 +376,15 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RemoteNode) {
-					return n.id.startsWith(repoNodeId) && remotes.includes(n.remote.name);
+					return n.repoPath === repoPath && remotes.includes(n.remote.name);
 				}
 
 				if (n instanceof BranchNode) {
-					return n.id.startsWith(repoNodeId) && branches.includes(n.branch.name);
+					return n.repoPath === repoPath && branches.includes(n.branch.name);
 				}
 
 				if (n instanceof RepositoryNode || n instanceof RemotesNode || n instanceof BranchOrTagFolderNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -397,10 +394,14 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	findContributor(contributor: GitContributor, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(contributor.repoPath);
+		const { repoPath, username, email, name } = contributor;
 
 		return this.findNode(
-			ContributorNode.getId(contributor.repoPath, contributor.name, contributor.email, contributor.username),
+			n =>
+				n instanceof ContributorNode &&
+				n.contributor.username === username &&
+				n.contributor.email === email &&
+				n.contributor.name === name,
 			{
 				maxDepth: 2,
 				canTraverse: n => {
@@ -408,7 +409,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 					if (n instanceof RepositoriesNode) return true;
 
 					if (n instanceof RepositoryNode || n instanceof ContributorsNode) {
-						return n.id.startsWith(repoNodeId);
+						return n.repoPath === repoPath;
 					}
 
 					return false;
@@ -419,7 +420,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	findRemote(remote: GitRemote, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(remote.repoPath);
+		const { repoPath } = remote;
 
 		return this.findNode((n: any) => n.remote?.name === remote.name, {
 			allowPaging: true,
@@ -429,7 +430,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode || n instanceof RemotesNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -439,16 +440,16 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	findStash(stash: GitStashReference, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(stash.repoPath);
+		const { repoPath } = stash;
 
-		return this.findNode(StashNode.getId(stash.repoPath, stash.ref), {
+		return this.findNode((n: any) => n.commit?.ref === stash.ref, {
 			maxDepth: 3,
 			canTraverse: n => {
 				// Only search for stash nodes in the same repo within a StashesNode
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode || n instanceof StashesNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -458,9 +459,9 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	findTag(tag: GitTagReference, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(tag.repoPath);
+		const { repoPath } = tag;
 
-		return this.findNode((n: any) => n.tag !== undefined && n.tag.ref === tag.ref, {
+		return this.findNode((n: any) => n.tag?.ref === tag.ref, {
 			allowPaging: true,
 			maxDepth: 5,
 			canTraverse: n => {
@@ -468,7 +469,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode || n instanceof TagsNode || n instanceof BranchOrTagFolderNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -478,16 +479,17 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	}
 
 	findWorktree(worktree: GitWorktree, token?: CancellationToken) {
-		const repoNodeId = RepositoryNode.getId(worktree.repoPath);
+		const { repoPath, uri } = worktree;
+		const url = uri.toString();
 
-		return this.findNode(WorktreeNode.getId(worktree.repoPath, worktree.uri), {
+		return this.findNode(n => n instanceof WorktreeNode && worktree.uri.toString() === url, {
 			maxDepth: 2,
 			canTraverse: n => {
 				// Only search for worktree nodes in the same repo within WorktreesNode
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode || n instanceof WorktreesNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -508,13 +510,13 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 		return window.withProgress(
 			{
 				location: ProgressLocation.Notification,
-				title: `Revealing ${GitReference.toString(branch, {
+				title: `Revealing ${getReferenceLabel(branch, {
 					icon: false,
 					quoted: true,
 				})} in the Repositories view...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findBranch(branch, token);
 				if (node == null) return undefined;
 
@@ -534,16 +536,14 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			expand?: boolean | number;
 		},
 	) {
-		const repoNodeId = RepositoryNode.getId(repoPath);
-
-		const node = await this.findNode(BranchesNode.getId(repoPath), {
+		const node = await this.findNode(n => n instanceof BranchesNode && n.repoPath === repoPath, {
 			maxDepth: 2,
 			canTraverse: n => {
 				// Only search for branches nodes in the same repo
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -569,13 +569,13 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 		return window.withProgress(
 			{
 				location: ProgressLocation.Notification,
-				title: `Revealing ${GitReference.toString(commit, {
+				title: `Revealing ${getReferenceLabel(commit, {
 					icon: false,
 					quoted: true,
 				})} in the Repositories view...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findCommit(commit, token);
 				if (node == null) return undefined;
 
@@ -601,7 +601,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				title: `Revealing contributor '${contributor.name} in the Repositories view...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findContributor(contributor, token);
 				if (node == null) return undefined;
 
@@ -627,7 +627,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				title: `Revealing remote '${remote.name}' in the side bar...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findRemote(remote, token);
 				if (node == null) return undefined;
 
@@ -647,9 +647,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			expand?: boolean | number;
 		},
 	) {
-		const repoNodeId = RepositoryNode.getId(repoPath);
-
-		const node = await this.findNode(repoNodeId, {
+		const node = await this.findNode(n => n instanceof RepositoryNode && n.repoPath === repoPath, {
 			maxDepth: 1,
 			canTraverse: n => n instanceof RepositoriesNode,
 		});
@@ -673,13 +671,13 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 		return window.withProgress(
 			{
 				location: ProgressLocation.Notification,
-				title: `Revealing ${GitReference.toString(stash, {
+				title: `Revealing ${getReferenceLabel(stash, {
 					icon: false,
 					quoted: true,
 				})} in the Repositories view...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findStash(stash, token);
 				if (node !== undefined) {
 					await this.reveal(node, options);
@@ -699,16 +697,14 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			expand?: boolean | number;
 		},
 	) {
-		const repoNodeId = RepositoryNode.getId(repoPath);
-
-		const node = await this.findNode(StashesNode.getId(repoPath), {
+		const node = await this.findNode(n => n instanceof StashesNode && n.repoPath === repoPath, {
 			maxDepth: 2,
 			canTraverse: n => {
 				// Only search for stashes nodes in the same repo
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -734,13 +730,13 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 		return window.withProgress(
 			{
 				location: ProgressLocation.Notification,
-				title: `Revealing ${GitReference.toString(tag, {
+				title: `Revealing ${getReferenceLabel(tag, {
 					icon: false,
 					quoted: true,
 				})} in the Repositories view...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findTag(tag, token);
 				if (node == null) return undefined;
 
@@ -760,16 +756,14 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			expand?: boolean | number;
 		},
 	) {
-		const repoNodeId = RepositoryNode.getId(repoPath);
-
-		const node = await this.findNode(TagsNode.getId(repoPath), {
+		const node = await this.findNode(n => n instanceof TagsNode && n.repoPath === repoPath, {
 			maxDepth: 2,
 			canTraverse: n => {
 				// Only search for tags nodes in the same repo
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -798,7 +792,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 				title: `Revealing worktree '${worktree.name}' in the side bar...`,
 				cancellable: true,
 			},
-			async (progress, token) => {
+			async (_progress, token) => {
 				const node = await this.findWorktree(worktree, token);
 				if (node == null) return undefined;
 
@@ -818,16 +812,14 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			expand?: boolean | number;
 		},
 	) {
-		const repoNodeId = RepositoryNode.getId(repoPath);
-
-		const node = await this.findNode(WorktreesNode.getId(repoPath), {
+		const node = await this.findNode(n => n instanceof WorktreesNode && n.repoPath === repoPath, {
 			maxDepth: 2,
 			canTraverse: n => {
 				// Only search for worktrees nodes in the same repo
 				if (n instanceof RepositoriesNode) return true;
 
 				if (n instanceof RepositoryNode) {
-					return n.id.startsWith(repoNodeId);
+					return n.repoPath === repoPath;
 				}
 
 				return false;
@@ -850,7 +842,7 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 			}
 		}
 
-		void setContext(ContextKeys.ViewsRepositoriesAutoRefresh, enabled && workspaceEnabled);
+		void setContext('gitlens:views:repositories:autoRefresh', enabled && workspaceEnabled);
 
 		this._onDidChangeAutoRefresh.fire();
 	}
@@ -870,14 +862,14 @@ export class RepositoriesView extends ViewBase<RepositoriesNode, RepositoriesVie
 	private setShowBranchComparison(enabled: boolean) {
 		return configuration.updateEffective(
 			`views.${this.configKey}.showBranchComparison` as const,
-			enabled ? ViewShowBranchComparison.Working : false,
+			enabled ? 'working' : false,
 		);
 	}
 
 	private setBranchShowBranchComparison(enabled: boolean) {
 		return configuration.updateEffective(
 			`views.${this.configKey}.branches.showBranchComparison` as const,
-			enabled ? ViewShowBranchComparison.Branch : false,
+			enabled ? 'branch' : false,
 		);
 	}
 

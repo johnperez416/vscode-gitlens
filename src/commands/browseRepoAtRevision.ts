@@ -1,12 +1,12 @@
 import type { TextEditor, Uri } from 'vscode';
-import { Commands, CoreCommands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri } from '../git/gitUri';
-import { Logger } from '../logger';
 import { showGenericErrorMessage } from '../messages';
-import { command, executeCoreCommand } from '../system/command';
+import { Logger } from '../system/logger';
 import { basename } from '../system/path';
-import { openWorkspace, OpenWorkspaceLocation } from '../system/utils';
+import { command, executeCoreCommand } from '../system/vscode/command';
+import { openWorkspace } from '../system/vscode/utils';
 import type { CommandContext } from './base';
 import { ActiveEditorCommand, getCommandUri } from './base';
 
@@ -21,22 +21,22 @@ export interface BrowseRepoAtRevisionCommandArgs {
 export class BrowseRepoAtRevisionCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
 		super([
-			Commands.BrowseRepoAtRevision,
-			Commands.BrowseRepoAtRevisionInNewWindow,
-			Commands.BrowseRepoBeforeRevision,
-			Commands.BrowseRepoBeforeRevisionInNewWindow,
+			GlCommand.BrowseRepoAtRevision,
+			GlCommand.BrowseRepoAtRevisionInNewWindow,
+			GlCommand.BrowseRepoBeforeRevision,
+			GlCommand.BrowseRepoBeforeRevisionInNewWindow,
 		]);
 	}
 
 	protected override preExecute(context: CommandContext, args?: BrowseRepoAtRevisionCommandArgs) {
 		switch (context.command) {
-			case Commands.BrowseRepoAtRevisionInNewWindow:
+			case GlCommand.BrowseRepoAtRevisionInNewWindow:
 				args = { ...args, before: false, openInNewWindow: true };
 				break;
-			case Commands.BrowseRepoBeforeRevision:
+			case GlCommand.BrowseRepoBeforeRevision:
 				args = { ...args, before: true, openInNewWindow: false };
 				break;
-			case Commands.BrowseRepoBeforeRevisionInNewWindow:
+			case GlCommand.BrowseRepoBeforeRevisionInNewWindow:
 				args = { ...args, before: true, openInNewWindow: true };
 				break;
 		}
@@ -65,12 +65,12 @@ export class BrowseRepoAtRevisionCommand extends ActiveEditorCommand {
 			gitUri = GitUri.fromRevisionUri(uri);
 
 			openWorkspace(uri, {
-				location: args.openInNewWindow ? OpenWorkspaceLocation.NewWindow : OpenWorkspaceLocation.AddToWorkspace,
+				location: args.openInNewWindow ? 'newWindow' : 'addToWorkspace',
 				name: `${basename(gitUri.repoPath!)} @ ${gitUri.shortSha}`,
 			});
 
 			if (!args.openInNewWindow) {
-				void executeCoreCommand(CoreCommands.FocusFilesExplorer);
+				void executeCoreCommand('workbench.files.action.focusFilesExplorer');
 			}
 		} catch (ex) {
 			Logger.error(ex, 'BrowseRepoAtRevisionCommand');
