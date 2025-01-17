@@ -1,19 +1,20 @@
 import type { TextEditor, Uri } from 'vscode';
-import { window } from 'vscode';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri } from '../git/gitUri';
+import { getBranchNameWithoutRemote, getRemoteNameFromBranchName } from '../git/models/branch.utils';
 import { RemoteResourceType } from '../git/models/remoteResource';
-import { Logger } from '../logger';
-import { RepositoryPicker } from '../quickpicks/repositoryPicker';
-import { command, executeCommand } from '../system/command';
+import { showGenericErrorMessage } from '../messages';
+import { getBestRepositoryOrShowPicker } from '../quickpicks/repositoryPicker';
+import { Logger } from '../system/logger';
+import { command, executeCommand } from '../system/vscode/command';
 import { ActiveEditorCommand, getCommandUri } from './base';
 import type { OpenOnRemoteCommandArgs } from './openOnRemote';
 
 @command()
 export class OpenCurrentBranchOnRemoteCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
-		super(Commands.OpenCurrentBranchOnRemote);
+		super(GlCommand.OpenCurrentBranchOnRemote);
 	}
 
 	async execute(editor?: TextEditor, uri?: Uri) {
@@ -21,25 +22,43 @@ export class OpenCurrentBranchOnRemoteCommand extends ActiveEditorCommand {
 
 		const gitUri = uri != null ? await GitUri.fromUri(uri) : undefined;
 
-		const repository = await RepositoryPicker.getBestRepositoryOrShow(gitUri, editor, 'Open Current Branch Name');
+		const repository = await getBestRepositoryOrShowPicker(gitUri, editor, 'Open Current Branch Name');
 		if (repository == null) return;
 
 		try {
-			const branch = await repository.getBranch();
-			if (branch?.name) {
-				void (await executeCommand<OpenOnRemoteCommandArgs>(Commands.OpenOnRemote, {
+			const branch = await repository.git.branches().getBranch();
+			if (branch?.detached) {
+				void (await executeCommand<OpenOnRemoteCommandArgs>(GlCommand.OpenOnRemote, {
 					resource: {
-						type: RemoteResourceType.Branch,
-						branch: branch.name || 'HEAD',
+						type: RemoteResourceType.Commit,
+						sha: branch.sha ?? 'HEAD',
 					},
 					repoPath: repository.path,
 				}));
+
+				return;
 			}
+
+			let branchName;
+			let remoteName;
+			if (branch?.upstream != null && !branch.upstream.missing) {
+				branchName = getBranchNameWithoutRemote(branch.upstream.name);
+				remoteName = getRemoteNameFromBranchName(branch.upstream.name);
+			} else if (branch != null) {
+				branchName = branch.name;
+			}
+
+			void (await executeCommand<OpenOnRemoteCommandArgs>(GlCommand.OpenOnRemote, {
+				resource: {
+					type: RemoteResourceType.Branch,
+					branch: branchName ?? 'HEAD',
+				},
+				remote: remoteName,
+				repoPath: repository.path,
+			}));
 		} catch (ex) {
 			Logger.error(ex, 'OpenCurrentBranchOnRemoteCommand');
-			void window.showErrorMessage(
-				'Unable to open branch on remote provider. See output channel for more details',
-			);
+			void showGenericErrorMessage('Unable to open branch on remote provider');
 		}
 	}
 }

@@ -1,13 +1,14 @@
-import { FileType, Uri, workspace } from 'vscode';
+import type { ChildProcess } from 'child_process';
+import { Uri } from 'vscode';
 import { Schemes } from '../../../constants';
 import { Container } from '../../../container';
-import type { GitCommandOptions } from '../../../git/commandOptions';
+import type { GitCommandOptions, GitSpawnOptions } from '../../../git/commandOptions';
 import type { GitProviderDescriptor } from '../../../git/gitProvider';
-import { GitProviderId } from '../../../git/gitProvider';
 import type { Repository } from '../../../git/models/repository';
-import { Logger } from '../../../logger';
-import { getLogScope } from '../../../system/decorators/log';
-import { addVslsPrefixIfNeeded } from '../../../system/path';
+import { Logger } from '../../../system/logger';
+import { getLogScope } from '../../../system/logger.scope';
+import { addVslsPrefixIfNeeded } from '../../../system/vscode/path';
+import { isFolderUri } from '../../../system/vscode/utils';
 import { Git } from './git';
 import { LocalGitProvider } from './localGitProvider';
 
@@ -16,11 +17,11 @@ export class VslsGit extends Git {
 		super();
 	}
 
-	override async git<TOut extends string | Buffer>(options: GitCommandOptions, ...args: any[]): Promise<TOut> {
+	override async exec<TOut extends string | Buffer>(options: GitCommandOptions, ...args: any[]): Promise<TOut> {
 		if (options.local) {
 			// Since we will have a live share path here, just blank it out
 			options.cwd = '';
-			return this.localGit.git<TOut>(options, ...args);
+			return this.localGit.exec<TOut>(options, ...args);
 		}
 
 		const guest = await Container.instance.vsls.guest();
@@ -31,15 +32,36 @@ export class VslsGit extends Git {
 
 		return guest.git<TOut>(options, ...args);
 	}
+
+	override spawn(_options: GitSpawnOptions, ..._args: any[]): Promise<ChildProcess> {
+		debugger;
+		throw new Error('Git spawn not supported in Live Share');
+	}
+
+	override async logStreamTo(
+		repoPath: string,
+		sha: string,
+		limit: number,
+		options?: { configs?: readonly string[]; stdin?: string },
+		...args: string[]
+	): Promise<[data: string[], count: number]> {
+		const guest = await Container.instance.vsls.guest();
+		if (guest == null) {
+			debugger;
+			throw new Error('No guest');
+		}
+
+		return guest.gitLogStreamTo(repoPath, sha, limit, options, ...args);
+	}
 }
 
 export class VslsGitProvider extends LocalGitProvider {
 	override readonly descriptor: GitProviderDescriptor = {
-		id: GitProviderId.Vsls,
+		id: 'vsls',
 		name: 'Live Share',
 		virtual: false,
 	};
-	override readonly supportedSchemes: Set<string> = new Set([Schemes.Vsls, Schemes.VslsScc]);
+	override readonly supportedSchemes = new Set<string>([Schemes.Vsls, Schemes.VslsScc]);
 
 	override async discoverRepositories(uri: Uri): Promise<Repository[]> {
 		if (!this.supportedSchemes.has(uri.scheme)) return [];
@@ -64,7 +86,8 @@ export class VslsGitProvider extends LocalGitProvider {
 
 	override canHandlePathOrUri(scheme: string, pathOrUri: string | Uri): string | undefined {
 		// TODO@eamodio To support virtual repositories, we need to verify that the path is local here (by converting the shared path to a local path)
-		return super.canHandlePathOrUri(scheme, pathOrUri);
+		const path = super.canHandlePathOrUri(scheme, pathOrUri);
+		return path != null ? `${scheme}:${path}` : undefined;
 	}
 
 	override getAbsoluteUri(pathOrUri: string | Uri, base: string | Uri): Uri {
@@ -84,8 +107,7 @@ export class VslsGitProvider extends LocalGitProvider {
 		let repoPath: string | undefined;
 		try {
 			if (isDirectory == null) {
-				const stats = await workspace.fs.stat(uri);
-				isDirectory = (stats.type & FileType.Directory) === FileType.Directory;
+				isDirectory = await isFolderUri(uri);
 			}
 
 			// If the uri isn't a directory, go up one level
@@ -93,7 +115,13 @@ export class VslsGitProvider extends LocalGitProvider {
 				uri = Uri.joinPath(uri, '..');
 			}
 
-			repoPath = await this.git.rev_parse__show_toplevel(uri.fsPath);
+			let safe;
+			[safe, repoPath] = await this.git.rev_parse__show_toplevel(uri.fsPath);
+			if (safe) {
+				this.unsafePaths.delete(uri.fsPath);
+			} else {
+				this.unsafePaths.add(uri.fsPath);
+			}
 			if (!repoPath) return undefined;
 
 			return repoPath ? Uri.parse(repoPath, true) : undefined;

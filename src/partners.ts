@@ -1,10 +1,10 @@
 import type { CancellationTokenSource, Extension, ExtensionContext, Uri } from 'vscode';
 import { extensions } from 'vscode';
 import type { ActionContext, HoverCommandsActionContext } from './api/gitlens';
-import type { InviteToLiveShareCommandArgs } from './commands';
-import { Commands, CoreCommands } from './constants';
+import type { InviteToLiveShareCommandArgs } from './commands/inviteToLiveShare';
+import { GlCommand } from './constants.commands';
 import { Container } from './container';
-import { executeCommand, executeCoreCommand } from './system/command';
+import { executeCommand, executeCoreCommand } from './system/vscode/command';
 import type { ContactPresence } from './vsls/vsls';
 
 export async function installExtension<T>(
@@ -36,14 +36,14 @@ export async function installExtension<T>(
 			});
 		});
 
-		await executeCoreCommand(CoreCommands.InstallExtension, vsix ?? extensionId);
+		await executeCoreCommand('workbench.extensions.installExtension', vsix ?? extensionId);
 		// Wait for extension activation until timeout expires
 		timer = setTimeout(() => {
 			timer = undefined;
 			tokenSource.cancel();
 		}, timeout);
 
-		return extension;
+		return await extension;
 	} catch {
 		tokenSource.cancel();
 		return undefined;
@@ -76,12 +76,12 @@ function registerLiveShare(context: ExtensionContext) {
 				},
 				run: async (context: ActionContext) => {
 					if (context.type !== 'hover.commands' || context.commit.author.name === 'You') {
-						await executeCommand<InviteToLiveShareCommandArgs>(Commands.InviteToLiveShare, {});
+						await executeCommand<InviteToLiveShareCommandArgs>(GlCommand.InviteToLiveShare, {});
 
 						return;
 					}
 
-					await executeCommand<InviteToLiveShareCommandArgs>(Commands.InviteToLiveShare, {
+					await executeCommand<InviteToLiveShareCommandArgs>(GlCommand.InviteToLiveShare, {
 						email: context.commit.author.email,
 					});
 				},

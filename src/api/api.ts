@@ -32,7 +32,8 @@ export class Api implements GitLensApi {
 }
 
 export function preview() {
-	return (target: any, key: string, descriptor: PropertyDescriptor) => {
+	return (_target: any, _key: string, descriptor: PropertyDescriptor) => {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 		let fn: Function | undefined;
 		if (typeof descriptor.value === 'function') {
 			fn = descriptor.value;
@@ -43,7 +44,7 @@ export function preview() {
 
 		descriptor.value = function (this: any, ...args: any[]) {
 			// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-			if (Container.instance.prereleaseOrDebugging) return fn!.apply(this, args);
+			if (Container.instance.prereleaseOrDebugging) return fn.apply(this, args);
 
 			console.error('GitLens preview APIs are only available in the pre-release edition');
 			return emptyDisposable;

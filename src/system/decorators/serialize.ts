@@ -1,5 +1,6 @@
 export function serialize(): (target: any, key: string, descriptor: PropertyDescriptor) => void {
-	return (target: any, key: string, descriptor: PropertyDescriptor) => {
+	return (_target: any, key: string, descriptor: PropertyDescriptor) => {
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 		let fn: Function | undefined;
 		if (typeof descriptor.value === 'function') {
 			fn = descriptor.value;
@@ -22,7 +23,7 @@ export function serialize(): (target: any, key: string, descriptor: PropertyDesc
 
 			let promise: Promise<any> | undefined = this[serializeKey];
 			// eslint-disable-next-line no-return-await, @typescript-eslint/no-unsafe-return
-			const run = async () => await fn!.apply(this, args);
+			const run = async () => await fn.apply(this, args);
 			if (promise == null) {
 				promise = run();
 			} else {

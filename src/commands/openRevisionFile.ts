@@ -1,14 +1,14 @@
 import type { TextDocumentShowOptions, TextEditor, Uri } from 'vscode';
-import type { FileAnnotationType } from '../configuration';
-import { Commands } from '../constants';
+import type { FileAnnotationType } from '../config';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
+import { openFileAtRevision } from '../git/actions/commit';
 import { GitUri } from '../git/gitUri';
-import { GitRevision } from '../git/models/reference';
-import { Logger } from '../logger';
+import { deletedOrMissing } from '../git/models/revision';
 import { showGenericErrorMessage } from '../messages';
-import { command } from '../system/command';
+import { Logger } from '../system/logger';
+import { command } from '../system/vscode/command';
 import { ActiveEditorCommand, getCommandUri } from './base';
-import { GitActions } from './gitCommands.actions';
 
 export interface OpenRevisionFileCommandArgs {
 	revisionUri?: Uri;
@@ -21,7 +21,11 @@ export interface OpenRevisionFileCommandArgs {
 @command()
 export class OpenRevisionFileCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
-		super([Commands.OpenRevisionFile, Commands.OpenRevisionFileInDiffLeft, Commands.OpenRevisionFileInDiffRight]);
+		super([
+			GlCommand.OpenRevisionFile,
+			GlCommand.OpenRevisionFileInDiffLeft,
+			GlCommand.OpenRevisionFileInDiffRight,
+		]);
 	}
 
 	async execute(editor?: TextEditor, uri?: Uri, args?: OpenRevisionFileCommandArgs) {
@@ -43,7 +47,7 @@ export class OpenRevisionFileCommand extends ActiveEditorCommand {
 					args.revisionUri =
 						commit?.file?.status === 'D'
 							? this.container.git.getRevisionUri(
-									(await commit.getPreviousSha()) ?? GitRevision.deletedOrMissing,
+									(await commit.getPreviousSha()) ?? deletedOrMissing,
 									commit.file,
 									commit.repoPath,
 							  )
@@ -53,7 +57,7 @@ export class OpenRevisionFileCommand extends ActiveEditorCommand {
 				}
 			}
 
-			await GitActions.Commit.openFileAtRevision(args.revisionUri, {
+			await openFileAtRevision(args.revisionUri, {
 				annotationType: args.annotationType,
 				line: args.line,
 				...args.showOptions,

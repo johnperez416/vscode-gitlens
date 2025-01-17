@@ -1,11 +1,12 @@
 import type { TextDocumentShowOptions, TextEditor, Uri } from 'vscode';
-import { Commands } from '../constants';
+import { GlCommand } from '../constants.commands';
 import type { Container } from '../container';
 import { GitUri } from '../git/gitUri';
 import type { GitCommit } from '../git/models/commit';
-import { Logger } from '../logger';
 import { showCommitHasNoPreviousCommitWarningMessage, showGenericErrorMessage } from '../messages';
-import { command, executeCommand } from '../system/command';
+import { Logger } from '../system/logger';
+import { command, executeCommand } from '../system/vscode/command';
+import type { CommandContext } from './base';
 import { ActiveEditorCommand, getCommandUri } from './base';
 import type { DiffWithCommandArgs } from './diffWith';
 
@@ -19,7 +20,15 @@ export interface DiffLineWithPreviousCommandArgs {
 @command()
 export class DiffLineWithPreviousCommand extends ActiveEditorCommand {
 	constructor(private readonly container: Container) {
-		super(Commands.DiffLineWithPrevious);
+		super(GlCommand.DiffLineWithPrevious);
+	}
+
+	protected override preExecute(context: CommandContext, args?: DiffLineWithPreviousCommandArgs): Promise<any> {
+		if (context.type === 'editorLine') {
+			args = { ...args, line: context.line };
+		}
+
+		return this.execute(context.editor, context.uri, args);
 	}
 
 	async execute(editor?: TextEditor, uri?: Uri, args?: DiffLineWithPreviousCommandArgs): Promise<any> {
@@ -41,13 +50,13 @@ export class DiffLineWithPreviousCommand extends ActiveEditorCommand {
 				gitUri.sha,
 			);
 
-			if (diffUris == null || diffUris.previous == null) {
+			if (diffUris?.previous == null) {
 				void showCommitHasNoPreviousCommitWarningMessage();
 
 				return;
 			}
 
-			void (await executeCommand<DiffWithCommandArgs>(Commands.DiffWith, {
+			void (await executeCommand<DiffWithCommandArgs>(GlCommand.DiffWith, {
 				repoPath: diffUris.current.repoPath,
 				lhs: {
 					sha: diffUris.previous.sha ?? '',
