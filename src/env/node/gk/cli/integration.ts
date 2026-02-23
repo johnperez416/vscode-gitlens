@@ -366,6 +366,9 @@ export class GkCliIntegrationProvider implements Disposable {
 						'cli.version': cliVersion,
 					});
 				}
+
+				this.container.events.fire('gk:cli:mcp:setup:completed', undefined);
+
 				return {
 					cliVersion: cliVersion,
 					usingExtensionRegistration: true,

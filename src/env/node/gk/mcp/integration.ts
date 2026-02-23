@@ -19,7 +19,6 @@ type McpConfiguration = { name: string; type: string; command: string; args: str
 const ipcWaitTime = 30000; // 30 seconds
 
 export class GkMcpProvider implements McpServerDefinitionProvider, Disposable {
-	private _cliVersion: string | undefined;
 	private readonly _disposable: Disposable;
 	private readonly _onDidChangeMcpServerDefinitions = new EventEmitter<void>();
 	private _fireChangeDebounced: Deferrable<() => void> | undefined = undefined;
@@ -37,6 +36,7 @@ export class GkMcpProvider implements McpServerDefinitionProvider, Disposable {
 		this._disposable = Disposable.from(
 			this.container.storage.onDidChange(e => this.onStorageChanged(e)),
 			this.container.events.on('gk:cli:ipc:started', () => this.onIpcServerStarted()),
+			this.container.events.on('gk:cli:mcp:setup:completed', () => this.onMcpSetupCompleted()),
 			lm.registerMcpServerDefinitionProvider('gitlens.gkMcpProvider', this),
 		);
 
@@ -66,34 +66,43 @@ export class GkMcpProvider implements McpServerDefinitionProvider, Disposable {
 			return;
 		}
 
-		// Invalidate configuration promise if the version changed
-		if (this._cliVersion !== cliInstall?.version) {
-			this._getMcpConfigurationFromCLIPromise = undefined;
-		}
-		this._cliVersion = cliInstall?.version;
+		// Always invalidate on any completion (including same-version reinstall, where a prior
+		// failed mcp config result would otherwise be served from cache forever)
+		this._getMcpConfigurationFromCLIPromise = undefined;
 
-		this._fireChangeDebounced ??= debounce(() => {
-			this._onDidChangeMcpServerDefinitions.fire();
-		}, 500);
-		this._fireChangeDebounced();
+		this.fireChange();
 	}
 
 	private onIpcServerStarted(): void {
 		this.clearIpcTimeout();
 
 		// Fire change event to refresh MCP server definitions now that GK_GL_ADDR is available
-		this._fireChangeDebounced ??= debounce(() => {
-			this._onDidChangeMcpServerDefinitions.fire();
-		}, 500);
-		this._fireChangeDebounced();
+		this.fireChange();
+	}
+
+	private onMcpSetupCompleted(): void {
+		this._getMcpConfigurationFromCLIPromise = undefined;
+		this.fireChange(true);
 	}
 
 	private onIpcTimeoutExpired(): void {
 		this.clearIpcTimeout();
 
 		if (!this._hasProvidedDefinition) {
-			this._onDidChangeMcpServerDefinitions.fire();
+			this.fireChange(true);
 		}
+	}
+
+	private fireChange(immediate: boolean = false) {
+		if (immediate) {
+			this._onDidChangeMcpServerDefinitions.fire();
+			return;
+		}
+
+		this._fireChangeDebounced ??= debounce(() => {
+			this._onDidChangeMcpServerDefinitions.fire();
+		}, 500);
+		this._fireChangeDebounced();
 	}
 
 	@debug({ exit: true })
@@ -116,13 +125,6 @@ export class GkMcpProvider implements McpServerDefinitionProvider, Disposable {
 
 		const serverEnv: McpStdioServerDefinition['env'] = {};
 		if (discoveryFilePath != null) {
-			// const arg = `--gitlens-discovery-file=${discoveryFilePath}`;
-			// const existingArgIndex = config.args.findIndex(a => a.startsWith('--gitlens-discovery-file='));
-			// if (existingArgIndex === -1) {
-			// 	config.args.push(arg);
-			// } else if (config.args[existingArgIndex] !== arg) {
-			// 	config.args[existingArgIndex] = arg;
-			// }
 			serverEnv['GK_GL_PATH'] = discoveryFilePath;
 		}
 
@@ -150,10 +152,18 @@ export class GkMcpProvider implements McpServerDefinitionProvider, Disposable {
 		const cliInstall = this.container.storage.getScoped('gk:cli:install');
 		const cliPath = this.container.storage.getScoped('gk:cli:path');
 
-		if (cliInstall?.status !== 'completed' || !cliPath) return undefined;
+		if (cliInstall?.status !== 'completed' || !cliPath) {
+			scope?.warn(
+				`CLI not ready — install.status=${cliInstall?.status ?? 'undefined'}, cliPath=${cliPath ? 'set' : 'missing'}`,
+			);
+			return undefined;
+		}
 
 		const appName = toMcpInstallProvider(await getHostAppName());
-		if (appName == null) return undefined;
+		if (appName == null) {
+			scope?.warn(`Unsupported host app — hostAppName=${await getHostAppName()}`);
+			return undefined;
+		}
 
 		try {
 			const args = ['mcp', 'config', appName, '--source=gitlens', `--scheme=${env.uriScheme}`];
