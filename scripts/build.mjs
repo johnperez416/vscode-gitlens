@@ -82,6 +82,29 @@ if (trace) {
 
 console.log(`Running: ${cmd}`);
 
+if (!quick && !watch) {
+	const prettyCmd = process.env.CI ? `pnpm run pretty:check` : `pnpm run pretty`;
+	console.log(`Running: ${prettyCmd}`);
+
+	const prettyCode = await new Promise(resolve => {
+		const pretty = spawn(prettyCmd, [], {
+			shell: true,
+			stdio: 'inherit',
+			env: {
+				...process.env,
+				NODE_FORCE_COLORS: '1',
+				FORCE_COLOR: '1',
+			},
+		});
+
+		pretty.on('exit', code => resolve(code || 0));
+	});
+
+	if (prettyCode !== 0) {
+		process.exit(prettyCode);
+	}
+}
+
 const child = spawn(cmd, [], {
 	shell: true,
 	stdio: 'inherit',
