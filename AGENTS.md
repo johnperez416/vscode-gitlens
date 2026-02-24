@@ -90,12 +90,10 @@ pnpm install              # Install dependencies (requires Node >= 22.12.0, pnpm
 pnpm run rebuild          # Complete rebuild from scratch
 pnpm run build            # Full development build (everything including e2e and unit tests)
 pnpm run build:quick      # Fast build (no linting)
-pnpm run build:turbo      # Turbo build (no typechecking or linting)
 pnpm run build:extension  # Build only the extension (no webviews)
 pnpm run build:webviews   # Build only webviews
 pnpm run bundle           # Production bundle
-pnpm run bundle:e2e       # E2E tests (turbo) production bundle (with DEBUG for account simulation)
-pnpm run bundle:turbo     # Turbo production bundle (no typechecking or linting)
+pnpm run bundle:e2e       # E2E tests production bundle (with DEBUG for account simulation)
 ```
 
 ### Watch Mode
@@ -103,7 +101,6 @@ pnpm run bundle:turbo     # Turbo production bundle (no typechecking or linting)
 ```bash
 pnpm run watch            # Watch mode for development (everything including e2e and unit tests)
 pnpm run watch:quick      # Fast watch mode (no linting)
-pnpm run watch:turbo      # Turbo watch mode (no typechecking or linting)
 pnpm run watch:extension  # Watch extension only
 pnpm run watch:tests      # Watch unit tests only
 pnpm run watch:webviews   # Watch webviews only
