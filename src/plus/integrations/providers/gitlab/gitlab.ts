@@ -1239,7 +1239,7 @@ $search: String!
 		if (ex.reason === AuthenticationErrorReason.Unauthorized || ex.reason === AuthenticationErrorReason.Forbidden) {
 			const confirm = 'Reauthenticate';
 			const result = await window.showErrorMessage(
-				`${ex.userMessage}. Would you like to try reauthenticating${
+				`${ex.message}. Would you like to try reauthenticating${
 					ex.reason === AuthenticationErrorReason.Forbidden ? ' to provide additional access' : ''
 				}?`,
 				confirm,
@@ -1250,7 +1250,7 @@ $search: String!
 				this.resetCaches();
 			}
 		} else {
-			void window.showErrorMessage(ex.userMessage);
+			void window.showErrorMessage(ex.message);
 		}
 	}
 }
