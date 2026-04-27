@@ -105,6 +105,8 @@ What to measure:
 
 Tools: `evaluate_in_webview` with `performance.now()`, `PerformanceObserver`, `performance.getEntriesByType("measure")`, `document.querySelector('...').updateComplete` for Lit.
 
+> **Multi-webview perf**: When two GitLens webviews are open at once (e.g. measuring Commit Details while the Graph is also visible), `evaluate_in_webview` without targeting silently runs in the first webview — usually the wrong one. Run `list_webviews` first, then pass `webview_url: "commitDetails"` (URL substring) or `webview_index: <n>` to scope every measurement to the right webview. Same params work on `wait_for_webview`, `inspect_dom`, `aria_snapshot`, `screenshot`, `click`.
+
 ### 2. RPC / data transfer
 
 What to measure:

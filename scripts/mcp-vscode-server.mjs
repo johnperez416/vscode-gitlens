@@ -440,41 +440,46 @@ function errorResult(message) {
 }
 
 // =============================================================================
-// Find webview frameLocator by title (returns the live #active-frame locator)
+// Find webview frameLocator by index/url/title (returns the live #active-frame locator)
+// Precedence: index → url → title → first-with-content
 // =============================================================================
-async function findWebviewFrameLocator(webviewTitle, extensionId) {
+async function findWebviewFrameLocator({ title, url: urlMatch, index, extensionId } = {}) {
 	requireReady();
 	const webviews = getWebviewFrameLocators(page);
 
-	for (const { frameLocator, outerFrame, url } of webviews) {
-		// Filter by extension ID if provided
-		if (
-			extensionId &&
-			!url.includes(`extensionId=${extensionId}`) &&
-			!url.includes(encodeURIComponent(extensionId))
-		) {
-			continue;
-		}
-		// Check if the outer frame's title matches
-		if (webviewTitle) {
-			try {
-				const title = await outerFrame.title().catch(() => '');
-				if (title && title.toLowerCase().includes(webviewTitle.toLowerCase())) {
-					return { frameLocator, outerFrame };
-				}
-			} catch {}
+	const filtered = extensionId
+		? webviews.filter(
+				w => w.url.includes(`extensionId=${extensionId}`) || w.url.includes(encodeURIComponent(extensionId)),
+			)
+		: webviews;
+
+	if (index != null) {
+		const entry = filtered[index];
+		return entry ? { frameLocator: entry.frameLocator, outerFrame: entry.outerFrame } : null;
+	}
+
+	if (urlMatch) {
+		const needle = urlMatch.toLowerCase();
+		const entry = filtered.find(w => w.url.toLowerCase().includes(needle));
+		if (entry) return { frameLocator: entry.frameLocator, outerFrame: entry.outerFrame };
+	}
+
+	if (title) {
+		for (const entry of filtered) {
+			const t = await entry.outerFrame.title().catch(() => '');
+			if (t && t.toLowerCase().includes(title.toLowerCase())) {
+				return { frameLocator: entry.frameLocator, outerFrame: entry.outerFrame };
+			}
 		}
 	}
-	// Fallback: return first webview with non-empty content (only when no title specified)
-	if (!webviewTitle) {
-		for (const entry of webviews) {
-			try {
-				const bodyText = await entry.frameLocator
-					.locator('body')
-					.textContent({ timeout: 500 })
-					.catch(() => '');
-				if (bodyText) return entry;
-			} catch {}
+
+	if (!title && !urlMatch && index == null) {
+		for (const entry of filtered) {
+			const bodyText = await entry.frameLocator
+				.locator('body')
+				.textContent({ timeout: 500 })
+				.catch(() => '');
+			if (bodyText) return { frameLocator: entry.frameLocator, outerFrame: entry.outerFrame };
 		}
 	}
 	return null;
@@ -715,6 +720,19 @@ server.tool(
 	{
 		target: z.enum(['full', 'webview']).optional().describe('What to capture (default: full)'),
 		webview_title: z.string().optional().describe('Title of the webview to capture (for target: webview)'),
+		webview_url: z
+			.string()
+			.optional()
+			.describe(
+				'Substring match against webview URL (e.g. "commitDetails", "graph"). Use when titles are empty or ambiguous. Matches against the id/purpose/extensionId query params in vscode-webview:// URLs.',
+			),
+		webview_index: z
+			.number()
+			.int()
+			.optional()
+			.describe(
+				'0-based index into list_webviews output. Deterministic fallback when title and url matching are insufficient.',
+			),
 		scale: z
 			.enum(['css', 'device'])
 			.optional()
@@ -725,9 +743,14 @@ server.tool(
 		const screenshotOpts = { fullPage: true };
 		if (args.scale) screenshotOpts.scale = args.scale;
 		try {
-			if (args.target === 'webview' && args.webview_title) {
+			if (args.target === 'webview' && (args.webview_title || args.webview_url || args.webview_index != null)) {
 				// Try to find and screenshot just the webview
-				const result = await findWebviewFrameLocator(args.webview_title, sessionConfig.extensionId);
+				const result = await findWebviewFrameLocator({
+					title: args.webview_title,
+					url: args.webview_url,
+					index: args.webview_index,
+					extensionId: sessionConfig.extensionId,
+				});
 				if (result) {
 					// Screenshot the outer frame's element (contains the full webview)
 					try {
@@ -819,18 +842,38 @@ server.tool(
 		in_webview: z
 			.boolean()
 			.optional()
-			.describe('Search within webview iframes (default: false). Implied by webview_title.'),
+			.describe('Search within webview iframes (default: false). Implied by webview_title/url/index.'),
 		webview_title: z.string().optional().describe('Specific webview to search in (implies in_webview)'),
+		webview_url: z
+			.string()
+			.optional()
+			.describe(
+				'Substring match against webview URL (e.g. "commitDetails", "graph"). Use when titles are empty or ambiguous. Matches against the id/purpose/extensionId query params in vscode-webview:// URLs.',
+			),
+		webview_index: z
+			.number()
+			.int()
+			.optional()
+			.describe(
+				'0-based index into list_webviews output. Deterministic fallback when title and url matching are insufficient.',
+			),
 	},
 	async args => {
 		requireReady();
+		const targetingWebview = args.webview_title || args.webview_url || args.webview_index != null;
 		try {
-			if (args.in_webview || args.webview_title) {
-				if (args.webview_title) {
-					const result = await findWebviewFrameLocator(args.webview_title, sessionConfig.extensionId);
+			if (args.in_webview || targetingWebview) {
+				if (targetingWebview) {
+					const result = await findWebviewFrameLocator({
+						title: args.webview_title,
+						url: args.webview_url,
+						index: args.webview_index,
+						extensionId: sessionConfig.extensionId,
+					});
 					if (result) {
 						await result.frameLocator.locator(args.selector).first().click({ timeout: 3000 });
-						return textResult(`Clicked "${args.selector}" in webview "${args.webview_title}".`);
+						const label = args.webview_title ?? args.webview_url ?? `index=${args.webview_index}`;
+						return textResult(`Clicked "${args.selector}" in webview "${label}".`);
 					}
 				}
 				// Search all frames
@@ -906,6 +949,19 @@ server.tool(
 		selector: z.string().describe('CSS selector to query'),
 		in_webview: z.boolean().optional().describe('Search within webview iframes (default: false)'),
 		webview_title: z.string().optional().describe('Specific webview to search in'),
+		webview_url: z
+			.string()
+			.optional()
+			.describe(
+				'Substring match against webview URL (e.g. "commitDetails", "graph"). Use when titles are empty or ambiguous. Matches against the id/purpose/extensionId query params in vscode-webview:// URLs.',
+			),
+		webview_index: z
+			.number()
+			.int()
+			.optional()
+			.describe(
+				'0-based index into list_webviews output. Deterministic fallback when title and url matching are insufficient.',
+			),
 		property: z
 			.enum(['textContent', 'innerHTML', 'outerHTML', 'attributes', 'shadowDOM'])
 			.optional()
@@ -918,12 +974,19 @@ server.tool(
 		requireReady();
 		const prop = args.property ?? 'textContent';
 		const maxResults = args.max_results ?? 10;
+		const targetingWebview = args.webview_title || args.webview_url || args.webview_index != null;
 
 		try {
-			if (args.in_webview || args.webview_title) {
+			if (args.in_webview || targetingWebview) {
 				// Search in webview frames
-				if (args.webview_title) {
-					const result = await findWebviewFrameLocator(args.webview_title, sessionConfig.extensionId);
+				if (targetingWebview) {
+					const result = await findWebviewFrameLocator({
+						title: args.webview_title,
+						url: args.webview_url,
+						index: args.webview_index,
+						extensionId: sessionConfig.extensionId,
+					});
+					const label = args.webview_title ?? args.webview_url ?? `index=${args.webview_index}`;
 					if (result) {
 						const results = await extractFromLocator(
 							result.frameLocator.locator(args.selector),
@@ -933,10 +996,10 @@ server.tool(
 						return textResult(
 							results.length > 0
 								? results.map((r, i) => `[${i}] ${r}`).join('\n')
-								: `No elements matching "${args.selector}" in webview "${args.webview_title}".`,
+								: `No elements matching "${args.selector}" in webview "${label}".`,
 						);
 					}
-					return errorResult(`Webview "${args.webview_title}" not found.`);
+					return errorResult(`Webview "${label}" not found.`);
 				}
 				// Search all frames
 				const webviews = getWebviewFrameLocators(page);
@@ -1062,14 +1125,34 @@ server.tool(
 		selector: z.string().optional().describe('CSS selector for subtree (default: body)'),
 		in_webview: z.boolean().optional().describe('Capture snapshot inside webview iframes (default: false)'),
 		webview_title: z.string().optional().describe('Specific webview to capture snapshot from'),
+		webview_url: z
+			.string()
+			.optional()
+			.describe(
+				'Substring match against webview URL (e.g. "commitDetails", "graph"). Use when titles are empty or ambiguous. Matches against the id/purpose/extensionId query params in vscode-webview:// URLs.',
+			),
+		webview_index: z
+			.number()
+			.int()
+			.optional()
+			.describe(
+				'0-based index into list_webviews output. Deterministic fallback when title and url matching are insufficient.',
+			),
 	},
 	async args => {
 		requireReady();
 		const sel = args.selector ?? 'body';
+		const targetingWebview = args.webview_title || args.webview_url || args.webview_index != null;
 		try {
-			if (args.webview_title) {
-				const result = await findWebviewFrameLocator(args.webview_title, sessionConfig.extensionId);
-				if (!result) return errorResult(`Webview "${args.webview_title}" not found.`);
+			if (targetingWebview) {
+				const result = await findWebviewFrameLocator({
+					title: args.webview_title,
+					url: args.webview_url,
+					index: args.webview_index,
+					extensionId: sessionConfig.extensionId,
+				});
+				const label = args.webview_title ?? args.webview_url ?? `index=${args.webview_index}`;
+				if (!result) return errorResult(`Webview "${label}" not found.`);
 				const snapshot = await result.frameLocator.locator(sel).first().ariaSnapshot({ timeout: 5000 });
 				return textResult(snapshot);
 			}
@@ -1099,7 +1182,7 @@ server.tool(
 // --- list_webviews -----------------------------------------------------------
 server.tool(
 	'list_webviews',
-	'List all open webviews with their titles, URLs, dimensions, and content status. Useful for discovering webview titles before using other webview-targeting tools.',
+	'List all open webviews with their index, id, title, URL, dimensions, and content status. Use `index` or `id` (or a substring of `url`) with webview-targeting tools to disambiguate when titles are empty.',
 	{},
 	async () => {
 		requireReady();
@@ -1109,16 +1192,18 @@ server.tool(
 
 			const results = [];
 			for (const { frameLocator, outerFrame, url } of webviews) {
-				const entry = { url: url.substring(0, 120) };
+				const entry = { index: results.length, url: url.substring(0, 120) };
 				try {
 					entry.title = await outerFrame.title().catch(() => '(unknown)');
 				} catch {
 					entry.title = '(unknown)';
 				}
-				// Parse extensionId from URL query params
+				// Parse identifying query params from URL
 				try {
 					const u = new URL(url);
+					entry.id = u.searchParams.get('id') ?? undefined;
 					entry.extensionId = u.searchParams.get('extensionId') ?? undefined;
+					entry.purpose = u.searchParams.get('purpose') ?? undefined;
 				} catch {}
 				// Get dimensions
 				try {
@@ -1178,7 +1263,7 @@ server.tool(
 // --- evaluate_in_webview -----------------------------------------------------
 server.tool(
 	'evaluate_in_webview',
-	'Run JavaScript in the webview renderer context (browser/DOM). Access document, shadow DOM, Lit component state, computed styles, scroll positions. Does NOT have vscode API — use "evaluate" for that.',
+	'Run JavaScript in the webview renderer context (browser/DOM). Access document, shadow DOM, Lit component state, computed styles, scroll positions. Does NOT have vscode API — use "evaluate" for that. With multiple webviews open, target a specific one with `webview_url` (e.g. "commitDetails") or `webview_index` from list_webviews.',
 	{
 		expression: z
 			.string()
@@ -1186,15 +1271,38 @@ server.tool(
 				'JS expression to evaluate in the webview (e.g. "document.title", "document.querySelector(\'gl-home-app\').shadowRoot.innerHTML")',
 			),
 		webview_title: z.string().optional().describe('Webview to evaluate in (default: first found)'),
+		webview_url: z
+			.string()
+			.optional()
+			.describe(
+				'Substring match against webview URL (e.g. "commitDetails", "graph"). Use when titles are empty or ambiguous. Matches against the id/purpose/extensionId query params in vscode-webview:// URLs.',
+			),
+		webview_index: z
+			.number()
+			.int()
+			.optional()
+			.describe(
+				'0-based index into list_webviews output. Deterministic fallback when title and url matching are insufficient.',
+			),
 	},
 	async args => {
 		requireReady();
+		const targetingWebview = args.webview_title || args.webview_url || args.webview_index != null;
 		try {
-			const result = await findWebviewFrameLocator(args.webview_title, sessionConfig.extensionId);
+			const result = await findWebviewFrameLocator({
+				title: args.webview_title,
+				url: args.webview_url,
+				index: args.webview_index,
+				extensionId: sessionConfig.extensionId,
+			});
 			if (!result) {
+				const label =
+					args.webview_title ??
+					args.webview_url ??
+					(args.webview_index != null ? `index=${args.webview_index}` : null);
 				return errorResult(
-					args.webview_title
-						? `Webview "${args.webview_title}" not found. Use "list_webviews" to see available webviews.`
+					targetingWebview
+						? `Webview "${label}" not found. Use "list_webviews" to see available webviews.`
 						: 'No webviews found. Open a webview first.',
 				);
 			}
@@ -1216,9 +1324,22 @@ server.tool(
 // --- wait_for_webview --------------------------------------------------------
 server.tool(
 	'wait_for_webview',
-	'Wait for a webview to be loaded and rendered. Checks for the removal of the "preload" CSS class (Lit hydration signal) or non-empty body content as fallback.',
+	'Wait for a webview to be loaded and rendered. Checks for the removal of the "preload" CSS class (Lit hydration signal) or non-empty body content as fallback. With multiple webviews open, target a specific one with `webview_url` (e.g. "commitDetails") or `webview_index` from list_webviews.',
 	{
 		webview_title: z.string().optional().describe('Title of the webview to wait for (default: any webview)'),
+		webview_url: z
+			.string()
+			.optional()
+			.describe(
+				'Substring match against webview URL (e.g. "commitDetails", "graph"). Use when titles are empty or ambiguous. Matches against the id/purpose/extensionId query params in vscode-webview:// URLs.',
+			),
+		webview_index: z
+			.number()
+			.int()
+			.optional()
+			.describe(
+				'0-based index into list_webviews output. Deterministic fallback when title and url matching are insufficient.',
+			),
 		selector: z.string().optional().describe('CSS selector to wait for inside the webview'),
 		timeout_ms: z.number().optional().describe('Maximum wait time in ms (default: 10000)'),
 	},
@@ -1228,7 +1349,12 @@ server.tool(
 		const startTime = Date.now();
 
 		while (Date.now() - startTime < timeout) {
-			const result = await findWebviewFrameLocator(args.webview_title, sessionConfig.extensionId);
+			const result = await findWebviewFrameLocator({
+				title: args.webview_title,
+				url: args.webview_url,
+				index: args.webview_index,
+				extensionId: sessionConfig.extensionId,
+			});
 			if (result) {
 				try {
 					if (args.selector) {
@@ -1263,8 +1389,15 @@ server.tool(
 			await page.waitForTimeout(500);
 		}
 
+		const target = args.webview_title
+			? ` Title: "${args.webview_title}".`
+			: args.webview_url
+				? ` URL match: "${args.webview_url}".`
+				: args.webview_index != null
+					? ` Index: ${args.webview_index}.`
+					: '';
 		return errorResult(
-			`Webview not ready after ${timeout}ms.${args.webview_title ? ` Title: "${args.webview_title}".` : ''} Use "list_webviews" to check available webviews.`,
+			`Webview not ready after ${timeout}ms.${target} Use "list_webviews" to check available webviews.`,
 		);
 	},
 );

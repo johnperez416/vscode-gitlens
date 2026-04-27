@@ -76,7 +76,7 @@ Infer rebuild strategy from which files got edited. Bias toward webview-only whe
 1. `launch` VS Code (skip if already running in this session).
 2. `execute_command` to open the target view.
 3. `list_webviews` + `wait_for_webview` to confirm Lit hydration.
-4. `screenshot { target: "webview", webview_title: "<name>" }`.
+4. `screenshot { target: "webview", webview_title: "<name>" }`. If multiple webviews are open and titles are empty/ambiguous, target by `webview_url` (URL substring like `"commitDetails"`) or `webview_index` from `list_webviews` instead — same params on every webview-targeting tool.
 5. Present to the user: one sentence on what's on screen + attached screenshot. Invite feedback:
 
    > "What would you like to change?"

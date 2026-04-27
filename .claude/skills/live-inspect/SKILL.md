@@ -242,13 +242,29 @@ Root element tag convention: `gl-<name>-app`. Use these for `inspect_dom` select
 
 GitLens webviews use **Lit web components** with Shadow DOM. Here's the recommended approach:
 
-1. **Discover**: `list_webviews` to find open webviews and their exact titles (or use the reference table above)
+1. **Discover**: `list_webviews` to find open webviews. Output includes `index`, `id` (e.g. `gitlens.views.commitDetails`), `title`, `url`, dimensions, and content status. (Or use the reference table above.)
 2. **Wait**: `wait_for_webview { webview_title: "Home" }` to ensure Lit hydration is complete
 3. **Structure**: `aria_snapshot { webview_title: "Home" }` for the accessibility tree
 4. **Shadow DOM**: `inspect_dom { selector: "gl-home-app", property: "shadowDOM", in_webview: true, webview_title: "Home" }` to see rendered Lit templates
 5. **JS state**: `evaluate_in_webview { expression: "document.querySelector('gl-home-app').shadowRoot.querySelector('.my-element').textContent" }` to read shadow DOM content. Use `.shadowRoot.querySelector()` to reach elements inside Lit shadow roots — plain `document.querySelector()` cannot cross shadow boundaries.
 6. **Styles**: `evaluate_in_webview { expression: "getComputedStyle(document.querySelector('gl-home-app').shadowRoot.querySelector('.my-element')).color" }` for computed styles
 7. **Errors**: `read_console { level: "error" }` to check for JS errors in the main process. For webview-specific errors, use `evaluate_in_webview` to inspect state directly.
+
+#### Targeting a specific webview when multiple are open
+
+When more than one webview is visible (e.g. Graph + Commit Details), `webview_title` matching can silently fail because outer-frame titles are often empty for unfocused webviews, and the tool falls back to "first webview with content" — which is usually the wrong one. All webview-targeting tools (`evaluate_in_webview`, `wait_for_webview`, `inspect_dom`, `aria_snapshot`, `screenshot`, `click`) accept three matchers:
+
+- `webview_title` — outer-frame title (best when titles are reliable; matches the table above)
+- `webview_url` — case-insensitive substring of the webview URL. Matches the `id`/`purpose`/`extensionId` query params in `vscode-webview://` URLs. Use a fragment like `"commitDetails"` or `"graph"`.
+- `webview_index` — 0-based index from `list_webviews`. Deterministic fallback when title and URL matching are insufficient.
+
+Precedence: `index` → `url` → `title` → first-with-content. Pick `webview_url` first (intent-revealing); fall back to `webview_index` if needed.
+
+```
+list_webviews
+# returns [{ index: 0, id: "gitlens.views.graph", ... }, { index: 1, id: "gitlens.views.commitDetails", ... }]
+evaluate_in_webview { webview_url: "commitDetails", expression: "performance.now()" }
+```
 
 ### Screenshot Best Practices
 
