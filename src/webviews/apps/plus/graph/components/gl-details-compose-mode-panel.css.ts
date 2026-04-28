@@ -97,6 +97,7 @@ export const composeModePanelStyles = css`
 	   Compose or Refine call without waiting on the AI to resolve. */
 	.compose-cancel {
 		align-self: center;
+		margin-top: 1rem;
 		margin-bottom: 1.2rem;
 	}
 

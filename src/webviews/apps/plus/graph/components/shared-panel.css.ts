@@ -91,7 +91,7 @@ export const panelLoadingStyles = css`
 		align-items: center;
 		justify-content: center;
 		gap: 1rem;
-		padding: 3rem 1rem;
+		padding: 3rem 1rem 0;
 		color: var(--vscode-descriptionForeground);
 	}
 

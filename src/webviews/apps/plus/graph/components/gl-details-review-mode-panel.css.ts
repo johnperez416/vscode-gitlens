@@ -179,7 +179,7 @@ export const reviewModePanelStyles = css`
 	}
 
 	.review-cancel {
-		padding-bottom: 1.2rem;
+		margin-bottom: 1.2rem;
 	}
 
 	/* Review scope toggle */
