@@ -5574,31 +5574,29 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (repoPath == null) return;
 
 		const filters = this.getFiltersByRepo(repoPath);
-		if (filters == null) return;
-
 		const cleared = {
-			'cleared.branchesVisibility': filters.branchesVisibility != null,
-			'cleared.excludeTypes': hasKeys(filters.excludeTypes),
-			'cleared.includeOnlyRefs': hasKeys(filters.includeOnlyRefs),
-			'cleared.excludeRefs': hasKeys(filters.excludeRefs),
+			'cleared.branchesVisibility': filters?.branchesVisibility != null,
+			'cleared.excludeTypes': hasKeys(filters?.excludeTypes),
+			'cleared.includeOnlyRefs': hasKeys(filters?.includeOnlyRefs),
+			'cleared.excludeRefs': hasKeys(filters?.excludeRefs),
 		};
 
 		if (
-			!cleared['cleared.branchesVisibility'] &&
-			!cleared['cleared.excludeTypes'] &&
-			!cleared['cleared.includeOnlyRefs'] &&
-			!cleared['cleared.excludeRefs']
+			cleared['cleared.branchesVisibility'] ||
+			cleared['cleared.excludeTypes'] ||
+			cleared['cleared.includeOnlyRefs'] ||
+			cleared['cleared.excludeRefs']
 		) {
-			return;
+			this.host.sendTelemetryEvent('graph/filters/cleared', cleared);
+
+			const filtersByRepo = this.container.storage.getWorkspace('graph:filtersByRepo');
+			void this.container.storage.storeWorkspace(
+				'graph:filtersByRepo',
+				updateRecordValue(filtersByRepo, repoPath, undefined),
+			);
 		}
 
-		this.host.sendTelemetryEvent('graph/filters/cleared', cleared);
-
-		const filtersByRepo = this.container.storage.getWorkspace('graph:filtersByRepo');
-		void this.container.storage.storeWorkspace(
-			'graph:filtersByRepo',
-			updateRecordValue(filtersByRepo, repoPath, undefined),
-		);
+		// Always notify so the webview-side deferred scope clear (set by handleModeClear) runs.
 		void this.notifyDidChangeRefsVisibility();
 	}
 
