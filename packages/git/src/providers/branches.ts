@@ -12,6 +12,8 @@ export interface BranchContributionsOverview extends GitCommitStats<number> {
 	readonly branch: string;
 	readonly mergeTarget: string;
 	readonly mergeBase: string;
+	/** Committer date of the merge-base commit. Lets consumers (e.g. the graph minimap scope window) anchor on the same date semantics as the minimap aggregation without a separate commit fetch. */
+	readonly mergeBaseDate: Date | undefined;
 
 	readonly commits: number;
 	readonly latestCommitDate: Date | undefined;

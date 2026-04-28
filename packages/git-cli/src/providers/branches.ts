@@ -403,12 +403,18 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			);
 			if (mergeBase == null) return undefined;
 
-			const result = await this.provider.contributors.getContributors(
-				repoPath,
-				createRevisionRange(mergeBase, ref, '..'),
-				{ stats: true },
-				cancellation,
-			);
+			// Fetch the merge-base commit's dates in parallel with contributors so consumers
+			// (e.g. the graph minimap scope window) don't pay a separate round-trip for them.
+			const [contributorsResult, mergeBaseDates] = await Promise.all([
+				this.provider.contributors.getContributors(
+					repoPath,
+					createRevisionRange(mergeBase, ref, '..'),
+					{ stats: true },
+					cancellation,
+				),
+				this.provider.commits.getCommitDates(repoPath, mergeBase, cancellation).catch(() => undefined),
+			]);
+			const result = contributorsResult;
 
 			sortContributors(result.contributors, { orderBy: 'score:desc' });
 
@@ -446,6 +452,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				branch: ref,
 				mergeTarget: mergeTarget,
 				mergeBase: mergeBase,
+				mergeBaseDate: mergeBaseDates?.committerDate,
 
 				commits: totalCommits,
 				files: totalFiles,
@@ -815,48 +822,67 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	}
 
 	@debug()
-	async getBranchMergedStatus(
+	getBranchMergedStatus(
 		repoPath: string,
 		branch: GitBranchReference,
 		into: GitBranchReference,
 		cancellation?: AbortSignal,
 	): Promise<GitBranchMergedStatus> {
 		if (branch.name === into.name || branch.upstream?.name === into.name) {
-			return { merged: false };
+			return Promise.resolve({ merged: false });
 		}
 
-		const result = await this.getBranchMergedStatusCore(repoPath, branch, into, cancellation);
-		if (result.merged) return result;
+		// Cache key omits repoPath so worktrees of the same common repo share the cached answer.
+		// Branch refs (`refs/heads/*` / `refs/remotes/*`) are unique within a common repo, so
+		// `name` + `remote` flag is the minimal stable identity.
+		const cacheKey = `${branch.remote ? 'r' : 'l'}:${branch.name}|${into.remote ? 'r' : 'l'}:${into.name}`;
 
-		// If the branch we are checking is a remote branch, check if it has been merged into its local branch (if there is one)
-		if (into.remote) {
-			const localIntoBranch = await this.getLocalBranchByUpstream(repoPath, into.name, cancellation);
-			// If there is a local branch and it is not the branch we are checking, check if it has been merged into it
-			if (localIntoBranch != null && localIntoBranch.name !== branch.name) {
-				// Skip the second full merge-check cycle when the local branch points at the same commit as the remote —
-				// the merge-base/cherry/diff/apply pipeline would produce the same answer we already got for `into` above
-				if (localIntoBranch.sha != null && localIntoBranch.sha === into.sha) {
-					return { merged: false };
+		return this.cache.getBranchMergedStatus(
+			repoPath,
+			cacheKey,
+			async (commonPath, _cacheable, signal) => {
+				const result = await this.getBranchMergedStatusCore(commonPath, branch, into, signal);
+				if (result.merged) return result;
+
+				// If the branch we are checking is a remote branch, check if it has been merged into its local branch (if there is one)
+				if (into.remote) {
+					const localIntoBranch = await this.getLocalBranchByUpstream(commonPath, into.name, signal);
+					// If there is a local branch and it is not the branch we are checking, check if it has been merged into it
+					if (localIntoBranch != null && localIntoBranch.name !== branch.name) {
+						// Skip the second full merge-check cycle when the local branch points at the same commit as the remote —
+						// the merge-base/cherry/diff/apply pipeline would produce the same answer we already got for `into` above
+						if (localIntoBranch.sha != null && localIntoBranch.sha === into.sha) {
+							return { merged: false };
+						}
+
+						const result = await this.getBranchMergedStatusCore(
+							commonPath,
+							branch,
+							localIntoBranch,
+							signal,
+						);
+						if (result.merged) {
+							// `localBranchOnly` is built against `commonPath` here; the cache mapper rewrites
+							// `repoPath`/`id` to the requesting worktree on retrieval.
+							return {
+								...result,
+								localBranchOnly: createReference(localIntoBranch.ref, localIntoBranch.repoPath, {
+									id: localIntoBranch.id,
+									refType: 'branch',
+									name: localIntoBranch.name,
+									remote: localIntoBranch.remote,
+									upstream: localIntoBranch.upstream,
+									sha: localIntoBranch.sha,
+								}),
+							};
+						}
+					}
 				}
 
-				const result = await this.getBranchMergedStatusCore(repoPath, branch, localIntoBranch, cancellation);
-				if (result.merged) {
-					return {
-						...result,
-						localBranchOnly: createReference(localIntoBranch.ref, localIntoBranch.repoPath, {
-							id: localIntoBranch.id,
-							refType: 'branch',
-							name: localIntoBranch.name,
-							remote: localIntoBranch.remote,
-							upstream: localIntoBranch.upstream,
-							sha: localIntoBranch.sha,
-						}),
-					};
-				}
-			}
-		}
-
-		return { merged: false };
+				return { merged: false };
+			},
+			cancellation,
+		);
 	}
 
 	private async getBranchMergedStatusCore(
@@ -1216,36 +1242,43 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	}
 
 	@debug({ exit: true })
-	async getBaseBranchName(repoPath: string, ref: string, cancellation?: AbortSignal): Promise<string | undefined> {
-		try {
-			// getGkConfig has built-in fallback to regular config for backward compatibility
-			let mergeBase = await this.provider.config.getGkConfig(repoPath, `branch.${ref}.gk-merge-base`);
-			let update = false;
+	getBaseBranchName(repoPath: string, ref: string, cancellation?: AbortSignal): Promise<string | undefined> {
+		return this.cache.getBaseBranchName(
+			repoPath,
+			ref,
+			async (commonPath, signal) => {
+				try {
+					// getGkConfig has built-in fallback to regular config for backward compatibility
+					let mergeBase = await this.provider.config.getGkConfig(commonPath, `branch.${ref}.gk-merge-base`);
+					let update = false;
 
-			// Also check vscode-merge-base in regular config (VS Code compatibility)
-			if (mergeBase == null) {
-				mergeBase = await this.provider.config.getConfig(repoPath, `branch.${ref}.vscode-merge-base`);
-				update = mergeBase != null;
-			}
-
-			if (mergeBase != null) {
-				const branch = await this.provider.refs.getSymbolicReferenceName(repoPath, mergeBase);
-				if (branch != null) {
-					if (update) {
-						void this.storeBaseBranchName(repoPath, ref, branch);
+					// Also check vscode-merge-base in regular config (VS Code compatibility)
+					if (mergeBase == null) {
+						mergeBase = await this.provider.config.getConfig(commonPath, `branch.${ref}.vscode-merge-base`);
+						update = mergeBase != null;
 					}
+
+					if (mergeBase != null) {
+						const branch = await this.provider.refs.getSymbolicReferenceName(commonPath, mergeBase);
+						if (branch != null) {
+							if (update) {
+								void this.storeBaseBranchName(commonPath, ref, branch);
+							}
+							return branch;
+						}
+					}
+				} catch {}
+
+				const branch = await this.getBaseBranchFromReflog(commonPath, ref, { upstream: true }, signal);
+				if (branch != null) {
+					void this.storeBaseBranchName(commonPath, ref, branch);
 					return branch;
 				}
-			}
-		} catch {}
 
-		const branch = await this.getBaseBranchFromReflog(repoPath, ref, { upstream: true }, cancellation);
-		if (branch != null) {
-			void this.storeBaseBranchName(repoPath, ref, branch);
-			return branch;
-		}
-
-		return undefined;
+				return undefined;
+			},
+			cancellation,
+		);
 	}
 
 	private async getBaseBranchFromReflog(
@@ -1423,51 +1456,53 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	 * Gets all branch metadata (dates and disposition) from git config in a single batch operation.
 	 * @returns A map of branch name to metadata.
 	 */
-	private async getBranchMetadataMap(repoPath: string): Promise<Map<string, BranchMetadata>> {
-		const scope = getScopedLogger();
-		const metadataMap = new Map<string, BranchMetadata>();
+	private getBranchMetadataMap(repoPath: string): Promise<Map<string, BranchMetadata>> {
+		return this.cache.getBranchMetadataMap(repoPath, async commonPath => {
+			const scope = getScopedLogger();
+			const metadataMap = new Map<string, BranchMetadata>();
 
-		try {
-			// Use git config --get-regexp to load all gk-* branch metadata in one call
-			const configMap = await this.provider.config.getGkConfigRegex(
-				repoPath,
-				'^branch\\..*\\.gk-(last-(accessed|modified)|disposition)$',
-			);
-			if (!configMap.size) return metadataMap;
+			try {
+				// Use git config --get-regexp to load all gk-* branch metadata in one call
+				const configMap = await this.provider.config.getGkConfigRegex(
+					commonPath,
+					'^branch\\..*\\.gk-(last-(accessed|modified)|disposition)$',
+				);
+				if (!configMap.size) return metadataMap;
 
-			for (const [key, value] of configMap) {
-				// Extract branch name and metadata key from "branch.{name}.gk-{key}"
-				if (!key.startsWith('branch.')) continue;
+				for (const [key, value] of configMap) {
+					// Extract branch name and metadata key from "branch.{name}.gk-{key}"
+					if (!key.startsWith('branch.')) continue;
 
-				const keyParts = key.split('.');
-				if (keyParts.length < 3) continue;
+					const keyParts = key.split('.');
+					if (keyParts.length < 3) continue;
 
-				// Branch name is everything between "branch." and the last ".gk-*"
-				const metaKey = keyParts.at(-1);
-				const branchName = keyParts.slice(1, -1).join('.');
+					// Branch name is everything between "branch." and the last ".gk-*"
+					const metaKey = keyParts.at(-1);
+					const branchName = keyParts.slice(1, -1).join('.');
 
-				let metadata = metadataMap.get(branchName);
-				if (metadata == null) {
-					metadata = {};
-					metadataMap.set(branchName, metadata);
-				}
+					let metadata = metadataMap.get(branchName);
+					if (metadata == null) {
+						metadata = {};
+						metadataMap.set(branchName, metadata);
+					}
 
-				if (metaKey === 'gk-last-accessed') {
-					metadata.lastAccessedAt = value;
-				} else if (metaKey === 'gk-last-modified') {
-					metadata.lastModifiedAt = value;
-				} else if (metaKey === 'gk-disposition') {
-					if (value === 'starred' || value === 'archived') {
-						metadata.disposition = value;
+					if (metaKey === 'gk-last-accessed') {
+						metadata.lastAccessedAt = value;
+					} else if (metaKey === 'gk-last-modified') {
+						metadata.lastModifiedAt = value;
+					} else if (metaKey === 'gk-disposition') {
+						if (value === 'starred' || value === 'archived') {
+							metadata.disposition = value;
+						}
 					}
 				}
+			} catch (ex) {
+				debugger;
+				scope?.error(ex);
 			}
-		} catch (ex) {
-			debugger;
-			scope?.error(ex);
-		}
 
-		return metadataMap;
+			return metadataMap;
+		});
 	}
 
 	private async storeBranchMetadata(

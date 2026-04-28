@@ -50,7 +50,12 @@ import type {
 	CommitsWithFilesLogParser,
 	ParsedCommit,
 } from '../parsers/logParser.js';
-import { getCommitsLogParser, getShaAndFilesAndStatsLogParser, getShaLogParser } from '../parsers/logParser.js';
+import {
+	getCommitsLogParser,
+	getShaAndDatesLogParser,
+	getShaAndFilesAndStatsLogParser,
+	getShaLogParser,
+} from '../parsers/logParser.js';
 import { getReflogParser, parseGitRefLog } from '../parsers/reflogParser.js';
 import { parseSignatureOutput, signatureFormat } from '../parsers/signatureParser.js';
 import { createCommitFileset } from './commitFilesetUtils.js';
@@ -122,6 +127,34 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 
 		const count = parseInt(data, 10);
 		return isNaN(count) ? undefined : count;
+	}
+
+	@debug({ exit: true })
+	async getCommitDates(
+		repoPath: string,
+		rev: string,
+		cancellation?: AbortSignal,
+	): Promise<{ authorDate: Date; committerDate: Date } | undefined> {
+		const parser = getShaAndDatesLogParser();
+		const result = await this.git.exec(
+			{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
+			'log',
+			'-1',
+			...parser.arguments,
+			rev,
+		);
+		if (result.cancelled || cancellation?.aborted) return undefined;
+
+		for (const entry of parser.parse(result.stdout)) {
+			const authorSeconds = Number(entry.authorDate);
+			const committerSeconds = Number(entry.committerDate);
+			if (!Number.isFinite(authorSeconds) || !Number.isFinite(committerSeconds)) return undefined;
+			return {
+				authorDate: new Date(authorSeconds * 1000),
+				committerDate: new Date(committerSeconds * 1000),
+			};
+		}
+		return undefined;
 	}
 
 	@debug()

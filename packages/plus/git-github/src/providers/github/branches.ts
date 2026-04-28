@@ -223,11 +223,15 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			const mergeBase = await this.provider.refs.getMergeBase(repoPath, ref, mergeTarget);
 			if (mergeBase == null) return undefined;
 
-			const result = await this.provider.contributors.getContributors(
-				repoPath,
-				createRevisionRange(mergeBase, ref, '..'),
-				{ stats: true },
-			);
+			// Fetch the merge-base commit's committer date in parallel with contributors so consumers
+			// that just need the date for the scope window don't pay a separate round-trip.
+			const [contributorsResult, mergeBaseCommit] = await Promise.all([
+				this.provider.contributors.getContributors(repoPath, createRevisionRange(mergeBase, ref, '..'), {
+					stats: true,
+				}),
+				this.provider.commits.getCommit(repoPath, mergeBase).catch(() => undefined),
+			]);
+			const result = contributorsResult;
 
 			sortContributors(result.contributors, { orderBy: 'score:desc' });
 
@@ -265,6 +269,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				branch: ref,
 				mergeTarget: mergeTarget,
 				mergeBase: mergeBase,
+				mergeBaseDate: mergeBaseCommit?.committer?.date ?? mergeBaseCommit?.author?.date,
 
 				commits: totalCommits,
 				files: totalFiles,

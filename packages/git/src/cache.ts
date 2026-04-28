@@ -8,10 +8,12 @@ import type { PromiseOrValue } from '@gitlens/utils/promise.js';
 import type { CacheController } from '@gitlens/utils/promiseCache.js';
 import { PromiseCache, PromiseMap, RepoPromiseCacheMap } from '@gitlens/utils/promiseCache.js';
 import type { Uri } from '@gitlens/utils/uri.js';
+import { getBranchId } from '@gitlens/git/utils/branch.utils.js';
+import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import { getCommonRepositoryPath, getRepositoryOrWorktreePath } from '@gitlens/git/utils/repository.utils.js';
 import type { GitResult } from './exec.types.js';
 import type { ProgressiveGitBlame } from './models/blame.js';
-import type { GitBranch } from './models/branch.js';
+import type { BranchMetadata, GitBranch } from './models/branch.js';
 import type { GitStashCommit } from './models/commit.js';
 import type { GitContributor, GitContributorsStats } from './models/contributor.js';
 import type { ParsedGitDiffHunks } from './models/diff.js';
@@ -26,6 +28,7 @@ import type { GitStash } from './models/stash.js';
 import type { GitTag } from './models/tag.js';
 import type { GitUser } from './models/user.js';
 import type { GitWorktree } from './models/worktree.js';
+import type { GitBranchMergedStatus } from './providers/branches.js';
 import type { GitCommitReachability, LeftRightCommitCountResult } from './providers/commits.js';
 import type { GitContributorsResult } from './providers/contributors.js';
 import type { ResolvedRevision } from './providers/revision.js';
@@ -83,6 +86,9 @@ interface Caches {
 
 /** Shared caches — cleared via commonPath + all worktree paths */
 interface SharedCaches {
+	baseBranchName: RepoPromiseCacheMap<string, string | undefined> | undefined;
+	branchMergedStatus: RepoPromiseCacheMap<string, GitBranchMergedStatus> | undefined;
+	branchMetadataMap: PromiseMap<RepoPath, Map<string, BranchMetadata>> | undefined;
 	branches: PromiseMap<RepoPath, PagedResult<GitBranch>> | undefined;
 	configKeys: RepoPromiseCacheMap<string, string | undefined> | undefined;
 	configPatterns: RepoPromiseCacheMap<string, Map<string, string>> | undefined;
@@ -107,6 +113,9 @@ type AllCaches = Caches & SharedCaches;
 /** Compile-time enforced: adding a key to SharedCaches without listing it here is a type error */
 const sharedCacheKeys: ReadonlySet<keyof AllCaches> = new Set(
 	exhaustiveArray<keyof SharedCaches>()([
+		'baseBranchName',
+		'branchMergedStatus',
+		'branchMetadataMap',
 		'branches',
 		'configKeys',
 		'configPatterns',
@@ -129,9 +138,12 @@ const sharedCacheKeys: ReadonlySet<keyof AllCaches> = new Set(
 
 function createEmptyCaches(): AllCaches {
 	return {
+		baseBranchName: undefined,
 		bestRemotes: undefined,
 		blame: undefined,
 		branch: undefined,
+		branchMergedStatus: undefined,
+		branchMetadataMap: undefined,
 		branches: undefined,
 		fileExistence: undefined,
 		ignoreRevsFile: undefined,
@@ -206,8 +218,22 @@ export class Cache implements Disposable {
 		}));
 	}
 
+	private get baseBranchName(): RepoPromiseCacheMap<string, string | undefined> {
+		return (this._caches.baseBranchName ??= new RepoPromiseCacheMap<string, string | undefined>());
+	}
+
 	get branch(): PromiseMap<RepoPath, GitBranch | undefined> {
 		return (this._caches.branch ??= new PromiseMap<RepoPath, GitBranch | undefined>());
+	}
+
+	get branchMergedStatus(): RepoPromiseCacheMap<string, GitBranchMergedStatus> {
+		return (this._caches.branchMergedStatus ??= new RepoPromiseCacheMap<string, GitBranchMergedStatus>({
+			createTTL: 1000 * 60 * 5, // 5 minutes
+		}));
+	}
+
+	private get branchMetadataMap(): PromiseMap<RepoPath, Map<string, BranchMetadata>> {
+		return (this._caches.branchMetadataMap ??= new PromiseMap<RepoPath, Map<string, BranchMetadata>>());
 	}
 
 	get branches(): PromiseMap<RepoPath, PagedResult<GitBranch>> {
@@ -424,9 +450,13 @@ export class Cache implements Disposable {
 				keysToClear.add('fileLog');
 			}
 
-			// Per-worktree branch caches (current branch / HEAD sensitive)
+			// Branch caches affected by HEAD/heads changes — `branchMergedStatus` is shared
+			// (the answer is invariant across worktrees of the same common repo) but is invalidated
+			// here because branch-tip movement in any worktree can change the merge status; the
+			// shared-clear logic below routes shared keys via commonPath.
 			if (types.includes('branch') || types.includes('branches')) {
 				keysToClear.add('branch');
+				keysToClear.add('branchMergedStatus');
 				keysToClear.add('conflictDetection');
 				keysToClear.add('currentBranchReference');
 				keysToClear.add('leftRightCommitCount');
@@ -436,6 +466,8 @@ export class Cache implements Disposable {
 
 			// Shared branch caches (branch list, metadata)
 			if (types.includes('branches')) {
+				keysToClear.add('baseBranchName');
+				keysToClear.add('branchMetadataMap');
 				keysToClear.add('branches');
 				keysToClear.add('sharedBranches');
 				keysToClear.add('defaultBranchName');
@@ -464,6 +496,9 @@ export class Cache implements Disposable {
 			if (types.includes('gkConfig')) {
 				keysToClear.add('gkConfigKeys');
 				keysToClear.add('gkConfigPatterns');
+				// Derived from `branch.<ref>.gk-merge-base`/`vscode-merge-base`; clear so external
+				// gkConfig mutations don't leave stale base-branch resolutions cached.
+				keysToClear.add('baseBranchName');
 			}
 
 			if (types.includes('providers')) {
@@ -907,10 +942,64 @@ export class Cache implements Disposable {
 	getContributorsStats(
 		repoPath: string,
 		cacheKey: string,
-		factory: (commonPath: string) => PromiseOrValue<GitContributorsStats | undefined>,
-		options?: { accessTTL?: number },
+		factory: (commonPath: string, cancellation?: AbortSignal) => PromiseOrValue<GitContributorsStats | undefined>,
+		options?: { accessTTL?: number; cancellation?: AbortSignal },
 	): Promise<GitContributorsStats | undefined> {
 		return this.getSharedSimpleWithKey(this.contributorsStats, repoPath, cacheKey, factory, options);
+	}
+
+	getBaseBranchName(
+		repoPath: string,
+		ref: string,
+		factory: (commonPath: string, cancellation?: AbortSignal) => PromiseOrValue<string | undefined>,
+		cancellation?: AbortSignal,
+	): Promise<string | undefined> {
+		return this.getSharedSimpleWithKey(this.baseBranchName, repoPath, ref, factory, {
+			cancellation: cancellation,
+		});
+	}
+
+	getBranchMergedStatus(
+		repoPath: string,
+		cacheKey: string,
+		factory: (
+			commonPath: string,
+			cacheable: CacheController,
+			cancellation?: AbortSignal,
+		) => PromiseOrValue<GitBranchMergedStatus>,
+		cancellation?: AbortSignal,
+	): Promise<GitBranchMergedStatus> {
+		return this.getSharedOrCreateWithKey(
+			this.branchMergedStatus,
+			repoPath,
+			cacheKey,
+			factory,
+			(data, newRepoPath) => {
+				if (!data.merged) return data;
+				if (data.localBranchOnly == null) return data;
+
+				const lbo = data.localBranchOnly;
+				return {
+					...data,
+					localBranchOnly: createReference(lbo.ref, newRepoPath, {
+						id: getBranchId(newRepoPath, lbo.remote, lbo.name),
+						refType: 'branch',
+						name: lbo.name,
+						remote: lbo.remote,
+						upstream: lbo.upstream,
+						sha: lbo.sha,
+					}),
+				};
+			},
+			{ cancellation: cancellation },
+		);
+	}
+
+	getBranchMetadataMap(
+		repoPath: string,
+		factory: (commonPath: string) => PromiseOrValue<Map<string, BranchMetadata>>,
+	): Promise<Map<string, BranchMetadata>> {
+		return this.getSharedSimple(this.branchMetadataMap, repoPath, factory);
 	}
 
 	getDefaultBranchName(
@@ -1142,11 +1231,16 @@ export class Cache implements Disposable {
 		cache: RepoPromiseCacheMap<string, T>,
 		repoPath: string,
 		cacheKey: string,
-		factory: (commonPath: string) => PromiseOrValue<T>,
-		options?: { accessTTL?: number },
+		factory: (commonPath: string, cancellation?: AbortSignal) => PromiseOrValue<T>,
+		options?: { accessTTL?: number; cancellation?: AbortSignal },
 	): Promise<T> {
 		const commonPath = this.getCommonPath(repoPath);
 
-		return cache.getOrCreate(commonPath, cacheKey, () => Promise.resolve(factory(commonPath)), options);
+		return cache.getOrCreate(
+			commonPath,
+			cacheKey,
+			(_cacheable, signal) => Promise.resolve(factory(commonPath, signal)),
+			options,
+		);
 	}
 }
