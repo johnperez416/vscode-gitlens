@@ -5062,10 +5062,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const result: GraphWipMetadataBySha = {};
 		for (const wt of worktrees) {
 			if (wt.type === 'bare' || wt.sha == null) continue;
-			if (wt.uri.fsPath === this.repository.path) continue;
+			if (wt.path === this.repository.path) continue;
 
-			result[makeSecondaryWipSha(wt.uri.fsPath)] = {
-				repoPath: wt.uri.fsPath,
+			result[makeSecondaryWipSha(wt.path)] = {
+				repoPath: wt.path,
 				parentSha: wt.sha,
 				label: wt.name,
 			};
