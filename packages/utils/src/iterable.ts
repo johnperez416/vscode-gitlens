@@ -179,7 +179,7 @@ class FilterIterator<T, U extends T = T> implements IterableIterator<T | U> {
 			}
 
 			if (this.predicate === undefined ? result.value != null : this.predicate(result.value)) {
-				return { done: false, value: result.value as T | U };
+				return { done: false, value: result.value };
 			}
 		}
 	}

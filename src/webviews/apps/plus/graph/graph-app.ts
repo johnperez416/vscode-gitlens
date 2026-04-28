@@ -1020,7 +1020,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private async getRowHoverPromise(row: GraphRow) {
 		try {
 			const request = await this._ipc.sendRequest(GetRowHoverRequest, {
-				type: row.type as GitGraphRowType,
+				type: row.type,
 				id: row.sha,
 			});
 

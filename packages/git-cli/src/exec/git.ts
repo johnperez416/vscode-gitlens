@@ -695,8 +695,8 @@ export class Git {
 		try {
 			result = await promise;
 			return {
-				stdout: result.stdout as T,
-				stderr: result.stderr as T | undefined,
+				stdout: result.stdout,
+				stderr: result.stderr,
 				exitCode: result.exitCode ?? 0,
 			};
 		} catch (ex) {
@@ -723,15 +723,15 @@ export class Git {
 			if (errorHandling === 'ignore') {
 				if (ex instanceof RunError) {
 					return {
-						stdout: ex.stdout as T,
-						stderr: ex.stderr as T | undefined,
+						stdout: ex.stdout,
+						stderr: ex.stderr,
 						exitCode: ex.code != null ? (typeof ex.code === 'number' ? ex.code : parseInt(ex.code, 10)) : 0,
 						cancelled: ex instanceof CancelledRunError,
 					};
 				}
 
 				return {
-					stdout: '' as T,
+					stdout: '',
 					stderr: undefined,
 					exitCode: 0,
 					cancelled: ex instanceof CancelledRunError,
@@ -747,7 +747,7 @@ export class Git {
 
 			defaultExceptionHandler(exception, options.cwd, start);
 			exception = undefined;
-			return { stdout: '' as T, stderr: result?.stderr as T | undefined, exitCode: result?.exitCode ?? 0 };
+			return { stdout: '', stderr: result?.stderr, exitCode: result?.exitCode ?? 0 };
 		} finally {
 			this.logGitCommandComplete(gitCommand, exception, getDurationMilliseconds(start), waiting);
 		}
@@ -888,7 +888,7 @@ export class Git {
 						for await (const chunk of proc.stdout) {
 							buffers.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 						}
-						yield await decode(Buffer.concat(buffers as ReadonlyArray<Uint8Array>), { encoding: enc });
+						yield await decode(Buffer.concat(buffers), { encoding: enc });
 					}
 				}
 			} finally {

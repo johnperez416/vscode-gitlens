@@ -177,7 +177,7 @@ export class OnboardingService implements Disposable {
 
 		// No schema defined or already current - no migration needed
 		if (!currentSchema || (storedSchema && compare(storedSchema, currentSchema) >= 0)) {
-			return item.state as OnboardingItemState<T>;
+			return item.state;
 		}
 
 		// Run migrations in version order for versions between stored and current

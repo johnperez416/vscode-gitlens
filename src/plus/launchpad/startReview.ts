@@ -595,7 +595,7 @@ export class StartReviewCommand extends QuickCommand<StartReviewState> {
 				if (context.inSearch || this.container.launchpad.isMaybeSupportedLaunchpadPullRequestSearchUrl(value)) {
 					if (!context.inSearch) {
 						// Hide items quickly when entering search mode
-						quickpick.items = [createDirectiveQuickPickItem(Directive.Cancel)] as any;
+						quickpick.items = [createDirectiveQuickPickItem(Directive.Cancel)];
 						context.inSearch = true;
 					}
 

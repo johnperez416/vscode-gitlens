@@ -191,7 +191,7 @@ export class LogGitCommand extends QuickCommand<State> {
 
 				if (state.openPickInView) {
 					steps.markStepsComplete();
-					void showCommitInDetailsView(state.reference as GitCommit, { pin: false, preserveFocus: false });
+					void showCommitInDetailsView(state.reference, { pin: false, preserveFocus: false });
 					break;
 				}
 

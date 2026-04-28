@@ -19,7 +19,7 @@ import { setDefaultGravatarsStyle } from './avatars.js';
 import { CacheProvider } from './cache.js';
 import { GitCodeLensController } from './codelens/codeLensController.js';
 import type { ToggleFileAnnotationCommandArgs } from './commands/toggleFileAnnotations.js';
-import type { DateSource, DateStyle, FileAnnotationType, Mode } from './config.js';
+import type { DateSource, DateStyle, Mode } from './config.js';
 import type { GlCommands } from './constants.commands.js';
 import { extensionPrefix } from './constants.js';
 import { MarkdownContentProvider } from './documents/markdown.js';
@@ -823,10 +823,7 @@ export class Container {
 			}
 
 			if (command != null) {
-				const commandArgs: ToggleFileAnnotationCommandArgs = {
-					type: mode.annotations as FileAnnotationType,
-					on: true,
-				};
+				const commandArgs: ToggleFileAnnotationCommandArgs = { type: mode.annotations, on: true };
 				// Make sure to delay the execution by a bit so that the configuration changes get propagated first
 				setTimeout(executeCommand, 50, command, commandArgs);
 			}

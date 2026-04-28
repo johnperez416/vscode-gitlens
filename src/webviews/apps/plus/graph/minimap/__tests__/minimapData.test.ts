@@ -309,9 +309,9 @@ suite('minimapData Test Suite', () => {
 			hasMore: false,
 			commitsLoaded: { count: 3 },
 			ids: {
-				a: { date: day1, i: 0 } as any,
-				b: { date: day1 + 3600_000, i: 1 } as any,
-				c: { date: day2, i: 2 } as any,
+				a: { date: day1, i: 0 },
+				b: { date: day1 + 3600_000, i: 1 },
+				c: { date: day2, i: 2 },
 			},
 		};
 		const out = aggregateSearchResults(results);

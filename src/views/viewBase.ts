@@ -229,7 +229,7 @@ export abstract class ViewBase<
 	}
 
 	isAny<T extends (keyof TreeViewByType)[]>(...types: T): this is TreeViewByType[T[number]] {
-		return types.includes(this.type as unknown as T[number]);
+		return types.includes(this.type);
 	}
 
 	private _cancellation: CancellationToken | undefined;

@@ -252,7 +252,7 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 	}
 
 	private handleJumpToWip() {
-		this.selectCommits?.(['work-dir-changes' as string], { ensureVisible: true });
+		this.selectCommits?.(['work-dir-changes'], { ensureVisible: true });
 	}
 
 	private onOpenPullRequest(pr: NonNullable<NonNullable<State['branchState']>['pr']>): void {

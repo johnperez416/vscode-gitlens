@@ -70,7 +70,7 @@ export namespace DOM {
 		}
 
 		const newListener = function (this: T, e: (DocumentEventMap | WindowEventMap)[K]) {
-			listener(e, this as unknown as T);
+			listener(e, this);
 		};
 		sourceOrSelector.addEventListener(name, newListener as EventListener, options ?? false);
 		return {

@@ -240,10 +240,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			const wtsChanged = wts !== this._lastWorkingTreeStats;
 			const bsChanged =
 				bs !== this._lastBranchState &&
-				!branchStateEqual(
-					bs as BranchStateLike | undefined,
-					this._lastBranchState as BranchStateLike | undefined,
-				);
+				!branchStateEqual(bs, this._lastBranchState as BranchStateLike | undefined);
 			if (wtsChanged || bsChanged) {
 				this._lastWorkingTreeStats = wts;
 				this._lastBranchState = bs;

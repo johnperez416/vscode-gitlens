@@ -364,8 +364,8 @@ export class AIProviderService implements AIService, Disposable {
 			defaultTemperature: configuration.get('ai.modelOptions.temperature'),
 			// node-fetch types are structurally compatible but nominally different from the standard Fetch API,
 			// so we bridge the types here to satisfy the platform-agnostic AIProviderContext interface
-			fetch: async (url: string | URL, init?: RequestInit): Promise<Response> => {
-				return (await fetch(url as any, init as any)) as unknown as Response;
+			fetch: (url: string | URL, init?: RequestInit): Promise<Response> => {
+				return fetch(url, init);
 			},
 			getApiKey: (
 				config: {
@@ -486,12 +486,9 @@ export class AIProviderService implements AIService, Disposable {
 						const authHeader = headers['Authorization'] ?? headers['authorization'];
 						const apiKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
 						const gkHeaders = await this.connection.getGkHeaders(apiKey, undefined, headers);
-						return (await fetch(fullUrl, {
-							...init,
-							headers: gkHeaders,
-						} as any)) as unknown as Response;
+						return fetch(fullUrl, { ...init, headers: gkHeaders });
 					}
-					return (await fetch(url as any, init as any)) as unknown as Response;
+					return fetch(url, init);
 				},
 				getApiKey: async (
 					_config: {

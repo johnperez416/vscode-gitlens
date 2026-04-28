@@ -257,5 +257,5 @@ export async function startReviewInChat(
 	return executeCommand('gitlens.sendToChat', {
 		query: prompt,
 		execute: true,
-	} as SendToChatCommandArgs) as Promise<void>;
+	} satisfies SendToChatCommandArgs);
 }

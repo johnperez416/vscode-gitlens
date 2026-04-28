@@ -61,13 +61,7 @@ export class RepositoryService {
 		if (repo == null) return () => {};
 
 		const pendingKey = Symbol(`repositoryWorking:${repoPath}`);
-		const buffered = bufferEventHandler<undefined>(
-			this.buffer,
-			pendingKey,
-			callback as (data: undefined) => void,
-			'signal',
-			undefined,
-		);
+		const buffered = bufferEventHandler<undefined>(this.buffer, pendingKey, callback, 'signal', undefined);
 		const disposable = Disposable.from(
 			repo.watchWorkingTree(1000),
 			repo.onDidChangeWorkingTree(() => buffered(undefined)),
@@ -175,7 +169,7 @@ export class RepositoryService {
 			repoUri != null
 				? await this.container.git.access(feature, Uri.parse(repoUri))
 				: await this.container.git.access(feature);
-		return serialize(access) as FeatureAccess;
+		return serialize(access);
 	}
 
 	async hasRemotes(repoPath: string): Promise<boolean> {

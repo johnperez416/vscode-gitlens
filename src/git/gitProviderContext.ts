@@ -91,11 +91,11 @@ export function createGitProviderContext(container: Container): GitServiceContex
 		},
 
 		fs: {
-			readDirectory: async (uri: Uri) => workspace.fs.readDirectory(uri as VscodeUri),
-			readFile: async (uri: Uri) => workspace.fs.readFile(uri as VscodeUri),
+			readDirectory: async (uri: Uri) => workspace.fs.readDirectory(uri),
+			readFile: async (uri: Uri) => workspace.fs.readFile(uri),
 			stat: async (uri: Uri) => {
 				try {
-					return await workspace.fs.stat(uri as VscodeUri);
+					return await workspace.fs.stat(uri);
 				} catch {
 					return undefined;
 				}

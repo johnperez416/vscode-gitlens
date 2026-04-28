@@ -47,7 +47,7 @@ suite('BranchesGitSubProvider Test Suite', () => {
 		} as unknown as Cache;
 		const provider = {} as unknown as CliGitProviderInternal;
 
-		branchesProvider = new BranchesGitSubProvider(context, gitStub as unknown as Git, cache, provider);
+		branchesProvider = new BranchesGitSubProvider(context, gitStub, cache, provider);
 	});
 
 	teardown(() => {

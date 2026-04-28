@@ -442,7 +442,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 			r != null
 				? ({
 						id: r.sha,
-						type: r.type as GitGraphRowType,
+						type: r.type,
 						active: r === focusedRow,
 						hidden: r.hidden,
 						repoPath: wipMetadataBySha?.[r.sha]?.repoPath,

@@ -882,7 +882,7 @@ function createLogParserWithPatch<T extends Record<string, string>>(
 		}
 
 		return {
-			status: (fileMatch[1] === 'rename' ? 'R' : 'M') as GitFileIndexStatus,
+			status: (fileMatch[1] === 'rename' ? 'R' : 'M') satisfies GitFileIndexStatus,
 			path: fileMatch[2],
 			originalPath: fileMatch[1] === 'rename' ? fileMatch[3] : undefined,
 			range: range,

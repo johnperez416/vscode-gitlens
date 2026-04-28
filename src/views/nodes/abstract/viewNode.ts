@@ -235,7 +235,7 @@ export abstract class ViewNode<
 	}
 
 	isAny<T extends (keyof TreeViewNodesByType)[]>(...types: T): this is TreeViewNodesByType[T[number]] {
-		return types.includes(this.type as unknown as T[number]);
+		return types.includes(this.type);
 	}
 
 	splatted: boolean | undefined;

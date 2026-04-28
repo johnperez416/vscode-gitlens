@@ -36,8 +36,7 @@ export async function extractZipFile(
 	const filter = options?.filter;
 	const unzipped = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
 		unzip(
-			// Buffer is a Uint8Array, but TypeScript needs the cast for strict type checking
-			zipData as Uint8Array,
+			zipData,
 			{
 				filter: filter
 					? file => {

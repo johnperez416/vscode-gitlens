@@ -58,7 +58,7 @@ export async function executeChatAction(
 			query: promptToSend,
 			execute: true,
 			source: source,
-		} as SendToChatCommandArgs) as Promise<void>;
+		} as SendToChatCommandArgs);
 	}
 }
 

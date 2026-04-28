@@ -653,7 +653,7 @@ export class CommitsPanel extends LitElement {
 		const commitItems = this.shadowRoot?.querySelectorAll('gl-commit-item');
 
 		commitItems?.forEach(commitItem => {
-			this.setupNativeDropZone(commitItem as HTMLElement, 'commit');
+			this.setupNativeDropZone(commitItem, 'commit');
 		});
 	}
 

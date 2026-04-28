@@ -348,7 +348,7 @@ export class TimelineActions {
 		if (location === 'config') {
 			// Config head pick: keep showAllBranches setting, just update head
 			const base = s.showAllBranches.get() ? undefined : currentScope.base;
-			s.scope.set({ ...currentScope, head: result.ref, base: base as any });
+			s.scope.set({ ...currentScope, head: result.ref, base: base });
 			void this.fetchTimeline();
 			return;
 		}

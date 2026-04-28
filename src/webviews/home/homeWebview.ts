@@ -26,7 +26,6 @@ import {
 } from '../../constants.integrations.js';
 import { urls } from '../../constants.js';
 import type { HomeTelemetryContext } from '../../constants.telemetry.js';
-import type { WalkthroughContextKeys } from '../../constants.walkthroughs.js';
 import type { Container } from '../../container.js';
 import { revealBranch } from '../../git/actions/branch.js';
 import { openComparisonChanges } from '../../git/actions/commit.js';
@@ -182,7 +181,7 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 					this.container.walkthrough.onDidChangeProgress(() => {
 						const progress = this.getWalkthroughProgress();
 						if (progress != null) {
-							buffered(progress as WalkthroughProgressState);
+							buffered(progress);
 						}
 					}),
 				undefined,
@@ -974,7 +973,7 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 			allCount: this.container.walkthrough.walkthroughSize,
 			doneCount: this.container.walkthrough.doneCount,
 			progress: this.container.walkthrough.progress,
-			state: state as Record<WalkthroughContextKeys, boolean>,
+			state: state,
 		};
 	}
 

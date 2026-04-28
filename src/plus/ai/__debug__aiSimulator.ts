@@ -112,7 +112,7 @@ class AISimulatorDebug {
 		await this.container.storage.store(`gk:promo:${this.active.userId}:ai:allAccess:dismissed`, true);
 
 		await configuration.updateEffective('ai.enabled', true);
-		await configuration.updateEffective('ai.model', `simulator:${mode}` as SupportedAIModels);
+		await configuration.updateEffective('ai.model', `simulator:${mode}`);
 
 		// Snapshot + dismiss onboarding only on the first enable that requests it; subsequent
 		// enables don't re-snapshot (avoids losing the original "what was undismissed" record).

@@ -868,7 +868,7 @@ export class GlSearchInput extends GlElement {
 
 		// Deduplicate by parsing and rebuilding the query
 		// The parsed operations use Sets, so duplicates are automatically removed
-		const parsed = parseSearchQuery({ query: newValue } as SearchQuery);
+		const parsed = parseSearchQuery({ query: newValue });
 		newValue = rebuildSearchQueryFromParsed(parsed);
 
 		// Update the input value directly
@@ -1207,7 +1207,7 @@ export class GlSearchInput extends GlElement {
 	private validateQuery(raw: string): string | undefined {
 		if (!raw) return undefined;
 
-		const { operations, errors } = parseSearchQuery({ query: raw } as SearchQuery, true);
+		const { operations, errors } = parseSearchQuery({ query: raw }, true);
 		if (errors?.length) return errors[0];
 
 		// If no operations were parsed, the query is effectively empty

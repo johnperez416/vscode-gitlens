@@ -67,7 +67,7 @@ export class CacheProvider implements Disposable {
 	private peek<T extends Cache>(cache: T, key: CacheKey<T>): CacheValue<T> | undefined {
 		const item = this._cache.get(`${cache}:${key}`);
 		if (item == null || isPromise(item.value)) return undefined;
-		return item.value as CacheValue<T> | undefined;
+		return item.value;
 	}
 
 	get<T extends Cache>(

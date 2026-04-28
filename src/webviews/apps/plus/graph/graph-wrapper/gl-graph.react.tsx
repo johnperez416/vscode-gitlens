@@ -4,7 +4,6 @@ import type {
 	ExcludeRefsById,
 	ExternalIconKeys,
 	GetExternalIcon,
-	GraphColumnMode,
 	GraphColumnSetting,
 	GraphColumnsSettings,
 	GraphContainerProps,
@@ -399,7 +398,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 					[columnName]: {
 						width: columnSettings.width,
 						isHidden: columnSettings.isHidden,
-						mode: columnSettings.mode as GraphColumnMode,
+						mode: columnSettings.mode,
 						order: columnSettings.order,
 					},
 				});

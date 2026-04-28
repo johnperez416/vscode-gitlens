@@ -63,7 +63,7 @@ export async function getSupportedGitProviders(
 				await import(
 					/* webpackChunkName: "integrations" */ '../../plus/integrations/providers/github/githubGitProvider.js'
 				)
-			).GlGitHubGitProvider(container, cache, register) as unknown as GlGitProvider,
+			).GlGitHubGitProvider(container, cache, register),
 		);
 	}
 

@@ -175,8 +175,8 @@ export class GlGitHubGitProvider implements GlGitProvider {
 
 					const fileUri = joinUriPath(repoUri, path);
 					const [working, committed] = await Promise.allSettled([
-						workspace.fs.stat(fileUri as Uri),
-						workspace.fs.stat(fileUri.with({ scheme: Schemes.GitHub }) as Uri),
+						workspace.fs.stat(fileUri),
+						workspace.fs.stat(fileUri.with({ scheme: Schemes.GitHub })),
 					]);
 
 					return (
@@ -199,8 +199,7 @@ export class GlGitHubGitProvider implements GlGitProvider {
 				},
 
 				uris: {
-					getRelativePath: (pathOrUri, base) =>
-						this.getRelativePath(pathOrUri as string | Uri, base as string | Uri),
+					getRelativePath: (pathOrUri, base) => this.getRelativePath(pathOrUri, base),
 
 					createProviderUri: (repoPath, rev, path) => this.createProviderUri(repoPath, rev, path),
 
@@ -208,8 +207,7 @@ export class GlGitHubGitProvider implements GlGitProvider {
 
 					getBestRevisionUri: (repoPath, path, rev) => this.getBestRevisionUri(repoPath, path, rev),
 
-					getAbsoluteUri: (pathOrUri, base) =>
-						this.getAbsoluteUri(pathOrUri as string | Uri, base as string | Uri),
+					getAbsoluteUri: (pathOrUri, base) => this.getAbsoluteUri(pathOrUri, base),
 
 					getProviderRootUri: uri => {
 						// RemoteHub is always initialized before this is called because @gitlens/git-github

@@ -793,7 +793,7 @@ export abstract class QuickWizardCommandBase extends GlCommandBase {
 							}
 						}
 
-						resolve(await this.nextStep(rootStep.command!, items as QuickPickItem[], quickpick));
+						resolve(await this.nextStep(rootStep.command!, items, quickpick));
 					}),
 				);
 

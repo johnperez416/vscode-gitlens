@@ -1,7 +1,6 @@
 import { Disposable, env } from 'vscode';
 import { SubscriptionState } from '../../constants.subscription.js';
 import type { WebviewTelemetryContext } from '../../constants.telemetry.js';
-import type { WalkthroughContextKeys } from '../../constants.walkthroughs.js';
 import type { Container } from '../../container.js';
 import type { SubscriptionChangeEvent } from '../../plus/gk/subscriptionService.js';
 import { mcpRegistrationAllowed, needsCursorMcpCleanupNotice } from '../../plus/gk/utils/-webview/mcp.utils.js';
@@ -86,7 +85,7 @@ export class WelcomeWebviewProvider implements WebviewProvider<State, State, Wel
 			allCount: this.container.walkthrough.walkthroughSize,
 			doneCount: this.container.walkthrough.doneCount,
 			progress: this.container.walkthrough.progress,
-			state: state as Record<WalkthroughContextKeys, boolean>,
+			state: state,
 		};
 	}
 

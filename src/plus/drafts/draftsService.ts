@@ -662,10 +662,7 @@ export class DraftService implements Disposable {
 
 			const rsp = await this.connection.fetchGkApi(`/v1/drafts/${id}/users`, {
 				method: 'POST',
-				body: JSON.stringify({
-					id: id,
-					users: pendingUsers,
-				} as Request),
+				body: JSON.stringify({ id: id, users: pendingUsers } satisfies Request),
 			});
 
 			if (rsp?.ok === false) {

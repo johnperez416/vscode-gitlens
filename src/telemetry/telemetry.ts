@@ -186,7 +186,7 @@ export class TelemetryService implements Disposable {
 					d,
 					source,
 					startTime,
-					Date.now() as TimeInput,
+					Date.now(),
 				),
 		};
 	}

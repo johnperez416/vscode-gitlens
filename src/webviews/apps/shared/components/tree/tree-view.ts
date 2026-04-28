@@ -605,7 +605,7 @@ export class GlTreeView extends GlElement {
 			.focused=${isFocused && hasTreeFocus}
 			.focusedInactive=${isFocused && !hasTreeFocus}
 			.tabIndex=${-1}
-			.vscodeContext=${model.contextData as string | undefined}
+			.vscodeContext=${model.contextData}
 			@gl-tree-item-select=${() => this.onBeforeTreeItemSelected(model)}
 			@gl-tree-item-selected=${(e: CustomEvent<TreeItemSelectionDetail>) => this.onTreeItemSelected(e, model)}
 			@gl-tree-item-checked=${(e: CustomEvent<TreeItemCheckedDetail>) => this.onTreeItemChecked(e, model)}

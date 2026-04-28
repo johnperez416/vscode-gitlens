@@ -87,7 +87,7 @@ function createMockScmResource(
 		resourceUri: opts.uri ?? createMockUri(),
 		type: opts.type,
 		resourceGroupType: opts.resourceGroupType,
-	} as unknown as ScmResource;
+	};
 }
 
 function createMockScmStatesContext(command: string, resources: ScmResource[]): CommandScmStatesContext {

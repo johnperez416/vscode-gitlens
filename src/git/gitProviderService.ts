@@ -1061,7 +1061,7 @@ export class GitProviderService implements UnifiedDisposable {
 				?.map<[string, RepositoryVisibilityInfo]>(([key, visibilityInfo]) => [
 					key,
 					{
-						visibility: visibilityInfo.visibility as RepositoryVisibility,
+						visibility: visibilityInfo.visibility,
 						timestamp: visibilityInfo.timestamp,
 						remotesHash: visibilityInfo.remotesHash,
 					},

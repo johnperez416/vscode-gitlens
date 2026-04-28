@@ -177,10 +177,7 @@ export class GitCommit implements GitRevisionReference {
 
 			const stashFiles = getSettledValue(stashFilesResult);
 			if (stashFiles?.length) {
-				commit.applyFileset({
-					files: stashFiles as readonly GitFileChange[],
-					filtered: commit.fileset?.filtered,
-				});
+				commit.applyFileset({ files: stashFiles, filtered: commit.fileset?.filtered });
 			}
 			enrichCommit(commit, { stashUntrackedFilesLoaded: true });
 		} else {

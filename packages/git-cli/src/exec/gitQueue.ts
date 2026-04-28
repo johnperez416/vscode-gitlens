@@ -147,7 +147,7 @@ export class GitQueue {
 
 		return new Promise<T>((resolve, reject) => {
 			queue.push({
-				execute: fn as () => Promise<unknown>,
+				execute: fn,
 				resolve: resolve as (value: unknown) => void,
 				reject: reject,
 				queuedAt: Date.now(),

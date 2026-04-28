@@ -946,10 +946,7 @@ export class WorkspacesService implements Disposable {
 					if (response?.data.add_repositories_to_project == null) return;
 					newRepoDescriptors = Object.values(response.data.add_repositories_to_project.provider_data)
 						.filter(descriptor => descriptor != null)
-						.map(descriptor => ({
-							...descriptor,
-							workspaceId: workspaceId,
-						})) as CloudWorkspaceRepositoryDescriptor[];
+						.map(descriptor => ({ ...descriptor, workspaceId: workspaceId }));
 				} catch (error) {
 					void window.showErrorMessage(error.message);
 					return;
