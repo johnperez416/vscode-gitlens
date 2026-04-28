@@ -224,6 +224,45 @@ export const commitsScopePaneStyles = css`
 		outline-offset: -1px;
 	}
 
+	/* Proxy handle: pinned to the top/bottom edge of the scroll container when
+	   the corresponding real handle is offscreen. Pressing it snaps the scroll
+	   so the real handle lands under the cursor and the drag continues. */
+	.scope-handle--proxy {
+		position: sticky;
+		z-index: 3;
+		padding: 0.4rem 0;
+		pointer-events: auto;
+	}
+
+	.scope-handle--proxy::before {
+		content: none;
+	}
+
+	.scope-handle--proxy-start {
+		top: 0;
+		background: linear-gradient(to bottom, ${bgColor} 0%, ${bgColor} 60%, transparent 100%);
+	}
+
+	.scope-handle--proxy-end {
+		bottom: 0;
+		background: linear-gradient(to top, ${bgColor} 0%, ${bgColor} 60%, transparent 100%);
+	}
+
+	.scope-handle--proxy .scope-handle__bar {
+		opacity: 0.85;
+	}
+
+	.scope-handle--proxy:hover .scope-handle__bar {
+		opacity: 1;
+	}
+
+	.scope-handle--proxy code-icon {
+		position: absolute;
+		font-size: 1rem;
+		color: var(--vscode-descriptionForeground);
+		pointer-events: none;
+	}
+
 	/*
 	 * Dot state indicators
 	 * All dots render at the same outer diameter (12px) using box-sizing: border-box

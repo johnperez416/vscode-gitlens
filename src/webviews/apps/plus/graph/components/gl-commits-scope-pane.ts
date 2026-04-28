@@ -50,11 +50,15 @@ export class GlCommitsScopePane extends LitElement {
 	@state() private _userRangeEndId: string | undefined;
 	@state() private _dragging: 'start' | 'end' | undefined;
 	@state() private _dragPreview: number | undefined;
+	@state() private _startHandleOffscreen = false;
+	@state() private _endHandleOffscreen = false;
 
 	private _scrollInterval: ReturnType<typeof setInterval> | undefined;
 	private _dragAc: AbortController | undefined;
+	private _scrollAc: AbortController | undefined;
 	private _previousBodyCursor: string | undefined;
 	private _dragMoveRaf: number | undefined;
+	private _visibilityRaf: number | undefined;
 	private _lastDragMoveEvent: PointerEvent | undefined;
 
 	override connectedCallback(): void {
@@ -67,29 +71,97 @@ export class GlCommitsScopePane extends LitElement {
 		super.disconnectedCallback?.();
 		this._dragAc?.abort();
 		this._dragAc = undefined;
+		this._scrollAc?.abort();
+		this._scrollAc = undefined;
 		this.stopScrolling();
 		this.restoreBodyCursor();
 		if (this._dragMoveRaf != null) {
 			cancelAnimationFrame(this._dragMoveRaf);
 			this._dragMoveRaf = undefined;
 		}
+		if (this._visibilityRaf != null) {
+			cancelAnimationFrame(this._visibilityRaf);
+			this._visibilityRaf = undefined;
+		}
 		this._lastDragMoveEvent = undefined;
 	}
 
 	override firstUpdated(): void {
 		this.scrollEndHandleIntoView();
+		this.attachScrollListener();
+		this.recomputeHandleVisibility();
+	}
+
+	private attachScrollListener(): void {
+		const scrollContainer = this.renderRoot.querySelector<HTMLElement>('.details-scope-pane');
+		if (scrollContainer == null) return;
+
+		this._scrollAc?.abort();
+		const ac = new AbortController();
+		this._scrollAc = ac;
+
+		scrollContainer.addEventListener(
+			'scroll',
+			() => {
+				if (this._visibilityRaf != null) return;
+				this._visibilityRaf = requestAnimationFrame(() => {
+					this._visibilityRaf = undefined;
+					this.recomputeHandleVisibility();
+				});
+			},
+			{ signal: ac.signal, passive: true },
+		);
+	}
+
+	private recomputeHandleVisibility(): void {
+		// Skip during drag — proxies should not flicker in/out as the active
+		// handle moves and edge-scroll keeps it in view anyway.
+		if (this._dragging) return;
+
+		const scrollContainer = this.renderRoot.querySelector<HTMLElement>('.details-scope-pane');
+		if (scrollContainer == null) return;
+
+		const containerRect = scrollContainer.getBoundingClientRect();
+		const startHandle = this.renderRoot.querySelector<HTMLElement>(
+			'.scope-handle:not(.scope-handle--proxy)[aria-label="Start of selected scope"]',
+		);
+		const endHandle = this.renderRoot.querySelector<HTMLElement>(
+			'.scope-handle:not(.scope-handle--proxy)[aria-label="End of selected scope"]',
+		);
+
+		const isOffscreen = (handle: HTMLElement | null): boolean => {
+			if (handle == null) return false;
+			const r = handle.getBoundingClientRect();
+			return r.bottom <= containerRect.top || r.top >= containerRect.bottom;
+		};
+
+		const startOff = isOffscreen(startHandle);
+		const endOff = isOffscreen(endHandle);
+		if (startOff !== this._startHandleOffscreen) {
+			this._startHandleOffscreen = startOff;
+		}
+		if (endOff !== this._endHandleOffscreen) {
+			this._endHandleOffscreen = endOff;
+		}
 	}
 
 	override updated(changedProperties: Map<string, unknown>): void {
 		// Only re-scroll when items go from empty → populated (late branchCommits arrival).
 		// Skip during user drag, and skip on selection-only changes — that would yank the
 		// viewport after every drag end.
-		if (this._dragging) return;
-		if (!changedProperties.has('items')) return;
-		const prev = changedProperties.get('items') as ScopeItem[] | undefined;
-		if (!prev?.length && this.items.length > 0) {
-			this.scrollEndHandleIntoView();
+		if (this._dragging) {
+			return;
 		}
+		if (changedProperties.has('items')) {
+			const prev = changedProperties.get('items') as ScopeItem[] | undefined;
+			if (!prev?.length && this.items.length > 0) {
+				this.scrollEndHandleIntoView();
+			}
+		}
+		// Refresh proxy visibility after every render — handle DOM nodes can be
+		// recreated as the active range shifts (the .map() is unkeyed) so a
+		// node-bound IntersectionObserver would miss replacements.
+		this.recomputeHandleVisibility();
 	}
 
 	private scrollEndHandleIntoView(): void {
@@ -236,7 +308,11 @@ export class GlCommitsScopePane extends LitElement {
 		// so users can discover that the start of the range is also draggable.
 		const showStartHandle = this.mode === 'review' && this.items.length > 1;
 
+		const showStartProxy = showStartHandle && this._startHandleOffscreen && !this._dragging;
+		const showEndProxy = showEndHandle && this._endHandleOffscreen && !this._dragging;
+
 		return html`<div class="details-scope-pane scrollable ${this._dragging ? 'details-scope-pane--dragging' : ''}">
+			${showStartProxy ? this.renderProxyHandle('start') : nothing}
 			${this.items.map((item, i) => {
 				const isInRange = i >= activeStart && i <= activeEnd;
 				const isAtEnd = i === activeEnd;
@@ -250,7 +326,7 @@ export class GlCommitsScopePane extends LitElement {
 					${isAtEnd && showEndHandle ? this.renderHandle('end', item.state) : nothing}
 				`;
 			})}
-			${this.loading ? this.renderLoading() : nothing}
+			${this.loading ? this.renderLoading() : nothing} ${showEndProxy ? this.renderProxyHandle('end') : nothing}
 		</div>`;
 	}
 
@@ -333,6 +409,18 @@ export class GlCommitsScopePane extends LitElement {
 			@keydown=${(e: KeyboardEvent) => this.handleHandleKeydown(e, type)}
 		>
 			<div class="scope-handle__bar"></div>
+		</div>`;
+	}
+
+	private renderProxyHandle(type: 'start' | 'end') {
+		return html`<div
+			class="scope-handle scope-handle--proxy scope-handle--proxy-${type}"
+			aria-hidden="true"
+			tabindex="-1"
+			@pointerdown=${(e: PointerEvent) => this.handleProxyPointerDown(e, type)}
+		>
+			<div class="scope-handle__bar"></div>
+			<code-icon icon=${type === 'start' ? 'chevron-up' : 'chevron-down'}></code-icon>
 		</div>`;
 	}
 
@@ -419,6 +507,29 @@ export class GlCommitsScopePane extends LitElement {
 		window.addEventListener('pointermove', this._onDragMove, { signal: ac.signal });
 		window.addEventListener('pointerup', this._onDragEnd, { signal: ac.signal });
 		window.addEventListener('pointercancel', this._onDragEnd, { signal: ac.signal });
+	}
+
+	private handleProxyPointerDown(e: PointerEvent, type: 'start' | 'end'): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const realHandle = this.renderRoot.querySelector<HTMLElement>(
+			`.scope-handle:not(.scope-handle--proxy)[aria-label="${
+				type === 'start' ? 'Start' : 'End'
+			} of selected scope"]`,
+		);
+		if (realHandle == null) return;
+
+		// Snap the scroll so the real handle lands at the appropriate edge. The
+		// next pointermove → _processDragMove will pick the row nearest the
+		// cursor, so no manual deltaY math is needed and saturation at min/max
+		// scroll is harmless.
+		realHandle.scrollIntoView({ block: type === 'start' ? 'start' : 'end', behavior: 'auto' });
+
+		// Hand off to the normal drag-start path. Window-level pointermove/up
+		// listeners keep the drag alive even though the proxy unmounts under
+		// the pointer (real handle becomes visible → flag flips → re-render).
+		this.handlePointerDown(e, type);
 	}
 
 	private handleHandleKeydown(e: KeyboardEvent, type: 'start' | 'end'): void {
