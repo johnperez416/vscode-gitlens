@@ -347,6 +347,10 @@ export class GlGraphMinimap extends GlElement {
 	// precision during pan/thumb-drag so the window doesn't quantize after each adjustment.
 	private _zoomOldest: number | undefined;
 	private _zoomNewest: number | undefined;
+	// Carries the `minRange` floor `applyZoom` was called with so `rebuildZoomedViewModel` can
+	// preserve narrow scope-zooms across data refreshes — without it, a sub-7-day scope-zoom would
+	// be reset against the brush-zoom floor every time `data` changes.
+	private _zoomMinRange: number | undefined;
 	private _zoomedViewModel: MinimapViewModel | undefined;
 
 	get zoomOldest(): number | undefined {
@@ -589,7 +593,8 @@ export class GlGraphMinimap extends GlElement {
 		const fullNewest = this._viewModel.days[0];
 		const newest = Math.min(this._zoomNewest, fullNewest);
 		const oldest = Math.max(this._zoomOldest, fullOldest);
-		if (newest - oldest < minZoomRangeMs) {
+		const minRange = this._zoomMinRange ?? minZoomRangeMs;
+		if (newest - oldest < minRange) {
 			this.resetZoom();
 			return;
 		}
@@ -648,6 +653,7 @@ export class GlGraphMinimap extends GlElement {
 		const wasZoomed = this._zoomedViewModel != null;
 		this._zoomOldest = zoomOldest;
 		this._zoomNewest = zoomNewest;
+		this._zoomMinRange = minRange;
 		this._zoomedViewModel = sliceViewModel(this._viewModel, zoomOldest, zoomNewest);
 		this._scrollbarTargetOpacity = 1;
 		// Zoom window shifts invalidate every projection in the static layer — bar positions, marker
@@ -662,6 +668,7 @@ export class GlGraphMinimap extends GlElement {
 		if (this._zoomedViewModel == null) return;
 		this._zoomOldest = undefined;
 		this._zoomNewest = undefined;
+		this._zoomMinRange = undefined;
 		this._zoomedViewModel = undefined;
 		this._scrollbarTargetOpacity = 0;
 		this._scrollbarHover = false;

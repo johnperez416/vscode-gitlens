@@ -3873,11 +3873,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private async onResolveGraphScope(
 		params: IpcParams<typeof ResolveGraphScopeRequest>,
 	): Promise<IpcResponse<typeof ResolveGraphScopeRequest>> {
-		const mergeBase = await this.resolveScopeMergeBaseForBranch(
-			params.repoPath,
-			params.scope.branchRef,
-			params.scope.branchName,
-		);
+		const mergeBase = await this.resolveScopeMergeBaseForBranch(params.repoPath, params.scope.branchName);
 		return { scope: { ...params.scope, mergeBase: mergeBase } };
 	}
 
@@ -3912,13 +3908,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	private async resolveScopeMergeBaseForBranch(
 		repoPath: string,
-		branchRefId: string,
 		branchName: string,
 	): Promise<{ sha: string; date: number } | undefined> {
 		const svc = this.container.git.getRepositoryService(repoPath);
-		const branchRef = gitRefFromGraphBranchId(branchRefId) ?? branchName;
 
-		const branch = await svc.branches.getBranch(branchRef);
+		const branch = await svc.branches.getBranch(branchName);
 		if (branch == null) return undefined;
 
 		const overview = await this.getBranchOverview(branch);
@@ -7748,12 +7742,6 @@ function convertRefToGraphRefType(ref: GitReference): GraphRefType | undefined {
 
 function convertSelectedRows(selectedRows: Record<string, SelectedRowState> | undefined): GraphSelectedRows {
 	return filterMapObject(selectedRows, (_, v) => (v.selected ? true : undefined));
-}
-
-// GitLens branch ids: `{repoPath}|heads/{name}` or `{repoPath}|remotes/{name}`
-function gitRefFromGraphBranchId(id: string): string | undefined {
-	const idx = id.indexOf('|');
-	return idx === -1 ? undefined : `refs/${id.substring(idx + 1)}`;
 }
 
 export function updateSearchMode<T extends GitGraphSearch | undefined>(
