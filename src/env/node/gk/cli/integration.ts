@@ -16,7 +16,7 @@ import type { Source, Sources } from '../../../../constants.telemetry.js';
 import type { Container } from '../../../../container.js';
 import type { SubscriptionChangeEvent } from '../../../../plus/gk/subscriptionService.js';
 import { mcpRegistrationAllowed } from '../../../../plus/gk/utils/-webview/mcp.utils.js';
-import { registerCommand } from '../../../../system/-webview/command.js';
+import { executeCoreCommand, registerCommand } from '../../../../system/-webview/command.js';
 import { configuration } from '../../../../system/-webview/configuration.js';
 import { setContext } from '../../../../system/-webview/context.js';
 import { openUrl } from '../../../../system/-webview/vscode/uris.js';
@@ -31,6 +31,7 @@ import {
 	getCLIExecutable,
 	getCLIVersions,
 	getDevCLILocalPath,
+	isLockedBinaryError,
 	resolveCLIExecutable,
 	runCLICommand,
 	showManualMcpSetupPrompt,
@@ -43,6 +44,7 @@ const enum CLIInstallErrorReason {
 	ProxyUrlFormat,
 	ProxyDownload,
 	ProxyExtract,
+	ProxyExtractLocked,
 	ProxyFetch,
 	GlobalStorageDirectory,
 	CoreInstall,
@@ -54,6 +56,7 @@ const enum McpSetupErrorReason {
 	VSCodeVersionUnsupported,
 	CLIUnsupportedPlatform,
 	CLILocalInstallFailed,
+	CLIBinaryLocked,
 	CLIUnknownError,
 	InstallationFailed,
 	UnsupportedHost,
@@ -732,8 +735,11 @@ export class GkCliIntegrationProvider implements Disposable {
 					// This will throw if the file doesn't exist
 					await workspace.fs.stat(cliExtractedProxyFilePath);
 				} catch (ex) {
+					const reason = isLockedBinaryError(ex)
+						? CLIInstallErrorReason.ProxyExtractLocked
+						: CLIInstallErrorReason.ProxyExtract;
 					throw new CLIInstallError(
-						CLIInstallErrorReason.ProxyExtract,
+						reason,
 						ex instanceof Error ? ex : undefined,
 						ex instanceof Error ? ex.message : '',
 					);
@@ -1047,6 +1053,12 @@ export class GkCliIntegrationProvider implements Disposable {
 					message = 'GitKraken MCP setup is not supported on this platform.';
 					telemetryReason = 'unsupported platform';
 					break;
+				case CLIInstallErrorReason.ProxyExtractLocked:
+					reason = McpSetupErrorReason.CLIBinaryLocked;
+					message =
+						"The GitKraken MCP server is currently running and can't be replaced while in use. Reload the VS Code window to stop it, then try Reinstall again. Reloading will close any unsaved editors.";
+					telemetryReason = 'cli binary locked';
+					break;
 				case CLIInstallErrorReason.ProxyUrlFetch:
 				case CLIInstallErrorReason.ProxyUrlFormat:
 				case CLIInstallErrorReason.ProxyFetch:
@@ -1101,6 +1113,16 @@ export class GkCliIntegrationProvider implements Disposable {
 			case McpSetupErrorReason.Offline:
 				void window.showWarningMessage(ex.message);
 				break;
+			case McpSetupErrorReason.CLIBinaryLocked: {
+				const reload = { title: 'Reload Window' };
+				const cancel = { title: 'Cancel', isCloseAffordance: true };
+				void window.showErrorMessage(ex.message, reload, cancel).then(r => {
+					if (r === reload) {
+						void executeCoreCommand('workbench.action.reloadWindow');
+					}
+				});
+				break;
+			}
 			case McpSetupErrorReason.InstallationFailed:
 			case McpSetupErrorReason.CLIUnsupportedPlatform:
 			case McpSetupErrorReason.CLILocalInstallFailed:
@@ -1266,6 +1288,9 @@ class CLIInstallError extends Error {
 				break;
 			case CLIInstallErrorReason.ProxyExtract:
 				message = 'Failed to extract proxy';
+				break;
+			case CLIInstallErrorReason.ProxyExtractLocked:
+				message = 'Failed to extract proxy: binary is locked by a running process';
 				break;
 			case CLIInstallErrorReason.ProxyFetch:
 				message = 'Failed to fetch proxy';

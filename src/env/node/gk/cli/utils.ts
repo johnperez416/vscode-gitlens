@@ -8,7 +8,7 @@ import { urls } from '../../../../constants.js';
 import { Container } from '../../../../container.js';
 import { configuration } from '../../../../system/-webview/configuration.js';
 import { exists, openUrl } from '../../../../system/-webview/vscode/uris.js';
-import { getPlatform } from '../../platform.js';
+import { getPlatform, isWindows } from '../../platform.js';
 
 /**
  * Extracts a zip file to a destination directory using the fflate library.
@@ -174,4 +174,11 @@ export async function showManualMcpSetupPrompt(message: string): Promise<void> {
 	if (result === learnMore) {
 		void openUrl(urls.helpCenterMCP);
 	}
+}
+
+/** Windows-only: detects EBUSY/EPERM when overwriting a running executable. macOS/Linux allow replacing an open executable, so this is never relevant there. */
+export function isLockedBinaryError(ex: unknown): boolean {
+	if (!isWindows) return false;
+	const code = (ex as NodeJS.ErrnoException | null | undefined)?.code;
+	return code === 'EBUSY' || code === 'EPERM';
 }
