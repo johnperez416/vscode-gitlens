@@ -744,7 +744,9 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 			_context: undefined,
 		): ReactNode | null | Promise<ReactNode | null> => {
 			switch (row.type) {
-				case 'work-dir-changes':
+				case 'work-dir-changes': {
+					const isSecondaryWip = isSecondaryWipSha(row.sha);
+
 					return (
 						<div className="graph-row-actions" onMouseOver={() => initProps.onRowActionHover?.()}>
 							<gl-button
@@ -752,7 +754,14 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 								tooltip="Compose Commits..."
 								aria-label="Compose Commits..."
 							>
-								<code-icon slot="prefix" icon="wand"></code-icon>Compose Commits...
+								{isSecondaryWip ? (
+									<code-icon icon="wand"></code-icon>
+								) : (
+									<>
+										<code-icon slot="prefix" icon="wand"></code-icon>
+										Compose...
+									</>
+								)}
 							</gl-button>
 							<div>
 								<gl-button
@@ -776,6 +785,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 							</div>
 						</div>
 					);
+				}
 				// case 'stash-node':
 				// 	return (
 				// 		<div className="graph-row-actions">
