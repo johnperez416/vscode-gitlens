@@ -690,10 +690,6 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 		>`;
 	}
 
-	private handleCloseDetails() {
-		this.dispatchEvent(new CustomEvent('close-details', { bubbles: true, composed: true }));
-	}
-
 	private handlePoleClick(sha: string) {
 		this.dispatchEvent(new CustomEvent('select-commit', { detail: { sha: sha }, bubbles: true, composed: true }));
 	}

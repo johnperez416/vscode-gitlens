@@ -45,6 +45,18 @@ export class ActionChip extends LitElement {
 				opacity: 0.5;
 			}
 
+			.chip__icon-active {
+				display: none;
+			}
+			:host(:hover) .chip__icon,
+			:host(:has(.chip:focus-visible)) .chip__icon {
+				display: none;
+			}
+			:host(:hover) .chip__icon-active,
+			:host(:has(.chip:focus-visible)) .chip__icon-active {
+				display: inline-flex;
+			}
+
 			.chip {
 				display: inline-flex;
 				justify-content: center;
@@ -96,6 +108,9 @@ export class ActionChip extends LitElement {
 	@property()
 	icon = '';
 
+	@property()
+	activeIcon?: string;
+
 	@property({ type: Boolean })
 	disabled = false;
 
@@ -120,10 +135,14 @@ export class ActionChip extends LitElement {
 	private renderContent() {
 		const slot = this.overlay === 'popover' ? 'anchor' : nothing;
 		const iconHtml = html`<code-icon
-			part="icon"
-			icon="${this.icon}"
-			modifier="${ifDefined(this.icon === 'loading' ? 'spin' : '')}"
-		></code-icon>`;
+				class="chip__icon"
+				part="icon"
+				icon="${this.icon}"
+				modifier="${ifDefined(this.icon === 'loading' ? 'spin' : '')}"
+			></code-icon
+			>${this.activeIcon
+				? html`<code-icon class="chip__icon-active" part="active-icon" icon="${this.activeIcon}"></code-icon>`
+				: nothing}`;
 
 		if (this.href) {
 			return html`

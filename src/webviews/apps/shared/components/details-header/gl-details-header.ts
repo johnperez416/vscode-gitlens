@@ -43,12 +43,6 @@ export class GlDetailsHeader extends LitElement {
 				<div class="details-header__actions">
 					${this.renderModeToggles()}
 					<slot name="actions"></slot>
-					<gl-action-chip
-						icon="close"
-						label="Close"
-						overlay="tooltip"
-						@click=${this.handleClose}
-					></gl-action-chip>
 				</div>
 			</div>
 			<slot name="secondary"></slot>
@@ -65,6 +59,7 @@ export class GlDetailsHeader extends LitElement {
 
 			return html`<gl-action-chip
 				icon=${config.icon}
+				.activeIcon=${isActive ? 'close' : undefined}
 				label="${isActive ? config.closeLabel : config.label}"
 				overlay="tooltip"
 				class="${isActive ? 'mode-toggle--active' : ''}"
@@ -76,9 +71,5 @@ export class GlDetailsHeader extends LitElement {
 
 	private handleToggleMode(mode: Mode) {
 		this.dispatchEvent(new CustomEvent('toggle-mode', { detail: { mode: mode }, bubbles: true, composed: true }));
-	}
-
-	private handleClose() {
-		this.dispatchEvent(new CustomEvent('close-details', { bubbles: true, composed: true }));
 	}
 }

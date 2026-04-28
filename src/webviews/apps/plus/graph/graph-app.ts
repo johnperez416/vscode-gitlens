@@ -293,7 +293,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					.graphReachability=${this._selectedCommit?.reachability}
 					.commitLite=${this._selectedCommit?.commitLite}
 					.commitLites=${this._selectedCommits?.commitLites}
-					@close-details=${this.handleCloseDetails}
 					@select-commit=${this.handleSelectCommit}
 				></gl-graph-details-panel>
 			</div>
@@ -561,14 +560,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 
 		// Let the graph component handle row highlighting natively
 		this.graph?.selectCommits([sha], { ensureVisible: true });
-	}
-
-	private handleCloseDetails() {
-		this.setDetailsVisible(false);
-		this._selectedCommit = undefined;
-		this._selectedCommits = undefined;
-		this.graph?.selectCommits([], { ensureVisible: false });
-		this.graph?.focus();
 	}
 
 	private handleToggleDetails() {
