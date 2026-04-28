@@ -48,6 +48,7 @@ import type { GlButton } from '../../../shared/components/button.js';
 import type { CodeIcon } from '../../../shared/components/code-icon.js';
 import { GlMarkdown } from '../../../shared/components/markdown/markdown.react.jsx';
 import type { GraphStateProvider } from '../stateProvider.js';
+import { getCommitDateFromRow } from '../utils/row.utils.js';
 import '../../../shared/components/button.js';
 import '../../../shared/components/code-icon.js';
 
@@ -409,12 +410,27 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 
 	const handleOnGraphVisibleRowsChanged = useCallback(
 		(top: GraphRow, bottom: GraphRow) => {
+			// Synthetic WIP rows use `Date.now()` as their commit date so the GK component sorts them
+			// to "now". For visible-day projection, that anchors the overlay at "today" even when all
+			// real visible commits are older — overshooting the actual visible time range and making
+			// the overlay overlap a scope highlight that's days away. Resolve WIP rows to their parent
+			// commit so the overlay reflects only real commit dates. `commitDateOf` then pulls the
+			// committer-date (always populated by the row source, even when `row.date` follows author-
+			// date ordering) so the overlay aligns with the minimap spline + scope highlight.
+			const dateForRow = (row: GraphRow): number => {
+				if (row.type === 'work-dir-changes') {
+					const parentSha = row.parents?.[0];
+					const parent = parentSha ? props.rows?.find(r => r.sha === parentSha) : undefined;
+					if (parent != null) return getCommitDateFromRow(parent);
+				}
+				return getCommitDateFromRow(row);
+			};
 			initProps.onChangeVisibleDays?.({
-				top: new Date(top.date).setHours(23, 59, 59, 999),
-				bottom: new Date(bottom.date).setHours(0, 0, 0, 0),
+				top: new Date(dateForRow(top)).setHours(23, 59, 59, 999),
+				bottom: new Date(dateForRow(bottom)).setHours(0, 0, 0, 0),
 			});
 		},
-		[initProps.onChangeVisibleDays],
+		[initProps.onChangeVisibleDays, props.rows],
 	);
 
 	const handleOnGraphColumnsReOrdered = useCallback(

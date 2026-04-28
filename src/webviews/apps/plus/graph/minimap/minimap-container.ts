@@ -29,6 +29,7 @@ import type {
 } from './minimap.js';
 import './minimap.js';
 import { aggregate, aggregateSearchResults } from './minimapData.js';
+import { padScopeRange } from './minimapRenderer.js';
 
 export interface GraphMinimapConfigChangeEventDetail {
 	minimapDataType?: 'commits' | 'lines';
@@ -124,41 +125,6 @@ export class GlGraphMinimapContainer extends GlElement {
 		.minimap-marker-swatch[data-marker='worktree'] {
 			background-color: var(--color-graph-minimap-marker-worktree);
 		}
-
-		/* Matches the inner canvas's width (see #canvas in minimap.ts), so dim bands inside this
-			layer align with the chart area rather than spilling into the popover gutter. */
-		.scope-dims-layer {
-			position: absolute;
-			top: 0;
-			bottom: 0;
-			left: 0;
-			width: calc(100% - 2.5rem);
-			pointer-events: none;
-			z-index: 1;
-		}
-		.scope-dim {
-			position: absolute;
-			top: 0;
-			bottom: 0;
-			backdrop-filter: brightness(0.35) saturate(0.4);
-			transition:
-				width 0.15s ease,
-				left 0.15s ease;
-		}
-		.scope-dim--left {
-			left: 0;
-		}
-		.scope-dim--right {
-			right: 0;
-		}
-		/* Leave the zoom scrollbar visible (matches scrollbarHeightPx in minimap.ts). */
-		.scope-dim--zoomed {
-			bottom: 8px;
-		}
-
-		:host([collapsed]) .scope-dims-layer {
-			display: none;
-		}
 	`;
 
 	@property({ type: Number })
@@ -197,8 +163,6 @@ export class GlGraphMinimapContainer extends GlElement {
 			if (this._lastZoomApplied != null) {
 				minimap.resetZoom();
 				this._lastZoomApplied = undefined;
-				// Re-render so dim bands re-project onto the unzoomed range.
-				this.requestUpdate();
 			}
 			return;
 		}
@@ -206,10 +170,18 @@ export class GlGraphMinimapContainer extends GlElement {
 		if (this._lastZoomApplied?.start === window.start && this._lastZoomApplied?.end === window.end) {
 			return;
 		}
-		minimap.applyZoom(window.start, window.end);
+		// Pad the scope window with a thin per-side breathing room so the edge triangles + highlight
+		// band aren't pinned to the canvas edge. Two opt-outs from the brush-zoom defaults:
+		//   - `minRange: 0` so the 7-day brush floor doesn't blow a 1-day scope out to 7 days.
+		//   - `extendOnClamp: false` so when scope.end sits at the data-domain edge (e.g. today),
+		//     clamping doesn't extend the older side by the overshoot — "1 day on either side" stays
+		//     "1 day on either side" rather than "1 day older + 2 days even older."
+		// The data-domain clamp inside applyZoom still keeps the canvas inside the data range, so
+		// padding past the boundary just disappears. _lastZoomApplied stays keyed on the original
+		// scope so an unchanged scope doesn't re-trigger zoom on every render.
+		const padded = padScopeRange(window);
+		minimap.applyZoom(padded.oldest, padded.newest, { minRange: 0, extendOnClamp: false });
 		this._lastZoomApplied = { start: window.start, end: window.end };
-		// Re-render so dim bands re-project onto the new zoom range.
-		this.requestUpdate();
 	}
 
 	private flushPendingWork() {
@@ -359,11 +331,11 @@ export class GlGraphMinimapContainer extends GlElement {
 				.loading=${this.isLoading}
 				.markers=${this.markersByDay}
 				.reversed=${this.reversed}
+				.scopeEdges=${this.scopeWindow}
 				.searchResults=${this.searchResultsByDay}
 				.visibleDays=${this.visibleDays}
 				@gl-graph-minimap-zoom-change=${this.handleZoomChanged}
 			></gl-graph-minimap>
-			${this.renderScopeDims()}
 			<div class="minimap-settings-wrapper">
 				<gl-popover placement="bottom-end" trigger="hover focus click" ?arrow=${false} distance=${0} hoist>
 					<button type="button" class="minimap-settings__trigger" aria-label="Minimap Options" slot="anchor">
@@ -487,50 +459,6 @@ export class GlGraphMinimapContainer extends GlElement {
 							</gl-tooltip>`
 						: nothing}
 			</div>`;
-	}
-
-	private renderScopeDims(): unknown {
-		const window = this.scopeWindow;
-		if (window == null || this.collapsed || this.statsByDay.size < 2) return nothing;
-
-		// Project onto the minimap's current x-axis. When zoomed, use the zoom range; otherwise use
-		// the full statsByDay range. Either way, extend the end by one day since day keys are
-		// start-of-UTC-day timestamps and each bucket visually covers its full 24h.
-		let domainStart: number;
-		let domainEnd: number;
-		const zoomOldest = this.minimap?.zoomOldest;
-		const zoomNewest = this.minimap?.zoomNewest;
-		if (zoomOldest != null && zoomNewest != null) {
-			domainStart = zoomOldest;
-			domainEnd = zoomNewest + 86400000;
-		} else {
-			let minDay = Infinity;
-			let maxDay = -Infinity;
-			for (const day of this.statsByDay.keys()) {
-				if (day < minDay) {
-					minDay = day;
-				}
-				if (day > maxDay) {
-					maxDay = day;
-				}
-			}
-			domainStart = minDay;
-			domainEnd = maxDay + 86400000;
-		}
-		const span = domainEnd - domainStart;
-		if (span <= 0) return nothing;
-
-		const leftPct = Math.max(0, Math.min(1, (window.start - domainStart) / span)) * 100;
-		const rightPct = Math.max(0, Math.min(1, (window.end - domainStart) / span)) * 100;
-		if (leftPct >= rightPct) return nothing;
-
-		const zoomedClass = zoomOldest != null && zoomNewest != null ? ' scope-dim--zoomed' : '';
-		return html`
-			<div class="scope-dims-layer">
-				<div class="scope-dim scope-dim--left${zoomedClass}" style=${`width:${leftPct}%`}></div>
-				<div class="scope-dim scope-dim--right${zoomedClass}" style=${`left:${rightPct}%`}></div>
-			</div>
-		`;
 	}
 
 	private handleDataTypeChanged(e: Event) {

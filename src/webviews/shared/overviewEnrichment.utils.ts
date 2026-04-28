@@ -270,11 +270,21 @@ export async function getOverviewEnrichment(
 		/** When true, `await` each `pr.launchpad` and populate `enrichment.resolvedLaunchpad`. Use for transports that can't serialize Promises (traditional IPC). */
 		resolveLaunchpad?: boolean;
 		signal?: AbortSignal;
+		/**
+		 * Optional caller-provided fetcher for `BranchContributionsOverview`. When supplied, callers
+		 * can route the fetch through their own cache so scope resolution and enrichment share one
+		 * computation per branch. Must accept the same `associatedPullRequest` promise the
+		 * enrichment uses for `pr` so PR-based merge target detection is consistent.
+		 */
+		getBranchOverview?: (
+			branch: GitBranch,
+			associatedPullRequest: Promise<PullRequest | undefined>,
+		) => Promise<BranchContributionsOverview | undefined>;
 	},
 ): Promise<GetOverviewEnrichmentResponse> {
 	if (branchIds.length === 0) return {};
 
-	const { isPro, resolveLaunchpad, signal } = options;
+	const { isPro, resolveLaunchpad, signal, getBranchOverview } = options;
 	const launchpadPromise: Promise<LaunchpadCategorizedResult> | undefined = isPro
 		? container.launchpad.getCategorizedItems()
 		: undefined;
@@ -302,9 +312,11 @@ export async function getOverviewEnrichment(
 			promises.pr = getPullRequestInfo(container, branch, launchpadPromise, associatedPR);
 			promises.autolinks = getBranchEnrichedAutolinks(container, branch);
 			promises.issues = getAssociatedIssuesForBranch(container, branch).then(issues => issues.value);
-			promises.contributors = container.git
-				.getRepositoryService(branch.repoPath)
-				.branches.getBranchContributionsOverview(branch.ref, { associatedPullRequest: associatedPR });
+			promises.contributors =
+				getBranchOverview?.(branch, associatedPR) ??
+				container.git
+					.getRepositoryService(branch.repoPath)
+					.branches.getBranchContributionsOverview(branch.ref, { associatedPullRequest: associatedPR });
 			// Compute merge target for every enriched branch (not just the current one) so the graph's
 			// scope popover can render a merge-target anchor when the user focuses any branch, and so
 			// recent-branch cards can show merged status.

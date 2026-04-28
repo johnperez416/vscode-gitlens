@@ -36,6 +36,7 @@ import type { GlGraphMinimapContainer, GraphMinimapConfigChangeEventDetail } fro
 import type { GraphMinimapDaySelectedEventDetail, GraphMinimapWheelEvent } from './minimap/minimap.js';
 import type { GlGraphSidebarPanel, GraphSidebarPanelSelectEventDetail } from './sidebar/sidebar-panel.js';
 import type { GraphSidebarToggleEventDetail } from './sidebar/sidebar.js';
+import { getCommitDateFromRow } from './utils/row.utils.js';
 import './gate.js';
 import './graph-header.js';
 import './graph-wrapper/graph-wrapper.js';
@@ -676,52 +677,8 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		) {
 			return;
 		}
-		// Fill in a provisional mergeBase from already-loaded rows so the minimap zooms and the dim
-		// bands appear instantly. `resolveScopeMergeBase` backfills the authoritative value (cached
-		// on both sides of the IPC) — it's a no-op on re-picks of the same branch.
-		const provisionalMergeBase = this.resolveProvisionalMergeBase(scope);
-		this.graphState.scope = provisionalMergeBase != null ? { ...scope, mergeBase: provisionalMergeBase } : scope;
+		this.graphState.scope = scope;
 		void this.graphState.resolveScopeMergeBase(scope);
-	}
-
-	private resolveProvisionalMergeBase(
-		scope: NonNullable<typeof this.graphState.scope>,
-	): { sha: string; date: number } | undefined {
-		const rows = this.graphState.rows;
-		if (rows == null || rows.length === 0) return undefined;
-
-		// Require the branch's own tip row so we can guard against base-branch candidates that moved
-		// PAST the branch tip (which would produce an inverted {start > end} window).
-		const tipRow = rows.find(
-			r => r.heads?.some(h => h.id === scope.branchRef) || r.remotes?.some(re => re.id === scope.branchRef),
-		);
-		if (tipRow == null) return undefined;
-		const tipDate = tipRow.date;
-
-		// Preferred: upstream tip row — merge-base(branch, upstream) is the upstream tip when the branch
-		// is ahead or synced, which is the common case.
-		if (scope.upstreamRef != null) {
-			const upstreamRow = rows.find(
-				r =>
-					r.remotes?.some(re => re.id === scope.upstreamRef) ||
-					r.heads?.some(h => h.id === scope.upstreamRef),
-			);
-			if (upstreamRow != null && upstreamRow.date <= tipDate) {
-				return { sha: upstreamRow.sha, date: upstreamRow.date };
-			}
-		}
-
-		// Fallback: a common base branch that's loaded in the graph AND is older than the branch tip.
-		// If main has moved past the branch tip, it's not a valid provisional — skip it and let the IPC
-		// backfill the authoritative merge-base.
-		for (const name of ['main', 'master', 'develop']) {
-			if (name === scope.branchName) continue;
-			const row = rows.find(r => r.heads?.some(h => h.name === name));
-			if (row != null && row.date <= tipDate) {
-				return { sha: row.sha, date: row.date };
-			}
-		}
-		return undefined;
 	}
 
 	private _cachedScopeWindow:
@@ -731,11 +688,38 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				result: { start: number; end: number } | undefined;
 		  }
 		| undefined;
+	/**
+	 * Last successfully resolved window. Held across scope transitions so the minimap stays zoomed
+	 * to the previous range while a freshly-picked scope's mergeBase is being backfilled — without
+	 * this, the gap between `setScope` and `patchScopeMergeBase` shows as a flash to "no scope"
+	 * before zooming into the new branch.
+	 */
+	private _lastResolvedScopeWindow: { start: number; end: number } | undefined;
 
 	private deriveScopeWindow(): { start: number; end: number } | undefined {
 		const scope = this.graphState.scope;
-		const rows = this.graphState.rows;
-		if (scope?.mergeBase == null) return undefined;
+		if (scope == null) {
+			this._lastResolvedScopeWindow = undefined;
+			return undefined;
+		}
+
+		const result = this.computeScopeWindow(scope, this.graphState.rows);
+		if (result != null) {
+			this._lastResolvedScopeWindow = result;
+			return result;
+		}
+		// Couldn't compute a window for the active scope — either `mergeBase` hasn't been backfilled
+		// yet, or the branch tip isn't in the loaded rows. Hold the previously resolved window so
+		// the minimap doesn't flash to unzoomed; once the missing data lands, `computeScopeWindow`
+		// returns a real window and we transition in a single step.
+		return this._lastResolvedScopeWindow;
+	}
+
+	private computeScopeWindow(
+		scope: NonNullable<AppState['scope']>,
+		rows: GraphRow[] | undefined,
+	): { start: number; end: number } | undefined {
+		if (scope.mergeBase == null) return undefined;
 
 		const cache = this._cachedScopeWindow;
 		if (cache?.scope === scope && cache.rows === rows) {
@@ -747,15 +731,18 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			r => r.heads?.some(h => h.id === scope.branchRef) || r.remotes?.some(re => re.id === scope.branchRef),
 		);
 		if (tipRow != null) {
-			let end = tipRow.date;
+			let end = getCommitDateFromRow(tipRow);
 			if (scope.upstreamRef != null) {
 				const upstreamRow = rows?.find(
 					r =>
 						r.remotes?.some(re => re.id === scope.upstreamRef) ||
 						r.heads?.some(h => h.id === scope.upstreamRef),
 				);
-				if (upstreamRow != null && upstreamRow.date > end) {
-					end = upstreamRow.date;
+				if (upstreamRow != null) {
+					const upstreamDate = getCommitDateFromRow(upstreamRow);
+					if (upstreamDate > end) {
+						end = upstreamDate;
+					}
 				}
 			}
 			result = { start: scope.mergeBase.date, end: end };

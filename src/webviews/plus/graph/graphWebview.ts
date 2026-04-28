@@ -23,6 +23,7 @@ import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { rootSha, uncommitted, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import type { GitCommitSearchContext, SearchQuery } from '@gitlens/git/models/search.js';
 import type { GitWorktree } from '@gitlens/git/models/worktree.js';
+import type { BranchContributionsOverview } from '@gitlens/git/providers/branches.js';
 import {
 	getBranchId,
 	getBranchNameWithoutRemote,
@@ -1940,6 +1941,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		return getOverviewEnrichment(this.container, this._graph.branches.values(), params.branchIds, {
 			isPro: isPro,
 			resolveLaunchpad: true,
+			getBranchOverview: (branch, associatedPullRequest) => this.getBranchOverview(branch, associatedPullRequest),
 		});
 	}
 
@@ -3871,108 +3873,58 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private async onResolveGraphScope(
 		params: IpcParams<typeof ResolveGraphScopeRequest>,
 	): Promise<IpcResponse<typeof ResolveGraphScopeRequest>> {
-		const mergeBase = await this.resolveMergeBaseForBranch(
+		const mergeBase = await this.resolveScopeMergeBaseForBranch(
 			params.repoPath,
 			params.scope.branchRef,
 			params.scope.branchName,
-			params.scope.upstreamRef,
 		);
 		return { scope: { ...params.scope, mergeBase: mergeBase } };
 	}
 
 	/**
-	 * Session cache for resolved merge-bases, keyed by `repoPath|branchRef|upstreamRef`. Merge-bases
-	 * are stable as long as history isn't rewritten, so caching for the webview's lifetime is safe;
-	 * a graph refresh recreates the provider and clears it. Coalesces in-flight resolves per key so
-	 * concurrent consumers share one git operation.
+	 * Session cache of `BranchContributionsOverview` per branch — the canonical "what's on this
+	 * branch" data: merge target name, merge base SHA, contributors, dates, and stats. Shared by
+	 * scope resolution (which needs `mergeBase`), enrichment (which needs contributors + stats),
+	 * and any future consumer that wants this data. The cache holds promises so concurrent callers
+	 * dedupe naturally; a graph refresh recreates the provider and clears it.
+	 *
+	 * Upstream is intentionally NOT part of the key — the scope window represents "commits ON this
+	 * branch", anchored at the branch's merge target (stored → PR base → detected base → default),
+	 * not at the remote tracking pair.
 	 */
-	private readonly _mergeBaseCache = new Map<string, { sha: string; date: number } | undefined>();
-	private readonly _mergeBaseInFlight = new Map<string, Promise<{ sha: string; date: number } | undefined>>();
+	private readonly _branchOverviewCache = new Map<string, Promise<BranchContributionsOverview | undefined>>();
 
-	private async resolveMergeBaseForBranch(
-		repoPath: string,
-		branchRefId: string,
-		branchName: string,
-		upstreamRefId: string | undefined,
-	): Promise<{ sha: string; date: number } | undefined> {
-		const cacheKey = `${repoPath}|${branchRefId}|${upstreamRefId ?? ''}`;
-		if (this._mergeBaseCache.has(cacheKey)) {
-			return this._mergeBaseCache.get(cacheKey);
-		}
-		const inFlight = this._mergeBaseInFlight.get(cacheKey);
-		if (inFlight != null) return inFlight;
+	private getBranchOverview(
+		branch: GitBranch,
+		associatedPullRequest?: Promise<PullRequest | undefined>,
+	): Promise<BranchContributionsOverview | undefined> {
+		const cacheKey = branch.id;
+		const cached = this._branchOverviewCache.get(cacheKey);
+		if (cached != null) return cached;
 
-		const promise = this.computeMergeBaseForBranch(repoPath, branchRefId, branchName, upstreamRefId)
-			.then(result => {
-				this._mergeBaseCache.set(cacheKey, result);
-				return result;
-			})
-			.finally(() => {
-				this._mergeBaseInFlight.delete(cacheKey);
-			});
-		this._mergeBaseInFlight.set(cacheKey, promise);
+		const pr = associatedPullRequest ?? getBranchAssociatedPullRequest(this.container, branch);
+		const promise = this.container.git
+			.getRepositoryService(branch.repoPath)
+			.branches.getBranchContributionsOverview(branch.ref, { associatedPullRequest: pr });
+		this._branchOverviewCache.set(cacheKey, promise);
 		return promise;
 	}
 
-	private async computeMergeBaseForBranch(
+	private async resolveScopeMergeBaseForBranch(
 		repoPath: string,
 		branchRefId: string,
 		branchName: string,
-		upstreamRefId: string | undefined,
 	): Promise<{ sha: string; date: number } | undefined> {
 		const svc = this.container.git.getRepositoryService(repoPath);
 		const branchRef = gitRefFromGraphBranchId(branchRefId) ?? branchName;
-		const upstreamRef = upstreamRefId != null ? gitRefFromGraphBranchId(upstreamRefId) : undefined;
 
-		let mergeBaseSha: string | undefined;
-		if (upstreamRef != null) {
-			try {
-				mergeBaseSha = await svc.refs.getMergeBase(branchRef, upstreamRef);
-			} catch {
-				// fall through to base-branch discovery
-			}
-		}
+		const branch = await svc.branches.getBranch(branchRef);
+		if (branch == null) return undefined;
 
-		if (mergeBaseSha == null) {
-			let baseBranch: string | undefined;
-			try {
-				baseBranch =
-					(await svc.branches.getBaseBranchName?.(branchName)) ??
-					(await svc.branches.getDefaultBranchName?.());
-			} catch {
-				// APIs may not be available
-			}
+		const overview = await this.getBranchOverview(branch);
+		if (overview?.mergeBase == null || overview.mergeBaseDate == null) return undefined;
 
-			const candidates = baseBranch ? [baseBranch] : ['main', 'master', 'develop'];
-			for (const candidate of candidates) {
-				if (candidate === branchName) continue;
-				try {
-					const result = await svc.refs.getMergeBase(branchRef, candidate);
-					if (result) {
-						mergeBaseSha = result;
-						break;
-					}
-				} catch {
-					// try next candidate
-				}
-			}
-		}
-
-		if (mergeBaseSha == null) return undefined;
-
-		try {
-			const commit = await svc.commits.getCommit(mergeBaseSha);
-			const date = commit?.author?.date;
-			if (commit != null && date != null) {
-				return {
-					sha: commit.sha,
-					date: typeof date === 'number' ? date : new Date(date).getTime(),
-				};
-			}
-		} catch {
-			// no date available
-		}
-		return undefined;
+		return { sha: overview.mergeBase, date: overview.mergeBaseDate.getTime() };
 	}
 
 	private _fireSelectionChangedDebounced: Deferrable<GraphWebviewProvider['fireSelectionChanged']> | undefined =

@@ -1,6 +1,15 @@
 import * as assert from 'assert';
 import type { GraphMinimapStats } from '../minimap.js';
-import { buildViewModel, computeMonotoneTangents, computeYScale, dayToX, layout, xToDay } from '../minimapRenderer.js';
+import {
+	buildViewModel,
+	computeMonotoneTangents,
+	computeYScale,
+	dayToX,
+	layout,
+	padScopeRange,
+	scopeZoomPaddingMs,
+	xToDay,
+} from '../minimapRenderer.js';
 
 const today = new Date(2024, 5, 10).setHours(0, 0, 0, 0);
 const yesterday = today - 86_400_000;
@@ -188,6 +197,40 @@ suite('minimapRenderer Test Suite', () => {
 		// Left half [0, 250) now maps to yesterday (oldest on the left); right half to today.
 		assert.strictEqual(xToDay(10, vm, loReversed), yesterday);
 		assert.strictEqual(xToDay(260, vm, loReversed), today);
+	});
+
+	test('padScopeRange pads a 1-day scope by `scopeZoomPaddingMs` on each side', () => {
+		const start = today - 5 * 86_400_000;
+		const end = start + 86_400_000;
+		const padded = padScopeRange({ start: start, end: end });
+		assert.strictEqual(padded.oldest, start - scopeZoomPaddingMs);
+		assert.strictEqual(padded.newest, end + scopeZoomPaddingMs);
+	});
+
+	test('padScopeRange centers an empty scope (start === end) on the merge-base with non-zero span', () => {
+		const mergeBase = today - 10 * 86_400_000;
+		const padded = padScopeRange({ start: mergeBase, end: mergeBase });
+		// Empty scope yields a 2*padding window centered on the merge-base; applyZoom widens further
+		// to the brush-floor minimum, but `padScopeRange` itself only handles padding.
+		assert.strictEqual(padded.oldest, mergeBase - scopeZoomPaddingMs);
+		assert.strictEqual(padded.newest, mergeBase + scopeZoomPaddingMs);
+		assert.ok(padded.newest > padded.oldest, 'expected non-zero span');
+	});
+
+	test('padScopeRange pads even wide scopes — there is no upper bypass', () => {
+		const start = today - 60 * 86_400_000;
+		const end = today - 5 * 86_400_000;
+		const padded = padScopeRange({ start: start, end: end });
+		assert.strictEqual(padded.oldest, start - scopeZoomPaddingMs);
+		assert.strictEqual(padded.newest, end + scopeZoomPaddingMs);
+	});
+
+	test('padScopeRange normalizes inverted input (end before start)', () => {
+		const a = today - 20 * 86_400_000;
+		const b = today - 10 * 86_400_000;
+		const padded = padScopeRange({ start: b, end: a });
+		assert.strictEqual(padded.oldest, a - scopeZoomPaddingMs);
+		assert.strictEqual(padded.newest, b + scopeZoomPaddingMs);
 	});
 
 	test('reversed dayToX round-trips back through xToDay', () => {

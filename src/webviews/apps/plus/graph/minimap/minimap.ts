@@ -166,6 +166,7 @@ export class GlGraphMinimap extends GlElement {
 			user-select: none;
 			pointer-events: none;
 			min-width: 300px;
+			max-width: min(420px, calc(100% - 8px));
 			display: flex;
 			flex-direction: column;
 			padding: 0.5rem 1rem;
@@ -175,7 +176,6 @@ export class GlGraphMinimap extends GlElement {
 			box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 			font-size: var(--font-size);
 			opacity: 1;
-			white-space: nowrap;
 			visibility: hidden;
 		}
 
@@ -192,11 +192,20 @@ export class GlGraphMinimap extends GlElement {
 
 		#tooltip .header--title {
 			font-weight: 600;
+			white-space: nowrap;
 		}
 
 		#tooltip .header--description {
 			font-weight: normal;
 			font-style: italic;
+			overflow-wrap: anywhere;
+		}
+
+		#tooltip .refs > span {
+			white-space: nowrap;
+			max-width: 240px;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 
 		#tooltip .changes {
@@ -381,6 +390,7 @@ export class GlGraphMinimap extends GlElement {
 		fullTimelineOldest: undefined,
 		fullTimelineNewest: undefined,
 		zoomRange: undefined,
+		scopeEdges: undefined,
 		brushRange: undefined,
 		scrollbarOpacity: 0,
 		scrollbarHover: false,
@@ -441,6 +451,14 @@ export class GlGraphMinimap extends GlElement {
 	private onReversedChanged() {
 		// Layout stores `reversed` — clear it so `drawNow` rebuilds with the new orientation.
 		this._layout = undefined;
+		this.invalidateStatic();
+	}
+
+	@property({ type: Object })
+	scopeEdges: { start: number; end: number } | undefined;
+
+	@observe('scopeEdges')
+	private onScopeEdgesChanged() {
 		this.invalidateStatic();
 	}
 
@@ -588,34 +606,42 @@ export class GlGraphMinimap extends GlElement {
 		return this._zoomedViewModel ?? this._viewModel;
 	}
 
-	applyZoom(oldest: number, newest: number): void {
+	applyZoom(oldest: number, newest: number, options?: { minRange?: number; extendOnClamp?: boolean }): void {
 		if (this._viewModel == null) return;
 		const fullOldest = this._viewModel.days.at(-1)!;
 		const fullNewest = this._viewModel.days[0];
 
-		// Enforce the 7-day floor with centered widening, then clamp to the full timeline. Clamping
-		// after widening preserves the minimum width even at the extreme ends of the timeline.
+		const minRange = options?.minRange ?? minZoomRangeMs;
+		const extendOnClamp = options?.extendOnClamp ?? true;
+
+		// Enforce a minimum-range floor with centered widening (scope-zoom uses a tighter floor than
+		// brush-zoom). When `extendOnClamp` is on (brush behavior), clamping the requested window to
+		// the data domain pushes the *other* edge to preserve the requested span — useful for brush
+		// where the user picked a span. Off (scope behavior), clamping is plain — no compensation —
+		// so a 1-day-padded scope at the data boundary stays a 1-day-padded scope, not a wider one.
 		let zoomOldest = oldest;
 		let zoomNewest = newest;
-		if (zoomNewest - zoomOldest < minZoomRangeMs) {
+		if (zoomNewest - zoomOldest < minRange) {
 			const center = (zoomOldest + zoomNewest) / 2;
-			zoomOldest = center - minZoomRangeMs / 2;
-			zoomNewest = center + minZoomRangeMs / 2;
+			zoomOldest = center - minRange / 2;
+			zoomNewest = center + minRange / 2;
 		}
-		if (zoomNewest > fullNewest) {
-			const shift = zoomNewest - fullNewest;
-			zoomNewest -= shift;
-			zoomOldest -= shift;
-		}
-		if (zoomOldest < fullOldest) {
-			const shift = fullOldest - zoomOldest;
-			zoomOldest += shift;
-			zoomNewest += shift;
+		if (extendOnClamp) {
+			if (zoomNewest > fullNewest) {
+				const shift = zoomNewest - fullNewest;
+				zoomNewest -= shift;
+				zoomOldest -= shift;
+			}
+			if (zoomOldest < fullOldest) {
+				const shift = fullOldest - zoomOldest;
+				zoomOldest += shift;
+				zoomNewest += shift;
+			}
 		}
 		zoomOldest = Math.max(zoomOldest, fullOldest);
 		zoomNewest = Math.min(zoomNewest, fullNewest);
-		if (zoomNewest - zoomOldest < minZoomRangeMs) {
-			// Full timeline is narrower than the minimum zoom window — nothing worth zooming to.
+		if (zoomNewest - zoomOldest < minRange) {
+			// Full timeline is narrower than the requested minimum window — nothing worth zooming to.
 			return;
 		}
 
@@ -822,6 +848,7 @@ export class GlGraphMinimap extends GlElement {
 		} else {
 			state.zoomRange = undefined;
 		}
+		state.scopeEdges = this.scopeEdges;
 		if (this._brushing && this._pointerDownX != null && this._brushCurrentX != null) {
 			this._brushRangeScratch.startX = this._pointerDownX;
 			this._brushRangeScratch.endX = this._brushCurrentX;
@@ -886,6 +913,8 @@ export class GlGraphMinimap extends GlElement {
 			markerStashes: getCssVariable('--color-graph-minimap-marker-stashes', style),
 			markerTags: getCssVariable('--color-graph-minimap-marker-tags', style),
 			markerHighlights: getCssVariable('--color-graph-minimap-marker-highlights', style),
+			markerScope: getCssVariable('--color-graph-minimap-marker-scope', style),
+			markerScopeHighlight: getCssVariable('--color-graph-minimap-marker-scope-highlight', style),
 			scrollThumb: getCssVariable('--vscode-scrollbarSlider-background', style),
 			scrollThumbHover: getCssVariable('--vscode-scrollbarSlider-hoverBackground', style),
 		};

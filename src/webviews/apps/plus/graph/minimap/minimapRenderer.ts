@@ -21,6 +21,15 @@ const upstreamTriangleHeight = 4;
 const upstreamAnchorLineWidth = 1; // px — upstream's anchor line, slimmer than main HEAD's so the visual hierarchy reads
 const upstreamAnchorLineAlpha = 0.5; // dimmer than main HEAD so the eye still ranks main HEAD first
 
+// Scope edges are right-angle "brackets" anchored to the top edge: the vertical leg sits exactly on
+// the boundary, the hypotenuse points into the scope window. Sized in the same visual ballpark as the
+// HEAD triangle so they read as a clear boundary cue from across the chart — HEAD still wins overlap
+// at coincident pixels because it draws after the scope edges. A 1-px guide line drops from each
+// triangle the full canvas height so the boundary is scannable even when the spline activity is dense.
+const scopeEdgeWidth = 8;
+const scopeEdgeHeight = 10;
+const scopeEdgeGuideWidth = 1;
+
 const scrollbarHeight = 8;
 const scrollbarThumbOpacity = 1;
 const scrollbarThumbOpacityHover = 1;
@@ -31,7 +40,12 @@ const scrollbarViewportMarkerOpacityHover = 0.8;
 const brushFillOpacity = 0.45;
 const brushEdgeWidthPx = 2;
 export const dayMs = 24 * 60 * 60 * 1000;
-export const minZoomRangeMs = 7 * dayMs; // 7-day floor on the zoom window width
+export const minZoomRangeMs = 7 * dayMs; // 7-day floor on brush-zoom window width
+// Scope-zoom anchors tightly on the requested window plus a thin per-side breathing room so the edge
+// triangles + highlight band aren't pinned to the canvas edge. `applyZoom` still enforces the brush
+// floor on top of this, so a 1-commit scope (3-day padded window) is widened to 7 days as a final
+// minimum — but the *intent* is "the canvas is the scope," not "the canvas is a context window."
+export const scopeZoomPaddingMs = dayMs;
 
 export interface MinimapTheme {
 	background: string;
@@ -46,6 +60,8 @@ export interface MinimapTheme {
 	markerStashes: string;
 	markerTags: string;
 	markerHighlights: string;
+	markerScope: string;
+	markerScopeHighlight: string;
 	scrollThumb: string;
 	scrollThumbHover: string;
 }
@@ -85,6 +101,10 @@ export interface MinimapDrawState {
 	fullTimelineNewest?: number;
 	/** Zoom window in timestamps (oldest..newest). Undefined = not zoomed. */
 	zoomRange?: { oldest: number; newest: number };
+	/** Original (unexpanded) scope window in timestamps. Used to draw boundary triangles on the top
+	 * rail; undefined = not scoped. Distinct from `zoomRange` because scope-zoom widens narrow scopes
+	 * to ensure the surrounding context is legible — the triangles still anchor on the true scope. */
+	scopeEdges?: { start: number; end: number };
 	/** In-progress brush rect in canvas-local x coordinates. Undefined = not brushing. */
 	brushRange?: { startX: number; endX: number };
 	/** 0..1 opacity for the scrollbar overlay — animated toward 1 when zoomed, 0 when not. */
@@ -227,11 +247,26 @@ function activityToY(value: number, yMax: number, activityHeight: number): numbe
 	return activityHeight - (clamped / yMax) * activityHeight;
 }
 
-function rangeToX(day: number, viewModel: MinimapViewModel, lo: MinimapLayout): number {
+/**
+ * Projects a precise timestamp (not a day key) to a canvas-local x — the inverse of `xToTimestamp`.
+ * The unclamped variant returns the raw projection, which the highlight-band fill uses (so the band
+ * stays visible after panning, clipped to canvas extents at the rect stage). The clamped variant
+ * returns undefined when the timestamp is far enough outside the visible canvas that even a full
+ * bracket triangle couldn't render meaningfully — used by the edge triangles, which shouldn't draw
+ * when off-screen.
+ */
+function projectTimestampX(timestamp: number, viewModel: MinimapViewModel, lo: MinimapLayout): number | undefined {
+	if (lo.barWidth === 0 || viewModel.days.length === 0) return undefined;
 	const firstDay = viewModel.days[0];
-	const fractionalIndex = (firstDay - day) / dayMs;
-	const x = fractionalIndex * lo.barWidth + lo.barWidth / 2;
+	const x = ((firstDay - timestamp) / dayMs) * lo.barWidth;
 	return lo.reversed ? lo.chartWidth - x : x;
+}
+
+function projectScopeEdgeX(timestamp: number, viewModel: MinimapViewModel, lo: MinimapLayout): number | undefined {
+	const x = projectTimestampX(timestamp, viewModel, lo);
+	if (x == null) return undefined;
+	if (x < -scopeEdgeWidth || x > lo.chartWidth + scopeEdgeWidth) return undefined;
+	return x;
 }
 
 /**
@@ -291,7 +326,7 @@ export function sliceViewModel(source: MinimapViewModel, oldest: number, newest:
  * and cleared the canvas before calling; this function draws everything in CSS-pixel coordinates.
  */
 export function drawStatic(ctx: CanvasRenderingContext2D, state: MinimapDrawState): void {
-	const { viewModel, layout: lo, theme, markersByDay, searchResultsByDay } = state;
+	const { viewModel, layout: lo, theme, markersByDay, searchResultsByDay, scopeEdges } = state;
 	const { width, height, activityHeight } = lo;
 
 	if (theme.background) {
@@ -299,10 +334,67 @@ export function drawStatic(ctx: CanvasRenderingContext2D, state: MinimapDrawStat
 		ctx.fillRect(0, 0, width, height);
 	}
 
+	// Snap scope edges to day boundaries before projecting: bracket each edge at the outer side of
+	// its day-bar so the highlight covers WHOLE bars containing scope.start and scope.end (and every
+	// bar between them). This keeps the highlight + triangles aligned to bars instead of slicing
+	// through sub-day commit timestamps (`branchTip = today_3pm` would otherwise project off-canvas
+	// because the canvas treats day keys as midnight starts), and gives a visible band even when
+	// scope.start and scope.end fall on the same day. The band edges are unclamped here and clipped
+	// against `[0, chartWidth]` at the fill step, so the band stays visible when the user pans far
+	// enough that one (or both) scope edges leave the viewport.
+	let scopeTriStartX: number | undefined;
+	let scopeTriEndX: number | undefined;
+	if (scopeEdges != null && viewModel.days.length > 0) {
+		const newerBoundary = getDay(scopeEdges.end);
+		const olderBoundary = getDay(scopeEdges.start) - dayMs;
+
+		scopeTriStartX = projectScopeEdgeX(olderBoundary, viewModel, lo);
+		scopeTriEndX = projectScopeEdgeX(newerBoundary, viewModel, lo);
+
+		const rawNewer = projectTimestampX(newerBoundary, viewModel, lo);
+		const rawOlder = projectTimestampX(olderBoundary, viewModel, lo);
+		if (rawNewer != null && rawOlder != null) {
+			const bandLeft = Math.max(0, Math.min(rawNewer, rawOlder));
+			const bandRight = Math.min(lo.chartWidth, Math.max(rawNewer, rawOlder));
+			if (bandRight > bandLeft) {
+				ctx.fillStyle = theme.markerScopeHighlight;
+				ctx.fillRect(bandLeft, 0, bandRight - bandLeft, height);
+			}
+		}
+	}
+
 	if (viewModel.days.length > 0 && !state.loading) {
 		ctx.strokeStyle = theme.line;
 		ctx.lineWidth = 1;
 		drawActivitySpline(ctx, viewModel, lo);
+	}
+
+	// Scope edge guide lines + triangles draw after the spline so they read as a hard boundary cue
+	// (the spline doesn't chop the line at crossings), and before markers so HEAD/upstream win overlap
+	// when a branch tip sits on a scope boundary — "branch tip is here" matters more than "scope edge
+	// is here" at a coincident x. The guide line is the visual continuation of the triangle's
+	// vertical leg, dropping the full canvas height in `markerScope` color. scope.start is the older
+	// edge, scope.end the newer. In non-reversed mode the newest day sits on the left of the canvas,
+	// so `end` lands on the *left* side of the scope band and its hypotenuse extends right into
+	// scope; `start` lands on the *right* side and its hypotenuse extends left. Reversed mode flips.
+	if (scopeTriStartX != null || scopeTriEndX != null) {
+		ctx.fillStyle = theme.markerScope;
+		if (scopeTriStartX != null) {
+			const px = Math.round(scopeTriStartX) - Math.floor(scopeEdgeGuideWidth / 2);
+			ctx.fillRect(px, 0, scopeEdgeGuideWidth, height);
+		}
+		if (scopeTriEndX != null) {
+			const px = Math.round(scopeTriEndX) - Math.floor(scopeEdgeGuideWidth / 2);
+			ctx.fillRect(px, 0, scopeEdgeGuideWidth, height);
+		}
+	}
+	if (scopeTriStartX != null) {
+		const startSide: 'left' | 'right' = lo.reversed ? 'left' : 'right';
+		drawScopeEdgeTriangle(ctx, scopeTriStartX, theme.markerScope, startSide, scopeEdgeWidth, scopeEdgeHeight);
+	}
+	if (scopeTriEndX != null) {
+		const endSide: 'left' | 'right' = lo.reversed ? 'right' : 'left';
+		drawScopeEdgeTriangle(ctx, scopeTriEndX, theme.markerScope, endSide, scopeEdgeWidth, scopeEdgeHeight);
 	}
 
 	if (markersByDay != null && markersByDay.size > 0) {
@@ -422,19 +514,27 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, state: MinimapDrawSta
 	// ranges entirely outside the zoom window fall off-canvas naturally and aren't drawn — the
 	// scrollbar's graph-viewport marker carries that signal instead.
 	if (visibleDays != null && theme.scrollThumb) {
-		const xTop = rangeToX(visibleDays.top, viewModel, lo);
-		const xBottom = rangeToX(visibleDays.bottom, viewModel, lo);
-		// Snap the band to whole pixels so the fill's left/right edges don't wobble at subpixel
-		// boundaries as `visibleDays` shifts during scroll.
-		const rawX1 = Math.round(Math.min(xTop, xBottom));
-		const rawX2 = Math.round(Math.max(xTop, xBottom));
-		// Clip to chart area so a partially-overlapping range shows only its visible portion — the
-		// rest is implicitly off-canvas.
-		const x1 = Math.max(0, rawX1);
-		const x2 = Math.min(chartWidth, rawX2);
-		if (x2 > x1) {
-			ctx.fillStyle = theme.scrollThumb;
-			ctx.fillRect(x1, 0, Math.max(1, x2 - x1), bandHeight);
+		// Snap to day-bar boundaries: visibleDays.top is end-of-day for the newest visible row, bottom
+		// is start-of-day for the oldest. Project both at day-key boundaries so the visible-range band
+		// covers whole bars — same convention the scope highlight uses, so the two visuals overlay
+		// pixel-aligned when both are present.
+		const newerBoundary = getDay(visibleDays.top);
+		const olderBoundary = getDay(visibleDays.bottom) - dayMs;
+		const xNewer = projectTimestampX(newerBoundary, viewModel, lo);
+		const xOlder = projectTimestampX(olderBoundary, viewModel, lo);
+		if (xNewer != null && xOlder != null) {
+			// Snap the band to whole pixels so the fill's left/right edges don't wobble at subpixel
+			// boundaries as `visibleDays` shifts during scroll.
+			const rawX1 = Math.round(Math.min(xNewer, xOlder));
+			const rawX2 = Math.round(Math.max(xNewer, xOlder));
+			// Clip to chart area so a partially-overlapping range shows only its visible portion — the
+			// rest is implicitly off-canvas.
+			const x1 = Math.max(0, rawX1);
+			const x2 = Math.min(chartWidth, rawX2);
+			if (x2 > x1) {
+				ctx.fillStyle = theme.scrollThumb;
+				ctx.fillRect(x1, 0, Math.max(1, x2 - x1), bandHeight);
+			}
 		}
 	}
 
@@ -740,4 +840,39 @@ function drawTopRailTriangle(
 	ctx.lineTo(x, height);
 	ctx.closePath();
 	ctx.fill();
+}
+
+// Top-rail right-angle triangle for a scope boundary: vertical leg on the boundary, hypotenuse points
+// into the scope window. `side === 'left'` is the start edge (apex extends right); `'right'` is the
+// end edge (apex extends left). For an empty scope (start === end), the two edges meet at the same x
+// and form an inward-facing bowtie that anchors "scope is here, no commits yet."
+export function drawScopeEdgeTriangle(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	color: string,
+	side: 'left' | 'right',
+	width: number,
+	height: number,
+): void {
+	const tipX = side === 'left' ? x + width : x - width;
+	ctx.fillStyle = color;
+	ctx.beginPath();
+	ctx.moveTo(x, 0);
+	ctx.lineTo(tipX, 0);
+	ctx.lineTo(x, height);
+	ctx.closePath();
+	ctx.fill();
+}
+
+/**
+ * Pad a scope window by `scopeZoomPaddingMs` on each side so the canvas is the scope plus a thin
+ * frame for the edge triangles + highlight band to breathe. Inverted input (end < start) is sorted
+ * before padding. Callers hand the result to `applyZoom`, which still enforces the brush-zoom floor
+ * + clamps to the data domain — so very narrow scopes (or empty scopes at the merge-base) are
+ * silently widened to the brush minimum without forcing a wider span here.
+ */
+export function padScopeRange(window: { start: number; end: number }): { oldest: number; newest: number } {
+	const start = Math.min(window.start, window.end);
+	const end = Math.max(window.start, window.end);
+	return { oldest: start - scopeZoomPaddingMs, newest: end + scopeZoomPaddingMs };
 }

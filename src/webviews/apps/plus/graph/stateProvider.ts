@@ -340,10 +340,22 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	/** In-flight single-branch enrichment fetches, keyed by branch id, so concurrent callers share one request. */
 	private _adhocEnrichmentPromises = new Map<string, Promise<void>>();
 
-	/** Session cache of resolved merge-bases, keyed by `repoPath|branchRef|upstreamRef`. */
+	/** Session cache of resolved merge-bases, keyed by `repoPath|branchRef`. */
 	private _mergeBaseCache = new Map<string, { sha: string; date: number } | undefined>();
 	/** In-flight merge-base resolves, deduped per cache key. */
 	private _mergeBasePromises = new Map<string, Promise<{ sha: string; date: number } | undefined>>();
+
+	/**
+	 * Set by callers (e.g. the scope popover) right before sending a filter-changing IPC, so the
+	 * scope clear coalesces with the resulting `DidChangeRefsVisibilityNotification` rather than
+	 * causing an immediate minimap reset followed by a separate filter-update repaint.
+	 */
+	private _scopeClearDeferred = false;
+
+	deferScopeClear(): void {
+		if (this.scope == null) return;
+		this._scopeClearDeferred = true;
+	}
 
 	/**
 	 * Fetch enrichment for a single branch that isn't covered by the overview (e.g. a branch picked
@@ -372,7 +384,7 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 		const repoPath = scope.branchRef.split('|', 2)[0];
 		if (!repoPath) return;
 
-		const cacheKey = `${repoPath}|${scope.branchRef}|${scope.upstreamRef ?? ''}`;
+		const cacheKey = `${repoPath}|${scope.branchRef}`;
 
 		// Cache hit — patch and return without IPC.
 		if (this._mergeBaseCache.has(cacheKey)) {
@@ -478,6 +490,11 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 				break;
 
 			case DidChangeRefsVisibilityNotification.is(msg):
+				if (this._scopeClearDeferred) {
+					this._scopeClearDeferred = false;
+					// Coalesce with the visibility update so the minimap and graph re-render once.
+					this.scope = undefined;
+				}
 				this.updateState({
 					branchesVisibility: msg.params.branchesVisibility,
 					excludeRefs: msg.params.excludeRefs,

@@ -609,9 +609,9 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 	}
 
 	private handleModeSelect(value: GraphBranchesVisibility) {
-		if (this.graphState.scope != null) {
-			this.graphState.scope = undefined;
-		}
+		// Defer the scope clear so it lands in the same render as the filter visibility update —
+		// otherwise the minimap resets zoom now and the graph re-filters in a later frame.
+		this.graphState.deferScopeClear();
 		this.onRefIncludesChanged(value);
 		this.hideModePopover();
 	}
@@ -630,9 +630,7 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 	private handleModeClear = (e: Event) => {
 		e.stopPropagation();
 		e.preventDefault();
-		if (this.graphState.scope != null) {
-			this.graphState.scope = undefined;
-		}
+		this.graphState.deferScopeClear();
 		this._ipc.sendCommand(ResetGraphFiltersCommand, undefined);
 		this.hideModePopover();
 	};

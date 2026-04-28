@@ -39,6 +39,13 @@ export interface AppState extends State {
 	 * on re-picks due to session caching (webview-side + server-side).
 	 */
 	resolveScopeMergeBase(scope: GraphScope): Promise<void>;
+
+	/**
+	 * Defer clearing the current scope until the next `DidChangeRefsVisibilityNotification` lands —
+	 * coalesces the scope clear with the filter visibility update so a mode/filter change produces
+	 * a single coordinated re-render instead of a minimap reset followed by a separate filter update.
+	 */
+	deferScopeClear(): void;
 }
 
 export const graphStateContext = createContext<AppState>('graph-state-context');
