@@ -48,12 +48,12 @@ export class ActionChip extends LitElement {
 			.chip__icon-active {
 				display: none;
 			}
-			:host(:hover) .chip__icon,
-			:host(:has(.chip:focus-visible)) .chip__icon {
+			.chip:hover:has(.chip__icon-active) .chip__icon,
+			.chip:focus-visible:has(.chip__icon-active) .chip__icon {
 				display: none;
 			}
-			:host(:hover) .chip__icon-active,
-			:host(:has(.chip:focus-visible)) .chip__icon-active {
+			.chip:hover .chip__icon-active,
+			.chip:focus-visible .chip__icon-active {
 				display: inline-flex;
 			}
 
@@ -93,6 +93,12 @@ export class ActionChip extends LitElement {
 				vertical-align: middle;
 				text-transform: var(--chip-text-transform, capitalize);
 			}
+
+			@container gl-action-chip-host (max-width: 400px) {
+				:host([auto-collapse]) ::slotted(*) {
+					display: none;
+				}
+			}
 		`,
 	];
 
@@ -113,6 +119,9 @@ export class ActionChip extends LitElement {
 
 	@property({ type: Boolean })
 	disabled = false;
+
+	@property({ type: Boolean, attribute: 'auto-collapse', reflect: true })
+	autoCollapse = false;
 
 	@query('.chip')
 	private defaultFocusEl!: HTMLElement;

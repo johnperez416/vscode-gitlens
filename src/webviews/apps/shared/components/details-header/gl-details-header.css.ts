@@ -19,6 +19,8 @@ export const detailsHeaderStyles = css`
 		align-items: flex-start;
 		padding: 0.7rem 1.2rem 0.5rem 1.2rem;
 		gap: 0.6rem;
+		container-type: inline-size;
+		container-name: gl-action-chip-host;
 	}
 
 	.details-header__content {

@@ -8,20 +8,31 @@ import '../progress.js';
 
 type Mode = 'review' | 'compose' | 'compare';
 
-const modeConfig: Record<Mode, { icon: string; label: string; closeLabel: string; activeText: string }> = {
+const modeConfig: Record<
+	Mode,
+	{ icon: string; label: string; closeLabel: string; text: string; collapsible: boolean }
+> = {
 	compose: {
 		icon: 'wand',
 		label: 'Compose Changes',
 		closeLabel: 'Close Compose Changes',
-		activeText: 'Compose Changes',
+		text: 'Compose',
+		collapsible: true,
 	},
 	review: {
 		icon: 'checklist',
 		label: 'Review Changes',
 		closeLabel: 'Close Review Changes',
-		activeText: 'Review Changes',
+		text: 'Review',
+		collapsible: true,
 	},
-	compare: { icon: 'compare-changes', label: 'Compare', closeLabel: 'Close Compare', activeText: 'Compare' },
+	compare: {
+		icon: 'compare-changes',
+		label: 'Compare',
+		closeLabel: 'Close Compare',
+		text: 'Compare',
+		collapsible: false,
+	},
 };
 
 @customElement('gl-details-header')
@@ -57,14 +68,17 @@ export class GlDetailsHeader extends LitElement {
 			const isActive = this.activeMode === mode;
 			const config = modeConfig[mode];
 
+			const showText = isActive || config.collapsible;
+
 			return html`<gl-action-chip
 				icon=${config.icon}
 				.activeIcon=${isActive ? 'close' : undefined}
 				label="${isActive ? config.closeLabel : config.label}"
 				overlay="tooltip"
 				class="${isActive ? 'mode-toggle--active' : ''}"
+				?auto-collapse=${config.collapsible && !isActive}
 				@click=${() => this.handleToggleMode(mode)}
-				>${isActive ? html`<span>${config.activeText}</span>` : nothing}</gl-action-chip
+				>${showText ? html`<span>${config.text}</span>` : nothing}</gl-action-chip
 			>`;
 		});
 	}
