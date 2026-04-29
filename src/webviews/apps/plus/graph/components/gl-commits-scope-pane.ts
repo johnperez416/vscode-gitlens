@@ -169,8 +169,28 @@ export class GlCommitsScopePane extends LitElement {
 			const handle = this.renderRoot.querySelector<HTMLElement>(
 				'.scope-handle[aria-label="End of selected scope"]',
 			);
-			handle?.scrollIntoView({ block: 'end', behavior: 'auto' });
+			if (handle != null) {
+				this.scrollHandleIntoView(handle, 'end');
+			}
 		});
+	}
+
+	/**
+	 * Scrolls the scope-pane container so `handle` is aligned with its `start` or `end` edge.
+	 *
+	 * Avoids `Element.scrollIntoView`, which walks every scroll ancestor and aligns each one —
+	 * tapping a proxy or scrolling on initial mount would otherwise scroll the graph webview
+	 * (and any other scrollable ancestor) up or down instead of just the scope pane.
+	 */
+	private scrollHandleIntoView(handle: HTMLElement, align: 'start' | 'end'): void {
+		const scrollContainer = this.renderRoot.querySelector<HTMLElement>('.details-scope-pane');
+		if (scrollContainer == null) return;
+
+		const handleRect = handle.getBoundingClientRect();
+		const containerRect = scrollContainer.getBoundingClientRect();
+		const handleTop = scrollContainer.scrollTop + (handleRect.top - containerRect.top);
+		scrollContainer.scrollTop =
+			align === 'start' ? handleTop : handleTop + handleRect.height - containerRect.height;
 	}
 
 	override willUpdate(changedProperties: Map<string, unknown>): void {
@@ -524,7 +544,7 @@ export class GlCommitsScopePane extends LitElement {
 		// next pointermove → _processDragMove will pick the row nearest the
 		// cursor, so no manual deltaY math is needed and saturation at min/max
 		// scroll is harmless.
-		realHandle.scrollIntoView({ block: type === 'start' ? 'start' : 'end', behavior: 'auto' });
+		this.scrollHandleIntoView(realHandle, type);
 
 		// Hand off to the normal drag-start path. Window-level pointermove/up
 		// listeners keep the drag alive even though the proxy unmounts under
