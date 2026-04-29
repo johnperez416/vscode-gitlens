@@ -22,6 +22,7 @@ import {
 	subPanelEnterStyles,
 } from '../../../shared/components/styles/lit/base.css.js';
 import type { TreeItemAction, TreeItemCheckedDetail } from '../../../shared/components/tree/base.js';
+import { countIncludedFiles, pruneExcludedToFiles, syncAiExcluded } from './aiExclusion.js';
 import type { GlCommitsScopePane, ScopeItem } from './gl-commits-scope-pane.js';
 import {
 	panelActionInputStyles,
@@ -140,59 +141,25 @@ export class GlDetailsReviewModePanel extends LitElement {
 
 	override willUpdate(changedProperties: Map<string, unknown>): void {
 		if (changedProperties.has('aiExcludedFiles')) {
-			const next = this.aiExcludedFiles?.length ? new Set(this.aiExcludedFiles) : undefined;
-			const prev = this._aiExcludedSet;
-			const sameSize = (next?.size ?? 0) === (prev?.size ?? 0);
-			const sameContent = sameSize && (!next || [...next].every(p => prev?.has(p)));
-			if (!sameContent) {
-				this._aiExcludedSet = next;
-				if (this.aiExcludedFiles?.length) {
-					const merged = new Set(this._excludedFiles);
-					let dirty = false;
-					for (const path of this.aiExcludedFiles) {
-						if (!merged.has(path)) {
-							merged.add(path);
-							dirty = true;
-						}
-					}
-					if (dirty) {
-						this._excludedFiles = merged;
-					}
+			const result = syncAiExcluded(this.aiExcludedFiles, this._aiExcludedSet, this._excludedFiles);
+			if (result != null) {
+				this._aiExcludedSet = result.aiExcludedSet;
+				if (result.excludedFiles != null) {
+					this._excludedFiles = result.excludedFiles;
 				}
 			}
 		}
 
-		if (changedProperties.has('files') && this._excludedFiles.size > 0) {
-			// Prune exclusions whose paths are no longer in the current scoped file list, so
-			// stale entries from a previous scope can't keep Review disabled or misrepresent
-			// the "X of N files excluded" counts.
-			const current = new Set((this.files ?? []).map(f => f.path));
-			let changed = false;
-			const pruned = new Set<string>();
-			for (const path of this._excludedFiles) {
-				if (current.has(path)) {
-					pruned.add(path);
-				} else {
-					changed = true;
-				}
-			}
-			if (changed) {
+		if (changedProperties.has('files')) {
+			const pruned = pruneExcludedToFiles(this._excludedFiles, this.files);
+			if (pruned != null) {
 				this._excludedFiles = pruned;
 			}
 		}
 	}
 
 	private getEffectiveFileCount(): number {
-		const files = this.files;
-		if (!files?.length) return 0;
-		const ai = this._aiExcludedSet;
-		let count = 0;
-		for (const f of files) {
-			if (this._excludedFiles.has(f.path)) continue;
-			if (ai?.has(f.path)) continue;
-			count++;
-		}
-		return count;
+		return countIncludedFiles(this.files, this._excludedFiles, this._aiExcludedSet);
 	}
 
 	override connectedCallback(): void {
