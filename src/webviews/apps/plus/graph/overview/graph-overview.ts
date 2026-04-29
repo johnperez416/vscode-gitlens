@@ -180,9 +180,9 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		const wipIds = overview.active.map(b => b.id);
 		const keep = new Set(allIds);
 
-		// graph-app fetches enrichment eagerly when overview arrives (so the scope popover
-		// path can resolve merge-target refs even without this panel mounted). Prefer that
-		// shared result when it matches our branch set — otherwise fall back to fetching here.
+		// Enrichment is fetched lazily — by this panel on mount, or by the scope popover on open.
+		// Whichever happens first publishes to `overviewEnrichment` shared state; reuse it here
+		// when it covers our branch set, otherwise fetch.
 		const sharedEnrichment = this._state.overviewEnrichment;
 		const sharedCoversAll = sharedEnrichment != null && allIds.every(id => id in sharedEnrichment);
 

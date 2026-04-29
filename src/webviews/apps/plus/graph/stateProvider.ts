@@ -313,13 +313,12 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 		}
 
 		this.updateState(this._state, true);
-		// Bootstrap may carry overview data; fetch enrichment eagerly so the scope popover
-		// path (which doesn't require the overview sidebar to be mounted) can resolve
-		// merge-target refs for focused branches.
-		this.ensureOverviewEnrichmentFetched(this._state.overview);
+		// Enrichment is fetched lazily when a consumer needs it (the overview sidebar mounting,
+		// the scope popover opening, or per-branch on-demand via `ensureEnrichmentForBranch`)
+		// rather than eagerly at bootstrap, where it competes with the graph render itself.
 	}
 
-	private ensureOverviewEnrichmentFetched(overview: State['overview']): void {
+	ensureOverviewEnrichmentFetched(overview: State['overview']): void {
 		if (overview == null) return;
 		const branchIds = [...overview.active.map(b => b.id), ...overview.recent.map(b => b.id)];
 		if (branchIds.length === 0) return;
@@ -446,7 +445,6 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 							}
 						: incoming;
 				this.updateState(next);
-				this.ensureOverviewEnrichmentFetched(next.overview);
 				break;
 			}
 
@@ -634,7 +632,6 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 
 			case DidChangeOverviewNotification.is(msg):
 				this.updateState({ overview: msg.params.overview });
-				this.ensureOverviewEnrichmentFetched(msg.params.overview);
 				break;
 
 			case DidChangeOverviewWipNotification.is(msg):

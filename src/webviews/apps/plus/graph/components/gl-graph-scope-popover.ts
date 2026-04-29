@@ -569,6 +569,10 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 
 	private handleModePopoverShow = () => {
 		this.tryFetchBranches();
+		// Warm overview enrichment on popover open so merge-target indicators are ready by the time
+		// the user picks a branch. Deduped by `ensureOverviewEnrichmentFetched`'s fingerprint guard,
+		// so re-opens are a no-op when the overview hasn't moved.
+		this.graphState.ensureOverviewEnrichmentFetched(this.graphState.overview);
 		// Focus the first menu item once the popover body is visible (body.hidden flips after
 		// gl-popover-show fires, so defer until the next frame).
 		requestAnimationFrame(() => {

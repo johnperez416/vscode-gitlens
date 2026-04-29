@@ -33,6 +33,13 @@ export interface AppState extends State {
 	ensureEnrichmentForBranch(branchId: string): Promise<void>;
 
 	/**
+	 * Fetch enrichment for the overview's active/recent branches. Called lazily by consumers such as
+	 * the scope popover (on open) and the overview sidebar (on mount), rather than eagerly at bootstrap.
+	 * Deduped via a fingerprint of the branch ids — repeat calls for the same overview are a no-op.
+	 */
+	ensureOverviewEnrichmentFetched(overview: State['overview']): void;
+
+	/**
 	 * Resolve the authoritative `mergeBase` for a scope and patch it onto the current scope signal.
 	 * Called by pickers (scope popover, overview card) at the moment of selection so the concern of
 	 * "completing" a scope lives with whoever picks it rather than with downstream consumers. Cheap

@@ -8,6 +8,7 @@ import { debug } from '@gitlens/utils/decorators/log.js';
 import { getScopedLogger } from '@gitlens/utils/logger.scoped.js';
 import type { PagedResult, PagingOptions } from '@gitlens/utils/paging.js';
 import { emptyPagedResult } from '@gitlens/utils/paging.js';
+import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { CacheController } from '@gitlens/utils/promiseCache.js';
 import { toTokenInfo } from '../../api/tokenUtils.js';
 import { HeadType } from '../../context.js';
@@ -206,6 +207,9 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	): Promise<BranchContributionsOverview | undefined> {
 		const scope = getScopedLogger();
 
+		// No outer cache here — GitHub provider has no stored-target safety net (no Tier 1
+		// equivalent), so the result is purely PR-resolution-dependent and a `ref`-keyed cache
+		// would serve stale data when the PR is later retargeted.
 		try {
 			let mergeTarget: string | undefined;
 
@@ -225,13 +229,16 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 
 			// Fetch the merge-base commit's committer date in parallel with contributors so consumers
 			// that just need the date for the scope window don't pay a separate round-trip.
-			const [contributorsResult, mergeBaseCommit] = await Promise.all([
+			// `allSettled` so a transient failure in one side doesn't drop the overview entirely.
+			const [contributorsSettled, mergeBaseCommitSettled] = await Promise.allSettled([
 				this.provider.contributors.getContributors(repoPath, createRevisionRange(mergeBase, ref, '..'), {
 					stats: true,
 				}),
-				this.provider.commits.getCommit(repoPath, mergeBase).catch(() => undefined),
+				this.provider.commits.getCommit(repoPath, mergeBase),
 			]);
-			const result = contributorsResult;
+
+			const result = getSettledValue(contributorsSettled) ?? { contributors: [] };
+			const mergeBaseCommit = getSettledValue(mergeBaseCommitSettled);
 
 			sortContributors(result.contributors, { orderBy: 'score:desc' });
 

@@ -28,7 +28,7 @@ import type { GitStash } from './models/stash.js';
 import type { GitTag } from './models/tag.js';
 import type { GitUser } from './models/user.js';
 import type { GitWorktree } from './models/worktree.js';
-import type { GitBranchMergedStatus } from './providers/branches.js';
+import type { BranchContributionsOverview, GitBranchMergedStatus } from './providers/branches.js';
 import type { GitCommitReachability, LeftRightCommitCountResult } from './providers/commits.js';
 import type { GitContributorsResult } from './providers/contributors.js';
 import type { ResolvedRevision } from './providers/revision.js';
@@ -62,6 +62,12 @@ export type CachedGitTypes =
 
 export type ConflictDetectionCacheKey = `apply:${string}:${string}:${string}` | `merge:${string}:${string}`;
 
+/**
+ * gkConfig keys that participate in the `branchOverviews` cache's mergeTarget/mergeBase lineage.
+ * Capture group 1 is the ref name (which may itself contain `.`/`/`).
+ */
+const branchOverviewGkConfigKeyPattern = /^branch\.(.+)\.(?:gk-merge-(?:base|target(?:-user)?)|gk-target-base)$/;
+
 /** Per-worktree caches — cleared by repoPath directly */
 interface Caches {
 	bestRemotes: PromiseMap<RepoPath, GitRemote<RemoteProvider>[]> | undefined;
@@ -89,6 +95,7 @@ interface SharedCaches {
 	baseBranchName: RepoPromiseCacheMap<string, string | undefined> | undefined;
 	branchMergedStatus: RepoPromiseCacheMap<string, GitBranchMergedStatus> | undefined;
 	branchMetadataMap: PromiseMap<RepoPath, Map<string, BranchMetadata>> | undefined;
+	branchOverviews: RepoPromiseCacheMap<string, BranchContributionsOverview | undefined> | undefined;
 	branches: PromiseMap<RepoPath, PagedResult<GitBranch>> | undefined;
 	configKeys: RepoPromiseCacheMap<string, string | undefined> | undefined;
 	configPatterns: RepoPromiseCacheMap<string, Map<string, string>> | undefined;
@@ -116,6 +123,7 @@ const sharedCacheKeys: ReadonlySet<keyof AllCaches> = new Set(
 		'baseBranchName',
 		'branchMergedStatus',
 		'branchMetadataMap',
+		'branchOverviews',
 		'branches',
 		'configKeys',
 		'configPatterns',
@@ -144,6 +152,7 @@ function createEmptyCaches(): AllCaches {
 		branch: undefined,
 		branchMergedStatus: undefined,
 		branchMetadataMap: undefined,
+		branchOverviews: undefined,
 		branches: undefined,
 		fileExistence: undefined,
 		ignoreRevsFile: undefined,
@@ -234,6 +243,15 @@ export class Cache implements Disposable {
 
 	private get branchMetadataMap(): PromiseMap<RepoPath, Map<string, BranchMetadata>> {
 		return (this._caches.branchMetadataMap ??= new PromiseMap<RepoPath, Map<string, BranchMetadata>>());
+	}
+
+	private get branchOverviews(): RepoPromiseCacheMap<string, BranchContributionsOverview | undefined> {
+		return (this._caches.branchOverviews ??= new RepoPromiseCacheMap<
+			string,
+			BranchContributionsOverview | undefined
+		>(
+			{ accessTTL: 1000 * 60 * 60 }, // 60 minutes
+		));
 	}
 
 	get branches(): PromiseMap<RepoPath, PagedResult<GitBranch>> {
@@ -457,6 +475,7 @@ export class Cache implements Disposable {
 			if (types.includes('branch') || types.includes('branches')) {
 				keysToClear.add('branch');
 				keysToClear.add('branchMergedStatus');
+				keysToClear.add('branchOverviews');
 				keysToClear.add('conflictDetection');
 				keysToClear.add('currentBranchReference');
 				keysToClear.add('leftRightCommitCount');
@@ -484,6 +503,7 @@ export class Cache implements Disposable {
 			}
 
 			if (types.includes('contributors')) {
+				keysToClear.add('branchOverviews');
 				keysToClear.add('contributors');
 				keysToClear.add('contributorsLite');
 				keysToClear.add('contributorsStats');
@@ -499,6 +519,9 @@ export class Cache implements Disposable {
 				// Derived from `branch.<ref>.gk-merge-base`/`vscode-merge-base`; clear so external
 				// gkConfig mutations don't leave stale base-branch resolutions cached.
 				keysToClear.add('baseBranchName');
+				// Cached overviews use Tier 1's stored merge target as their key-stability anchor;
+				// stored-target changes must invalidate or readers see stale `mergeTarget`/stats.
+				keysToClear.add('branchOverviews');
 			}
 
 			if (types.includes('providers')) {
@@ -894,6 +917,42 @@ export class Cache implements Disposable {
 		const cacheKey = this.getCommonPath(repoPath);
 		this._caches.gkConfigKeys?.delete(cacheKey, key);
 		this._caches.gkConfigPatterns?.delete(cacheKey);
+
+		// When the change affects a branch's merge-target/base lineage, invalidate that branch's
+		// cached overview so subsequent reads pick up the new stored value rather than stale data.
+		// `getBranchContributionsOverview` keys `branchOverviews` by ref, with Tier 1's stored
+		// target as the key-stability anchor — so any write to those keys must invalidate.
+		const refMatch = key.match(branchOverviewGkConfigKeyPattern);
+		if (refMatch != null) {
+			this._caches.branchOverviews?.delete(cacheKey, refMatch[1]);
+		}
+	}
+
+	async getBranchOverview(
+		repoPath: string,
+		cacheKey: string,
+		factory: (
+			commonPath: string,
+			cacheable: CacheController,
+			cancellation?: AbortSignal,
+		) => PromiseOrValue<BranchContributionsOverview | undefined>,
+		options?: { accessTTL?: number; cancellation?: AbortSignal },
+	): Promise<BranchContributionsOverview | undefined> {
+		return this.getSharedOrCreateWithKey(
+			this.branchOverviews,
+			repoPath,
+			cacheKey,
+			factory,
+			(data, newRepoPath) =>
+				data == null
+					? data
+					: {
+							...data,
+							repoPath: newRepoPath,
+							contributors: data.contributors.map(c => c.withRepoPath(newRepoPath)),
+						},
+			options,
+		);
 	}
 
 	async getContributors(

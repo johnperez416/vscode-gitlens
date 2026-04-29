@@ -365,56 +365,60 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	): Promise<BranchContributionsOverview | undefined> {
 		const scope = getScopedLogger();
 
-		try {
-			const branch = await this.getBranch(repoPath, ref, cancellation);
-			if (branch == null) return undefined;
-
+		const getCore = async (
+			_commonPath: string,
+			_cacheable: CacheController | undefined,
+			signal: AbortSignal | undefined,
+			storedTarget: string | undefined,
+		): Promise<BranchContributionsOverview | undefined> => {
 			let mergeTarget: string | undefined;
 
-			// Tier 1: Check stored merge target (user-set or previously detected from PR)
-			const storedTarget = await this.getStoredMergeTargetBranchName(repoPath, ref);
+			// Tier 1: Stored merge target (user-set or previously detected from PR). Caller has
+			// already read this once for the cache decision; reuse rather than re-fetching.
 			if (storedTarget) {
 				const validated = await this.provider.refs.getSymbolicReferenceName(repoPath, storedTarget);
 				mergeTarget = validated || storedTarget;
 			}
 
-			// Tier 2: PR-based lookup (caller provides the PR promise)
+			// Tier 2: PR-based lookup. The branch object is only needed here (for `remoteName`),
+			// so lazy-load it on the cold path instead of paying for it on every call.
 			if (mergeTarget == null && options?.associatedPullRequest != null) {
 				const pr = await options.associatedPullRequest;
 				if (pr?.refs?.base != null) {
+					const branch = await this.getBranch(repoPath, ref, signal);
+					if (branch == null) return undefined;
 					mergeTarget = `${branch.remoteName}/${pr.refs.base.branch}`;
-					// Store for future reuse
+					// Store for future reuse — turns the next call into a Tier 1 cache-eligible path.
 					void this.storeMergeTargetBranchName(repoPath, ref, mergeTarget);
 				}
 			}
 
 			// Tier 3: Base branch, then default branch
-			mergeTarget ??= await this.getBaseBranchName(repoPath, ref, cancellation);
-			mergeTarget ??= await this.getDefaultBranchName(repoPath, undefined, cancellation);
+			mergeTarget ??= await this.getBaseBranchName(repoPath, ref, signal);
+			mergeTarget ??= await this.getDefaultBranchName(repoPath, undefined, signal);
 
 			if (mergeTarget == null) return undefined;
 
-			const mergeBase = await this.provider.refs.getMergeBase(
-				repoPath,
-				ref,
-				mergeTarget,
-				undefined,
-				cancellation,
-			);
+			const mergeBase = await this.provider.refs.getMergeBase(repoPath, ref, mergeTarget, undefined, signal);
 			if (mergeBase == null) return undefined;
 
 			// Fetch the merge-base commit's dates in parallel with contributors so consumers
 			// (e.g. the graph minimap scope window) don't pay a separate round-trip for them.
-			const [contributorsResult, mergeBaseDates] = await Promise.all([
+			// `allSettled` so a transient failure in one side doesn't drop the overview entirely.
+			const [contributorsSettled, mergeBaseDatesSettled] = await Promise.allSettled([
 				this.provider.contributors.getContributors(
 					repoPath,
 					createRevisionRange(mergeBase, ref, '..'),
 					{ stats: true },
-					cancellation,
+					signal,
 				),
-				this.provider.commits.getCommitDates(repoPath, mergeBase, cancellation).catch(() => undefined),
+				this.provider.commits.getCommitDates(repoPath, mergeBase, signal),
 			]);
-			const result = contributorsResult;
+
+			if (signal?.aborted) throw new CancellationError();
+
+			const result = getSettledValue(contributorsSettled) ?? { contributors: [] };
+			const mergeBaseDates = getSettledValue(mergeBaseDatesSettled);
 
 			sortContributors(result.contributors, { orderBy: 'score:desc' });
 
@@ -464,6 +468,23 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 
 				contributors: result.contributors,
 			};
+		};
+
+		try {
+			// Pre-check Tier 1: when a stored merge target exists the result is deterministic for
+			// `ref` (Tier 2's PR resolution is short-circuited), so it's safe to cache. Otherwise
+			// the result depends on PR resolution which the cache key can't capture — bypass.
+			const storedTarget = await this.getStoredMergeTargetBranchName(repoPath, ref);
+			if (storedTarget != null) {
+				return await this.cache.getBranchOverview(
+					repoPath,
+					ref,
+					(commonPath, cacheable, signal) =>
+						getCore(commonPath, cacheable, signal ?? cancellation, storedTarget),
+					{ cancellation: cancellation },
+				);
+			}
+			return await getCore(repoPath, undefined, cancellation, undefined);
 		} catch (ex) {
 			scope?.error(ex);
 			if (isCancellationError(ex)) throw ex;
