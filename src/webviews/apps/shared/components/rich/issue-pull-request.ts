@@ -44,14 +44,23 @@ export class IssuePullRequest extends GlElement {
 			padding-top: 0.1rem;
 		}
 
-		.icon--opened {
+		.icon--pr-opened {
 			color: var(--vscode-gitlens-openPullRequestIconColor);
 		}
-		.icon--closed {
+		.icon--pr-closed {
 			color: var(--vscode-gitlens-closedPullRequestIconColor);
 		}
-		.icon--merged {
+		.icon--pr-merged {
 			color: var(--vscode-gitlens-mergedPullRequestIconColor);
+		}
+		.icon--pr-draft {
+			color: var(--vscode-descriptionForeground);
+		}
+		.icon--issue-opened {
+			color: var(--vscode-gitlens-openAutolinkedIssueIconColor);
+		}
+		.icon--issue-closed {
+			color: var(--vscode-gitlens-closedAutolinkedIssueIconColor);
 		}
 
 		.title {
@@ -164,7 +173,7 @@ export class IssuePullRequest extends GlElement {
 	}
 
 	override render(): unknown {
-		const { icon, modifier } = getAutolinkIcon(this.type, this.status);
+		const { icon, modifier } = getAutolinkIcon(this.type, this.status, this.isDraft);
 
 		if (this.compact) {
 			return html`

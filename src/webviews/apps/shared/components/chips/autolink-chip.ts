@@ -12,14 +12,23 @@ export class GlAutolinkChip extends LitElement {
 			display: inline-flex;
 		}
 
-		.chip--opened::part(icon) {
+		.chip--pr-opened::part(icon) {
 			color: var(--vscode-gitlens-openPullRequestIconColor);
 		}
-		.chip--closed::part(icon) {
+		.chip--pr-closed::part(icon) {
 			color: var(--vscode-gitlens-closedPullRequestIconColor);
 		}
-		.chip--merged::part(icon) {
+		.chip--pr-merged::part(icon) {
 			color: var(--vscode-gitlens-mergedPullRequestIconColor);
+		}
+		.chip--pr-draft::part(icon) {
+			color: var(--vscode-descriptionForeground);
+		}
+		.chip--issue-opened::part(icon) {
+			color: var(--vscode-gitlens-openAutolinkedIssueIconColor);
+		}
+		.chip--issue-closed::part(icon) {
+			color: var(--vscode-gitlens-closedAutolinkedIssueIconColor);
 		}
 	`;
 
@@ -60,7 +69,7 @@ export class GlAutolinkChip extends LitElement {
 	details = false;
 
 	override render(): unknown {
-		const { icon, modifier } = getAutolinkIcon(this.type, this.status);
+		const { icon, modifier } = getAutolinkIcon(this.type, this.status, this.isDraft);
 
 		return html`<gl-popover hoist>
 			<gl-action-chip
