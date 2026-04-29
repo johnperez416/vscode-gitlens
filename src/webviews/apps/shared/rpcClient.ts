@@ -9,10 +9,10 @@
  */
 import type { Handler, Options, Remote } from '@eamodio/supertalk';
 import { Connection } from '@eamodio/supertalk';
-import { AbortSignalHandler } from '@eamodio/supertalk-core/handlers/abort-signal.js';
 import { SignalHandler } from '@eamodio/supertalk-signals';
 import { Logger } from '@gitlens/utils/logger.js';
 import type { WebviewIds } from '../../../constants.views.js';
+import { GlAbortSignalHandler } from '../../../system/rpc/abortSignalHandler.js';
 import { rpcHandlers } from '../../../system/rpc/handlers.js';
 import { createSupertalkLogger, formatWebviewLogTag } from '../../../system/rpc/logger.js';
 import { getHost } from './host/context.js';
@@ -150,7 +150,12 @@ export async function wrapServices<TServices extends object>(
 	const signalHandler = new SignalHandler({ autoWatch: options?.autoWatchSignals });
 
 	// Merge default handlers with SignalHandler, AbortSignalHandler, and any additional handlers
-	const handlers: Handler[] = [...rpcHandlers, signalHandler, new AbortSignalHandler(), ...(options?.handlers ?? [])];
+	const handlers: Handler[] = [
+		...rpcHandlers,
+		signalHandler,
+		new GlAbortSignalHandler(),
+		...(options?.handlers ?? []),
+	];
 
 	const connectionOptions: Options = {
 		handlers: handlers,
