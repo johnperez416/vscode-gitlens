@@ -85,6 +85,12 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 
 	private _lastBranchesData: DidGetSidebarDataParams | undefined;
 	private _branchesFetchRetryTimer: ReturnType<typeof setTimeout> | undefined;
+	private _branchesFetchAttempts = 0;
+	@state() private _branchesFetchExhausted = false;
+
+	/** Maximum poll attempts (~750ms total at 250ms cadence) before showing the unable-to-load
+	 *  state. Bounded so a stuck sidebar service can't pin the popover on "Loading…" forever. */
+	private static readonly maxBranchesFetchAttempts = 3;
 
 	override updated(changedProperties: PropertyValues): void {
 		// If the mode popover is open but the branches resource was invalidated (e.g. a filter
@@ -407,8 +413,19 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 		// 'idle' means fetch hasn't started yet (or was cancelled) — treat as loading;
 		// 'loading' is self-explanatory. Both should show a loading state, not "empty".
 		if (data == null) {
-			if (status === 'error') {
-				return html`<div class="mode-popover__empty">Failed to load branches</div>`;
+			if (status === 'error' || this._branchesFetchExhausted) {
+				return html`<div class="mode-popover__empty mode-popover__empty--retry">
+					<span>Unable to load branches</span>
+					<gl-button
+						appearance="toolbar"
+						density="compact"
+						tooltip="Retry"
+						@mousedown=${this.preventMouseDefault}
+						@click=${this.handleRetryBranches}
+					>
+						<code-icon icon="refresh"></code-icon>
+					</gl-button>
+				</div>`;
 			}
 			return html`<div class="mode-popover__empty">Loading branches…</div>`;
 		}
@@ -593,18 +610,36 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 			return;
 		}
 		actions?.fetchPanel('branches');
-		// If service isn't ready yet, fetchPanel is a no-op; poll until it succeeds.
+		// If service isn't ready yet, fetchPanel is a no-op; poll until it succeeds — but cap
+		// attempts so a stuck service doesn't trap the popover on "Loading…" indefinitely.
 		if (resource.status.get() === 'idle') {
-			this.clearBranchesFetchRetry();
+			this._branchesFetchAttempts++;
+			if (this._branchesFetchAttempts >= GlGraphScopePopover.maxBranchesFetchAttempts) {
+				this.clearBranchesFetchRetry();
+				this._branchesFetchExhausted = true;
+				return;
+			}
+			if (this._branchesFetchRetryTimer != null) {
+				clearTimeout(this._branchesFetchRetryTimer);
+			}
 			this._branchesFetchRetryTimer = setTimeout(this.tryFetchBranches, 250);
 		}
 	};
 
 	private clearBranchesFetchRetry(): void {
-		if (this._branchesFetchRetryTimer == null) return;
-		clearTimeout(this._branchesFetchRetryTimer);
-		this._branchesFetchRetryTimer = undefined;
+		if (this._branchesFetchRetryTimer != null) {
+			clearTimeout(this._branchesFetchRetryTimer);
+			this._branchesFetchRetryTimer = undefined;
+		}
+		this._branchesFetchAttempts = 0;
+		this._branchesFetchExhausted = false;
 	}
+
+	private handleRetryBranches = () => {
+		this._branchesFetchAttempts = 0;
+		this._branchesFetchExhausted = false;
+		this.tryFetchBranches();
+	};
 
 	private hideModePopover(): void {
 		const popover = this.renderRoot.querySelector<GlPopover>('gl-popover.mode-popover');

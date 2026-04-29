@@ -226,4 +226,10 @@ export const graphScopePopoverStyles = css`
 		color: var(--color-foreground--65);
 		font-style: italic;
 	}
+
+	.mode-popover__empty--retry {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
 `;
