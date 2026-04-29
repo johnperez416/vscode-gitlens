@@ -109,6 +109,21 @@ export function openVirtualFileComparePrevious(
 	);
 }
 
+export function openVirtualMultipleChanges(
+	commands: {
+		openVirtualMultipleChanges(
+			ref: VirtualRefShape,
+			files: readonly GitFileChangeShape[],
+			showOptions?: FileShowOptions,
+		): Promise<void>;
+	},
+	ref: VirtualRefShape,
+	files: readonly GitFileChangeShape[],
+	showOptions?: FileShowOptions,
+): void {
+	fireAndForget(commands.openVirtualMultipleChanges(ref, files, showOptions), 'open virtual multi-diff');
+}
+
 export function executeFileAction(
 	commands: {
 		executeFileAction(file: GitFileChangeShape, showOptions?: FileShowOptions, ref?: string): Promise<void>;

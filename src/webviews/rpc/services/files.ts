@@ -25,7 +25,7 @@ import {
 import { GitUri } from '../../../git/gitUri.js';
 import { getCommitAndFileByPath } from '../../../git/utils/-webview/commit.utils.js';
 import { executeCommand } from '../../../system/-webview/command.js';
-import { openDiffEditor, openTextEditor } from '../../../system/-webview/vscode/editors.js';
+import { openChangesEditor, openDiffEditor, openTextEditor } from '../../../system/-webview/vscode/editors.js';
 import type { VirtualRef } from '../../../virtual/virtualContentProvider.js';
 import type { FileShowOptions, OpenMultipleChangesArgs } from './types.js';
 
@@ -184,6 +184,26 @@ export class FilesService {
 	): Promise<void> {
 		const args = await this.container.virtualFs.getComparePreviousUris(ref, file);
 		await openDiffEditor(args.lhs, args.rhs, args.title, {
+			preserveFocus: true,
+			preview: true,
+			...showOptions,
+		});
+	}
+
+	/**
+	 * Open multiple virtual files in VS Code's native multi-diff editor, comparing each against
+	 * the parent of `ref`. Mirrors {@link openMultipleChanges} but for virtual sessions — paths
+	 * resolve through the registered `VirtualContentProvider` rather than the git object store.
+	 */
+	async openVirtualMultipleChanges(
+		ref: VirtualRef,
+		files: readonly GitFileChangeShape[],
+		showOptions?: FileShowOptions,
+	): Promise<void> {
+		if (!files.length) return;
+
+		const { resources, title } = await this.container.virtualFs.getComparePreviousMultiDiffResources(ref, files);
+		await openChangesEditor(resources, title, {
 			preserveFocus: true,
 			preview: true,
 			...showOptions,

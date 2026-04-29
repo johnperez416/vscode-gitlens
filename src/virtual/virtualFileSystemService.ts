@@ -127,6 +127,44 @@ export class VirtualFileSystemService implements Disposable {
 		return this.buildDiffArgs(leftRef, rightRef, file);
 	}
 
+	/**
+	 * Build per-file resources for VS Code's multi-diff editor, comparing each file at `ref` against
+	 * its parent (resolved via the provider's `getParent`). All files share the same parent — the
+	 * editor's title comes from the ref-pair, individual file labels come from VS Code's defaults.
+	 *
+	 * Returned resources mirror the shape `openChangesEditor` consumes: `{ uri, lhs, rhs }`. Both
+	 * sides are `gitlens-virtual://` (or `gitlens://` when the parent is a real ref); the virtual FS
+	 * provider returns empty content for paths that don't exist at the requested ref so adds /
+	 * deletes render as full-side changes without callers tracking status here.
+	 */
+	async getComparePreviousMultiDiffResources(
+		ref: VirtualRef,
+		files: readonly GitFileChangeShape[],
+	): Promise<{ resources: { uri: Uri; lhs: Uri; rhs: Uri }[]; title: string }> {
+		const provider = this.getProviderOrThrow(ref.namespace);
+		if (provider.getParent == null) {
+			throw new Error(`VirtualFileSystemService: provider '${ref.namespace}' does not support getParent`);
+		}
+
+		const parent = await provider.getParent(ref.sessionId, ref.commitId);
+		if (parent == null) {
+			throw new Error(
+				`VirtualFileSystemService: no parent for '${ref.namespace}/${ref.sessionId}/${ref.commitId}' — use buildDiffArgs with explicit sides`,
+			);
+		}
+
+		const leftRef: AnyRef = virtualParentToAnyRef(parent, ref);
+		const rightRef: AnyRef = { kind: 'virtual', ref: ref };
+
+		const resources = files.map(file => {
+			const args = this.buildDiffArgs(leftRef, rightRef, file);
+			return { uri: args.rhs, lhs: args.lhs, rhs: args.rhs };
+		});
+
+		const title = `Changes (${this.anyRefLabel(leftRef)} ${GlyphChars.ArrowLeftRightLong} ${this.anyRefLabel(rightRef)})`;
+		return { resources: resources, title: title };
+	}
+
 	/** Pairwise-explicit diff argument builder. Either side may be virtual or a real git ref. */
 	buildDiffArgs(leftRef: AnyRef, rightRef: AnyRef, file: GitFileChangeShape): VirtualDiffArgs {
 		const lhsPath = file.originalPath ?? file.path;

@@ -636,6 +636,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 					this.graphReachability,
 				)}
 			@compose-open-composer=${() => this._actions.openComposer(this.effectiveRepoPath)}
+			@compose-open-multi-diff=${this.handleComposeOpenMultiDiff}
 			@scope-change=${(e: CustomEvent<{ selectedIds: string[] }>) =>
 				this.handleScopeChange(scopeItems, new Set(e.detail.selectedIds))}
 			@load-more=${() => void this._actions.loadMoreBranchCommits(this.effectiveRepoPath)}
@@ -982,6 +983,14 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		const virtualRef = (e.detail as FileChangeListItemDetail & { virtualRef?: VirtualRefShape }).virtualRef;
 		if (virtualRef == null) return;
 		this._actions.openVirtualFileComparePrevious(e.detail, virtualRef);
+	};
+
+	private handleComposeOpenMultiDiff = (
+		e: CustomEvent<{ virtualRef: VirtualRefShape; files: readonly FileChangeListItemDetail[] }>,
+	) => {
+		const { virtualRef, files } = e.detail;
+		if (!files.length) return;
+		this._actions.openVirtualMultipleChanges(virtualRef, files);
 	};
 
 	private async handleReviewAnalyzeArea(e: CustomEvent<ReviewAnalyzeAreaDetail>): Promise<void> {

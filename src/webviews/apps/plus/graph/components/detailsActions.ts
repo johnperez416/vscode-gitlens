@@ -1557,6 +1557,11 @@ export class DetailsActions {
 		fileActions.openVirtualFileComparePrevious(this.services.files, ref, detail, detail.showOptions);
 	}
 
+	/** Open all files in the proposed-commit's virtual ref in VS Code's multi-diff editor. */
+	openVirtualMultipleChanges(ref: fileActions.VirtualRefShape, files: readonly FileChangeListItemDetail[]): void {
+		fileActions.openVirtualMultipleChanges(this.services.files, ref, files);
+	}
+
 	executeFileAction(detail: FileChangeListItemDetail, ref?: string): void {
 		fileActions.executeFileAction(this.services.files, detail, detail.showOptions, ref);
 	}

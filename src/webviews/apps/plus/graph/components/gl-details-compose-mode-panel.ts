@@ -552,17 +552,40 @@ export class GlDetailsComposeModePanel extends LitElement {
 			show-file-icons
 			header="File Changes"
 			empty-text=${emptyText}
+			.buttons=${['multi-diff', 'layout', 'search']}
 			.fileActions=${this.fileActionsForFile}
 			.fileContext=${this.getFileContext}
 			@file-open=${this.forwardFileEventWithVirtualRef}
 			@file-compare-previous=${this.forwardFileEventWithVirtualRef}
 			@file-stage=${this.redispatch}
 			@file-unstage=${this.redispatch}
+			@gl-file-tree-pane-open-multi-diff=${this.onOpenMultiDiff}
 			@change-files-layout=${(e: CustomEvent<{ layout: ViewFilesLayout }>) => {
 				this._fileLayout = e.detail.layout;
 			}}
 		></gl-file-tree-pane>`;
 	}
+
+	/**
+	 * Bridge the file tree's `gl-file-tree-pane-open-multi-diff` event into a
+	 * `compose-open-multi-diff` event carrying the selected proposed commit's virtualRef and the
+	 * file list. The graph details panel routes this through `openVirtualMultipleChanges` so the
+	 * multi-diff editor sees per-commit synthesized content from the virtual FS provider.
+	 */
+	private onOpenMultiDiff = (): void => {
+		const commit = this.commits?.find(c => c.id === this._selectedCommitId);
+		const virtualRef = commit?.virtualRef;
+		const files = commit?.files;
+		if (virtualRef == null || !files?.length) return;
+
+		this.dispatchEvent(
+			new CustomEvent('compose-open-multi-diff', {
+				detail: { virtualRef: virtualRef, files: files },
+				bubbles: true,
+				composed: true,
+			}),
+		);
+	};
 
 	private fileActionsForFile = (_file: ProposedCommitFile): TreeItemAction[] => {
 		return [{ icon: 'go-to-file', label: 'Open File', action: 'file-open' }];
