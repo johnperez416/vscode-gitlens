@@ -55,16 +55,8 @@ export class SearchHistory {
 		const key = `graph:searchHistory:${this.repoPath}` as const;
 		const history = this.storage.getWorkspace(key) ?? [];
 
-		// For NL queries: use the original input for dedup, but also store the structured form
-		// For normal queries: just use the query as-is
-		const dedupeKey = searchQuery.naturalLanguage ? searchQuery.query : normalizeSearchQuery(searchQuery.query);
-		const normalizedDedup = normalizeSearchQuery(dedupeKey);
-
-		// Find existing entry by dedup key
-		const existingIndex = history.findIndex(h => {
-			const hDedupeKey = h.naturalLanguage ? h.query : h.query;
-			return normalizeSearchQuery(hDedupeKey) === normalizedDedup;
-		});
+		const normalizedDedup = normalizeSearchQuery(searchQuery.query);
+		const existingIndex = history.findIndex(h => normalizeSearchQuery(h.query) === normalizedDedup);
 
 		if (existingIndex >= 0) {
 			// Promote existing entry to front
@@ -93,22 +85,16 @@ export class SearchHistory {
 	}
 }
 
-function normalizeSearchQuery(query: string, getCanonical: boolean = false): string {
-	// Trim, collapse internal whitespace
+function normalizeSearchQuery(query: string): string {
 	let q = query.trim().replace(/\s+/g, ' ');
 
 	// Prevent duplicate @me plus author:@ patterns: if both present, remove raw @me token
-	const hasAuthorAtMe = /\bauthor:\s*@?me\b/i.test(q);
-	if (hasAuthorAtMe) {
+	if (/\bauthor:\s*@?me\b/i.test(q)) {
 		q = q
 			.replace(/(^|\s)@me(\s|$)/gi, ' ')
 			.replace(/\s+/g, ' ')
 			.trim();
 	}
 
-	// For canonical form (lowercased), return now
-	if (getCanonical) return q.toLowerCase();
-
-	// For comparison, lowercase only
 	return q.toLowerCase();
 }
