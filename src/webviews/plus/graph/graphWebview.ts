@@ -5239,7 +5239,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			searchRequest: searchRequest,
 			detailsVisible: storedPanels?.details?.visible ?? true,
 			detailsPosition: storedPanels?.details?.position,
-			sidebarVisible: storedPanels?.sidebar?.visible ?? false,
+			sidebarVisible: storedPanels?.sidebar?.visible ?? true,
 			activeSidebarPanel: storedPanels?.sidebar?.activePanel,
 			sidebarPosition: storedPanels?.sidebar?.position,
 			minimapVisible: storedPanels?.minimap?.visible ?? true,
