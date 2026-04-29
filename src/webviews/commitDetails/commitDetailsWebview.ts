@@ -5,7 +5,6 @@ import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange, GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
 import type { GitRevisionReference } from '@gitlens/git/models/reference.js';
 import type { Repository } from '@gitlens/git/models/repository.js';
-import { uncommitted } from '@gitlens/git/models/revision.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import { isUncommitted, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { MRU } from '@gitlens/utils/mru.js';

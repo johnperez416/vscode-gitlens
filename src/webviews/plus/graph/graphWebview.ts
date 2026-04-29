@@ -78,7 +78,6 @@ import type { CreatePatchCommandArgs } from '../../../commands/patches.js';
 import type { RecomposeBranchCommandArgs } from '../../../commands/recomposeBranch.js';
 import type { RecomposeFromCommitCommandArgs } from '../../../commands/recomposeFromCommit.js';
 import type {
-	Config,
 	GraphBranchesVisibility,
 	GraphMinimapMarkersAdditionalTypes,
 	GraphScrollMarkersAdditionalTypes,
@@ -95,7 +94,6 @@ import type {
 	WebviewTelemetryEvents,
 } from '../../../constants.telemetry.js';
 import type { Container } from '../../../container.js';
-import type { CommitSelectedEvent } from '../../../eventBus.js';
 import type { FeaturePreview } from '../../../features.js';
 import { getFeaturePreviewStatus } from '../../../features.js';
 import * as BranchActions from '../../../git/actions/branch.js';
