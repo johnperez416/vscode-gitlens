@@ -1,10 +1,10 @@
 import type { Disposable, Uri } from 'vscode';
 import type { GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
+import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { basename } from '@gitlens/utils/path.js';
 import { GlyphChars } from '../constants.js';
 import type { Container } from '../container.js';
-import { GitUri } from '../git/gitUri.js';
 import type { VirtualContentProvider, VirtualParent, VirtualRef } from './virtualContentProvider.js';
 import type { VirtualUriAuthority } from './virtualFileSystemProvider.js';
 import { encodeVirtualUri, VirtualFileSystemProvider } from './virtualFileSystemProvider.js';
@@ -30,7 +30,7 @@ export class VirtualFileSystemService implements Disposable {
 	private readonly _fs: VirtualFileSystemProvider;
 	private readonly _subscriptions = new Map<string, Disposable>();
 
-	constructor(_container: Container) {
+	constructor(private readonly container: Container) {
 		this._fs = new VirtualFileSystemProvider(this);
 	}
 
@@ -169,7 +169,12 @@ export class VirtualFileSystemService implements Disposable {
 	buildDiffArgs(leftRef: AnyRef, rightRef: AnyRef, file: GitFileChangeShape): VirtualDiffArgs {
 		const lhsPath = file.originalPath ?? file.path;
 		const rhsPath = file.path;
-		const lhs = this.anyRefToUri(leftRef, lhsPath);
+		// Added files (status `A`/`?`/`U` in WIP) don't exist at the left ref. Tell `anyRefToUri`
+		// to substitute the `deletedOrMissing` ref so the GitLens FS provider returns empty bytes
+		// instead of throwing `FileNotFound` — that's what makes the diff editor render the file
+		// as a fully-added change rather than erroring out and dropping it from the multi-diff.
+		const lhsAdded = file.status === 'A' || file.status === '?' || file.status === 'U';
+		const lhs = this.anyRefToUri(leftRef, lhsPath, lhsAdded);
 		const rhs = this.anyRefToUri(rightRef, rhsPath);
 		const title = `${basename(rhsPath)} (${this.anyRefLabel(leftRef)} ${GlyphChars.ArrowLeftRightLong} ${this.anyRefLabel(
 			rightRef,
@@ -177,9 +182,20 @@ export class VirtualFileSystemService implements Disposable {
 		return { lhs: lhs, rhs: rhs, title: title };
 	}
 
-	private anyRefToUri(ref: AnyRef, path: string): Uri {
+	private anyRefToUri(ref: AnyRef, path: string, refersToAddedFile: boolean = false): Uri {
 		if (ref.kind === 'virtual') return this.getUri(ref.ref, path);
-		return GitUri.fromFile(path, ref.repoPath, ref.sha);
+		// Use the git provider's `getRevisionUri` so the result carries the `gitlens://` scheme
+		// with the ref encoded in the authority — that's what {@link GitFileSystemProvider} reads
+		// from when resolving content. `GitUri.fromFile` builds a tagged-but-`file://` URI, which
+		// VS Code's diff editor would route to the working tree instead of the requested SHA,
+		// making both sides of a modified file's diff render the same "after" content (the working
+		// tree already has the in-progress changes a wip-only compose was built from).
+		//
+		// For added files, the path doesn't exist at the real ref — use `deletedOrMissing` so the
+		// FS provider returns empty bytes (matching the "left side is empty" rendering for
+		// added-file diffs in the rest of GitLens).
+		const sha = refersToAddedFile ? deletedOrMissing : ref.sha;
+		return this.container.git.getRepositoryService(ref.repoPath).getRevisionUri(sha, path);
 	}
 
 	private anyRefLabel(ref: AnyRef): string {
