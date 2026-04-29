@@ -1,6 +1,8 @@
 import { consume } from '@lit/context';
+import type { TemplateResult } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
 import { pluralize } from '@gitlens/utils/string.js';
@@ -14,6 +16,7 @@ import type { BranchRef, OpenWorktreeCommandArgs } from '../../../../home/protoc
 import type {
 	OverviewBranch,
 	OverviewBranchEnrichment,
+	OverviewBranchIssue,
 	OverviewBranchLaunchpadItem,
 	OverviewBranchWip,
 } from '../../../../shared/overviewBranches.js';
@@ -23,16 +26,18 @@ import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
 import '../../../shared/components/branch-icon.js';
 import '../../../shared/components/card/card.js';
-import '../../../shared/components/card/work-item.js';
 import '../../../shared/components/pills/tracking.js';
 import '../../../shared/components/commit/commit-stats.js';
 import '../../../shared/components/avatar/avatar-list.js';
 import '../../../shared/components/rich/pr-icon.js';
 import '../../../shared/components/rich/issue-icon.js';
+import '../../../shared/components/overlays/popover.js';
 import '../../../shared/components/overlays/tooltip.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/actions/action-item.js';
 import '../../../shared/components/actions/action-nav.js';
+import '../../../shared/components/chips/autolink-chip.js';
+import '../../../shared/components/chips/chip-overflow.js';
 
 function getBranchCardIndicator(
 	branch: OverviewBranch,
@@ -102,6 +107,10 @@ function getLaunchpadItemGrouping(group: ReturnType<typeof getLaunchpadItemGroup
 	return undefined;
 }
 
+function formatIssueIdentifier(id: string): string {
+	return isNaN(parseInt(id, 10)) ? id : `#${id}`;
+}
+
 function getWipTooltipParts(workingTreeState: { added: number; changed: number; deleted: number }) {
 	const parts = [];
 	if (workingTreeState.added) {
@@ -123,7 +132,6 @@ declare global {
 			branchName: string;
 			mergeTargetTipSha?: string;
 		}>;
-		'gl-graph-overview-card-expand-toggled': CustomEvent<{ expanded: boolean }>;
 	}
 }
 
@@ -162,38 +170,49 @@ export class GlGraphOverviewCard extends LitElement {
 			box-sizing: border-box;
 		}
 
-		gl-avatar-list {
-			--gl-avatar-size: 2.4rem;
-			margin-block: -0.4rem;
+		gl-popover {
+			/* Anchor wrapper inside the popover defaults to fit-content; grow it so the
+			   whole card is the hover-target. */
+			--gl-popover-anchor-width: 100%;
+			/* Slightly slower show keeps quick scan-passes from triggering the rich hover;
+			   short hide gives users a beat to move into the popover without it dismissing. */
+			--show-delay: 600ms;
+			--hide-delay: 120ms;
 		}
 
 		.branch-item {
 			position: relative;
 		}
 
+		gl-card {
+			cursor: pointer;
+			display: block;
+		}
+
+		gl-card::part(base) {
+			padding: 0.4rem 0.6rem;
+			margin-block-end: 0;
+			border-radius: 0.4rem;
+		}
+
+		gl-card.is-scoped {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
+		gl-card.is-launchpad-mergeable::part(base) {
+			border-inline-end: 0.3rem solid var(--vscode-gitlens-launchpadIndicatorMergeableColor);
+		}
+		gl-card.is-launchpad-blocked::part(base) {
+			border-inline-end: 0.3rem solid var(--vscode-gitlens-launchpadIndicatorBlockedColor);
+		}
+		gl-card.is-launchpad-attention::part(base) {
+			border-inline-end: 0.3rem solid var(--vscode-gitlens-launchpadIndicatorAttentionColor);
+		}
+
 		.branch-item__container {
 			display: flex;
 			flex-direction: column;
-			gap: 0.6rem;
-		}
-
-		.branch-item__container > * {
-			margin-block: 0;
-		}
-
-		.branch-item__section {
-			display: flex;
-			flex-direction: column;
-			gap: 0.4rem;
-		}
-
-		.branch-item__section > * {
-			margin-block: 0;
-		}
-
-		.branch-item__section--details {
-			font-size: 0.9em;
-			color: var(--vscode-descriptionForeground);
+			gap: 0.3rem;
 		}
 
 		.branch-item__grouping {
@@ -235,39 +254,31 @@ export class GlGraphOverviewCard extends LitElement {
 		.branch-item__changes {
 			display: flex;
 			align-items: center;
-			gap: 1rem;
+			gap: 0.8rem;
 			margin-block: 0;
-			flex-wrap: wrap;
-			justify-content: flex-end;
+			font-size: 0.9em;
+			color: var(--vscode-descriptionForeground);
 		}
 
 		.branch-item__date {
 			margin-inline-end: auto;
 		}
 
-		.branch-item__actions {
-			display: flex;
-			align-items: center;
-			gap: 0.8rem;
-			flex-direction: row;
-			justify-content: flex-end;
-			font-size: 0.9em;
+		.branch-item__pills {
+			margin-block-start: 0.1rem;
 		}
 
-		.branch-item__actions:not(:has(*)) {
-			display: none;
-		}
-
-		.branch-item__collapsed-actions {
+		.branch-item__inline-actions {
 			position: absolute;
 			z-index: 2;
 			right: 0.4rem;
 			bottom: 0.3rem;
-			padding: 0.4rem 0.6rem;
+			padding: 0.2rem 0.4rem;
 			background-color: var(--gl-card-hover-background);
+			font-size: 0.9em;
 		}
 
-		.branch-item:not(:focus-within):not(:hover) .branch-item__collapsed-actions {
+		.branch-item:not(:focus-within):not(:hover) .branch-item__inline-actions {
 			${srOnlyStyles}
 		}
 
@@ -293,34 +304,107 @@ export class GlGraphOverviewCard extends LitElement {
 			--gl-pill-border: color-mix(in srgb, transparent 80%, var(--color-foreground));
 		}
 
-		.launchpad-grouping--mergeable {
+		gl-avatar-list {
+			--gl-avatar-size: 2rem;
+		}
+
+		.hover {
+			display: flex;
+			flex-direction: column;
+			gap: 0.8rem;
+			min-width: 24rem;
+			max-width: 36rem;
+		}
+
+		.hover__section {
+			display: flex;
+			flex-direction: column;
+			gap: 0.4rem;
+		}
+
+		.hover__section + .hover__section {
+			padding-top: 0.6rem;
+			border-top: 1px solid var(--vscode-widget-border, transparent);
+		}
+
+		.hover__row {
+			display: flex;
+			align-items: center;
+			gap: 0.6rem;
+			max-width: 100%;
+		}
+
+		.hover__name {
+			flex-grow: 1;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.hover__name--bold {
+			font-weight: bold;
+		}
+
+		.hover__name a {
+			color: inherit;
+			text-decoration: none;
+		}
+
+		.hover__name a:hover {
+			text-decoration: underline;
+		}
+
+		.hover__identifier {
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.hover__icon {
+			flex: none;
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.hover__text {
+			margin: 0;
+			line-height: 1.4;
+		}
+
+		.hover__text--secondary {
+			font-size: 0.9em;
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.hover__muted {
+			color: var(--vscode-descriptionForeground);
+			margin-inline-start: 0.4rem;
+		}
+
+		.hover__launchpad {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.4rem;
+			font-size: 0.9em;
+		}
+
+		.hover__launchpad--mergeable {
 			color: var(--vscode-gitlens-launchpadIndicatorMergeableColor);
 		}
-
-		.launchpad-grouping--blocked {
+		.hover__launchpad--blocked {
 			color: var(--vscode-gitlens-launchpadIndicatorBlockedColor);
 		}
-
-		.launchpad-grouping--attention {
+		.hover__launchpad--attention {
 			color: var(--vscode-gitlens-launchpadIndicatorAttentionColor);
 		}
 
-		.branch-item__category {
-			margin-inline-start: 0.6rem;
+		.hover__avatars {
+			display: flex;
+			align-items: center;
+			gap: 0.6rem;
 		}
 
-		gl-card {
-			cursor: pointer;
-		}
-
-		gl-card::part(base) {
-			padding: 0.6rem 0.8rem;
-			margin-block-end: 0;
-			border-radius: 0.4rem;
-		}
-
-		gl-card.is-scoped {
-			outline: 1px solid var(--vscode-focusBorder);
+		.hover__actions {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.4rem;
 		}
 	`;
 
@@ -338,39 +422,6 @@ export class GlGraphOverviewCard extends LitElement {
 
 	@property({ type: Boolean, reflect: true })
 	scoped = false;
-
-	@property({ type: Boolean, reflect: true })
-	expandable = false;
-
-	@property({ type: Boolean, reflect: true })
-	expanded = false;
-
-	private eventController?: AbortController;
-
-	override connectedCallback(): void {
-		super.connectedCallback?.();
-		this.attachFocusListener();
-	}
-
-	override disconnectedCallback(): void {
-		super.disconnectedCallback?.();
-		this.eventController?.abort();
-	}
-
-	private attachFocusListener() {
-		this.eventController?.abort();
-		this.eventController = undefined;
-		if (this.expandable) {
-			this.eventController = new AbortController();
-			this.addEventListener('focusin', this.onFocus, { signal: this.eventController.signal });
-		}
-	}
-
-	private readonly onFocus = (e: FocusEvent) => {
-		const actionElement = e.composedPath().some(el => (el as HTMLElement).matches?.('action-item') ?? false);
-		if (actionElement || this.expanded) return;
-		this.toggleExpanded(true);
-	};
 
 	get branchRef(): BranchRef {
 		return {
@@ -394,56 +445,46 @@ export class GlGraphOverviewCard extends LitElement {
 		);
 	}
 
+	private get launchpadGrouping() {
+		return getLaunchpadItemGrouping(getLaunchpadItemGroup(this.enrichment?.pr, this.enrichment?.resolvedLaunchpad));
+	}
+
 	override render() {
 		const branch = this.branch;
 		if (branch == null) return nothing;
 
 		const branchIndicator = getBranchCardIndicator(this.branch, this.wip, this.enrichment);
+		const grouping = this.launchpadGrouping;
+		const cardClasses = classMap({
+			'branch-item': true,
+			'is-scoped': this.scoped,
+			[`is-launchpad-${grouping ?? 'none'}`]: grouping != null,
+		});
 
+		// placement="right" so the popover floats over the Graph (which sits to the right of
+		// the sidebar in typical layouts) rather than into the editor's left margin. The
+		// popover's flip behavior auto-corrects when there isn't room.
 		return html`
-			<gl-card
-				class="branch-item ${this.scoped ? 'is-scoped' : ''}"
-				focusable
-				.indicator=${branchIndicator}
-				@click=${this.onCardClick}
-				@keydown=${this.onCardKeydown}
-			>
-				<div class="branch-item__container">
-					${this.renderBranchItem()} ${this.renderPrItem()} ${this.renderIssuesItem()}
-				</div>
-				${this.renderCollapsedActions()}
-			</gl-card>
-		`;
-	}
-
-	private renderBranchItem() {
-		const wip = this.renderWip();
-		const tracking = this.renderTracking();
-		const avatars = this.renderAvatars();
-		const timestamp = this.renderTimestamp();
-
-		return html`
-			<gl-work-item ?expanded=${this.expanded}>
-				<div class="branch-item__section">
-					<p class="branch-item__grouping">
-						<span class="branch-item__icon">${this.renderBranchIcon()}</span>
-						<span class="branch-item__name">${this.branch.name}</span>
-					</p>
-				</div>
-				${when(
-					timestamp || wip || tracking || avatars,
-					() => html`
-						<div class="branch-item__section branch-item__section--details" slot="context">
-							<p class="branch-item__changes">${timestamp}${wip}${tracking}${avatars}</p>
-						</div>
-					`,
-				)}
-				${when(
-					this.expanded,
-					() => html`<div class="branch-item__actions" slot="actions">${this.renderBranchActions()}</div>`,
-				)}
-				<span class="branch-item__changes" slot="summary">${this.renderTracking()}${avatars}</span>
-			</gl-work-item>
+			<gl-popover hoist trigger="hover focus" placement="right">
+				<gl-card
+					slot="anchor"
+					class=${cardClasses}
+					focusable
+					.indicator=${branchIndicator}
+					@click=${this.onCardClick}
+					@keydown=${this.onCardKeydown}
+				>
+					<div class="branch-item__container">
+						<p class="branch-item__grouping">
+							<span class="branch-item__icon">${this.renderBranchIcon()}</span>
+							<span class="branch-item__name">${this.branch.name}</span>
+						</p>
+						${this.renderChanges()} ${this.renderPillsRow()}
+					</div>
+					${this.renderInlineActions()}
+				</gl-card>
+				<div slot="content" class="hover">${this.renderHoverContent()}</div>
+			</gl-popover>
 		`;
 	}
 
@@ -458,31 +499,38 @@ export class GlGraphOverviewCard extends LitElement {
 		></gl-branch-icon>`;
 	}
 
-	private renderTracking() {
-		if (this.branch.upstream == null) return nothing;
+	private renderChanges() {
+		const wip = this.renderWip();
+		const tracking = this.renderTracking();
+		if (wip === nothing && tracking === nothing) return nothing;
 
-		const { state } = this.branch.upstream;
+		return html`<p class="branch-item__changes">${wip}${tracking}</p>`;
+	}
 
-		let tooltip;
-		if (this.branch.upstream.missing) {
-			tooltip = html`${renderBranchName(this.branch.name)} is missing its upstream
-			${renderBranchName(this.branch.upstream.name)}`;
-		} else {
-			const status: string[] = [];
-			if (state.behind) {
-				status.push(`${pluralize('commit', state.behind)} behind`);
-			}
-			if (state.ahead) {
-				status.push(`${pluralize('commit', state.ahead)} ahead of`);
-			}
-			if (status.length) {
-				tooltip = html`${renderBranchName(this.branch.name)} is ${status.join(', ')}
-				${renderBranchName(this.branch.upstream.name)}`;
-			} else {
-				tooltip = html`${renderBranchName(this.branch.name)} is up to date with
-				${renderBranchName(this.branch.upstream.name)}`;
-			}
+	private describeTracking(): TemplateResult | undefined {
+		const upstream = this.branch.upstream;
+		if (upstream == null) return undefined;
+
+		if (upstream.missing) {
+			return html`${renderBranchName(this.branch.name)} is missing its upstream ${renderBranchName(upstream.name)}`;
 		}
+
+		const status: string[] = [];
+		if (upstream.state.behind) {
+			status.push(`${pluralize('commit', upstream.state.behind)} behind`);
+		}
+		if (upstream.state.ahead) {
+			status.push(`${pluralize('commit', upstream.state.ahead)} ahead of`);
+		}
+		if (status.length) {
+			return html`${renderBranchName(this.branch.name)} is ${status.join(', ')} ${renderBranchName(upstream.name)}`;
+		}
+		return html`${renderBranchName(this.branch.name)} is up to date with ${renderBranchName(upstream.name)}`;
+	}
+
+	private renderTracking() {
+		const upstream = this.branch.upstream;
+		if (upstream == null) return nothing;
 
 		return html`<gl-tooltip class="tracking__pill" placement="bottom"
 			><gl-tracking-pill
@@ -490,11 +538,11 @@ export class GlGraphOverviewCard extends LitElement {
 				colorized
 				outlined
 				always-show
-				ahead=${state.ahead}
-				behind=${state.behind}
-				?missingUpstream=${this.branch.upstream.missing ?? false}
+				ahead=${upstream.state.ahead}
+				behind=${upstream.state.behind}
+				?missingUpstream=${upstream.missing ?? false}
 			></gl-tracking-pill>
-			<span class="tracking__tooltip" slot="content">${tooltip}</span></gl-tooltip
+			<span class="tracking__tooltip" slot="content">${this.describeTracking()}</span></gl-tooltip
 		>`;
 	}
 
@@ -520,126 +568,72 @@ export class GlGraphOverviewCard extends LitElement {
 		>`;
 	}
 
-	private renderAvatars() {
-		const contributors = this.enrichment?.contributors;
-		if (!contributors?.length) return nothing;
-
-		return html`<gl-avatar-list
-			.avatars=${contributors.map(a => ({ name: a.name, src: a.avatarUrl }))}
-			max="1"
-		></gl-avatar-list>`;
-	}
-
-	private renderTimestamp() {
-		const timestamp = this.branch.timestamp;
-		if (timestamp == null) return nothing;
-
-		const date = new Date(timestamp);
-		const dateFormat = 'MMMM Do, YYYY h:mma';
-
-		return html`<gl-tooltip class="branch-item__date">
-			<time datetime="${date.toISOString()}">${fromNow(date)}</time>
-			<span slot="content">${formatDate(date, dateFormat)}</span>
-		</gl-tooltip>`;
-	}
-
-	private renderPrItem() {
+	private renderPillsRow() {
 		const pr = this.enrichment?.pr;
-		if (pr == null) return nothing;
+		const issues = this.enrichment?.issues ?? [];
+		const autolinks = this.enrichment?.autolinks ?? [];
+		if (pr == null && issues.length === 0 && autolinks.length === 0) return nothing;
 
-		const launchpadItem = this.enrichment?.resolvedLaunchpad;
-
-		return html`
-			<gl-work-item ?expanded=${this.expanded} nested>
-				<div class="branch-item__section">
-					<p class="branch-item__grouping">
-						<span class="branch-item__icon">
-							<pr-icon ?draft=${pr.draft} state=${pr.state} pr-id=${pr.id}></pr-icon>
-						</span>
-						<a
-							href=${pr.url}
-							class="branch-item__name branch-item__name--secondary"
-							@click=${this.onLinkClick}
-							>${pr.title}</a
-						>
-						<span class="branch-item__identifier">#${pr.id}</span>
-					</p>
-				</div>
-				${this.renderLaunchpadItem(launchpadItem)}
-				${when(
-					this.expanded,
-					() => html`<div class="branch-item__actions" slot="actions">${this.renderPrActions()}</div>`,
-				)}
-			</gl-work-item>
-		`;
-	}
-
-	private renderLaunchpadItem(launchpadItem: OverviewBranchLaunchpadItem | undefined) {
-		if (launchpadItem == null) return nothing;
-
-		const group = getLaunchpadItemGroup(this.enrichment?.pr, launchpadItem);
-		if (group == null) return nothing;
-
-		const groupLabel = launchpadGroupLabelMap.get(group);
-		const groupIcon = launchpadGroupIconMap.get(group);
-		if (groupLabel == null || groupIcon == null) return nothing;
-
-		const groupIconString = groupIcon.match(/\$\((.*?)\)/)![1].replace('gitlens', 'gl');
-
-		return html`<div class="branch-item__section branch-item__section--details" slot="context">
-			<p class="launchpad-grouping--${getLaunchpadItemGrouping(group)}">
-				<code-icon icon="${groupIconString}"></code-icon
-				><span class="branch-item__category">${groupLabel.toUpperCase()}</span>
-			</p>
+		return html`<div class="branch-item__pills">
+			<gl-chip-overflow max-rows="1">
+				${pr != null
+					? html`<gl-autolink-chip
+							type="pr"
+							name=${pr.title}
+							url=${pr.url}
+							identifier="#${pr.id}"
+							status=${pr.state}
+							?isDraft=${pr.draft ?? false}
+						></gl-autolink-chip>`
+					: nothing}
+				${[...issues, ...autolinks].map(item => this.renderItemChip(item))}
+			</gl-chip-overflow>
 		</div>`;
 	}
 
-	private renderIssuesItem() {
-		const issues = this.enrichment?.issues;
-		const autolinks = this.enrichment?.autolinks;
-		const allIssues = [...(issues ?? []), ...(autolinks ?? [])];
-		if (allIssues.length === 0) return nothing;
-
-		return html`
-			<gl-work-item ?expanded=${this.expanded} nested>
-				<div class="branch-item__section">
-					${allIssues.map(
-						issue => html`
-							<p class="branch-item__grouping">
-								<span class="branch-item__icon">
-									<issue-icon state=${issue.state} issue-id=${issue.id}></issue-icon>
-								</span>
-								<a
-									href=${issue.url}
-									class="branch-item__name branch-item__name--secondary"
-									@click=${this.onLinkClick}
-									>${issue.title}</a
-								>
-								<span class="branch-item__identifier"
-									>${isNaN(parseInt(issue.id)) ? '' : '#'}${issue.id}</span
-								>
-							</p>
-						`,
-					)}
-				</div>
-			</gl-work-item>
-		`;
+	private renderItemChip(item: OverviewBranchIssue) {
+		switch (item.type) {
+			case 'pullrequest':
+				return html`<gl-autolink-chip
+					type="pr"
+					name=${item.title}
+					url=${item.url}
+					identifier=${formatIssueIdentifier(item.id)}
+					status=${item.state}
+					?isDraft=${item.draft ?? false}
+				></gl-autolink-chip>`;
+			case 'issue':
+				return html`<gl-autolink-chip
+					type="issue"
+					name=${item.title}
+					url=${item.url}
+					identifier=${formatIssueIdentifier(item.id)}
+					status=${item.state === 'closed' ? 'closed' : 'opened'}
+				></gl-autolink-chip>`;
+			default:
+				return html`<gl-autolink-chip
+					type="autolink"
+					name=${item.title}
+					url=${item.url}
+					identifier=${formatIssueIdentifier(item.id)}
+				></gl-autolink-chip>`;
+		}
 	}
 
-	private renderBranchActions() {
+	private renderInlineActions() {
 		const actions = [];
 
 		if (this.isWorktree) {
 			actions.push(
 				html`<action-item
-					label="Open Worktree"
-					alt-label="Open Worktree in New Window"
-					icon="browser"
-					alt-icon="empty-window"
-					href=${this.createCommandLink('gitlens.openWorktree:')}
-					alt-href=${this.createCommandLink<OpenWorktreeCommandArgs>('gitlens.openWorktree:', {
+					label="Open Worktree in New Window"
+					alt-label="Open Worktree"
+					icon="empty-window"
+					alt-icon="browser"
+					href=${this.createCommandLink<OpenWorktreeCommandArgs>('gitlens.openWorktree:', {
 						location: 'newWindow',
 					})}
+					alt-href=${this.createCommandLink('gitlens.openWorktree:')}
 				></action-item>`,
 			);
 		} else {
@@ -658,51 +652,170 @@ export class GlGraphOverviewCard extends LitElement {
 				icon="repo-fetch"
 				href=${this.createCommandLink('gitlens.fetch:')}
 			></action-item>`,
-			html`<action-item
-				label=${this.isWorktree ? 'Open in Worktrees View' : 'Open in Branches View'}
-				icon="arrow-right"
-				href=${this.createCommandLink('gitlens.openInView.branch:')}
-			></action-item>`,
 		);
 
-		return html`<action-nav>${actions}</action-nav>`;
+		return html`<action-nav class="branch-item__inline-actions">${actions}</action-nav>`;
 	}
 
-	private renderPrActions() {
-		return html`<action-nav>
-			<action-item
-				label="Open Pull Request Changes"
-				icon="request-changes"
-				href=${this.createCommandLink('gitlens.openPullRequestChanges:')}
-			></action-item>
-			<action-item
-				label="Compare Pull Request"
-				icon="git-compare"
-				href=${this.createCommandLink('gitlens.openPullRequestComparison:')}
-			></action-item>
-			<action-item
-				label="Open Pull Request Details"
-				icon="eye"
-				href=${this.createCommandLink('gitlens.openPullRequestDetails:')}
-			></action-item>
-		</action-nav>`;
+	private renderHoverContent() {
+		const pr = this.enrichment?.pr;
+		const issues = this.enrichment?.issues ?? [];
+		const autolinks = this.dedupedAutolinks();
+		const contributors = this.enrichment?.contributors ?? [];
+
+		const hasItems = pr != null || issues.length > 0 || autolinks.length > 0;
+		const hasTracking = this.describeTracking() != null;
+		const hasAvatars = contributors.length > 0;
+
+		return html`
+			${this.renderHoverHeader()} ${when(hasItems, () => this.renderHoverItems(pr, issues, autolinks))}
+			${when(hasTracking || hasAvatars, () => this.renderHoverStatus(contributors))}
+			${this.renderHoverActions(pr != null)}
+		`;
 	}
 
-	private renderCollapsedActions() {
-		if (this.expanded) return nothing;
+	private dedupedAutolinks(): NonNullable<OverviewBranchEnrichment['autolinks']> {
+		const autolinks = this.enrichment?.autolinks ?? [];
+		if (autolinks.length === 0) return [];
 
-		const actions = [];
+		const seen = new Set<string>();
+		const pr = this.enrichment?.pr;
+		if (pr != null) {
+			seen.add(pr.url);
+		}
+		for (const issue of this.enrichment?.issues ?? []) {
+			seen.add(issue.url);
+		}
+
+		return autolinks.filter(a => !seen.has(a.url));
+	}
+
+	private renderHoverHeader() {
+		const worktreeName = this.branch.worktree?.name;
+		const showWorktreeName = worktreeName != null && worktreeName !== this.branch.name;
+		const timestamp = this.branch.timestamp;
+		const dateFormat = 'MMMM Do, YYYY h:mma';
+
+		return html`<div class="hover__section">
+			<div class="hover__row">
+				<span class="hover__icon">${this.renderBranchIcon()}</span>
+				<span class="hover__name hover__name--bold">${this.branch.name}</span>
+				${when(showWorktreeName, () => html`<span class="hover__identifier">${worktreeName}</span>`)}
+			</div>
+			${when(timestamp != null, () => {
+				const date = new Date(timestamp!);
+				return html`<p class="hover__text hover__text--secondary">
+					<time datetime="${date.toISOString()}">${formatDate(date, dateFormat)}</time>
+					<span class="hover__muted">(${fromNow(date)})</span>
+				</p>`;
+			})}
+		</div>`;
+	}
+
+	private renderHoverItems(
+		pr: OverviewBranchEnrichment['pr'] | undefined,
+		issues: NonNullable<OverviewBranchEnrichment['issues']>,
+		autolinks: NonNullable<OverviewBranchEnrichment['autolinks']>,
+	) {
+		const launchpadItem = this.enrichment?.resolvedLaunchpad;
+		const group = pr != null ? getLaunchpadItemGroup(pr, launchpadItem) : undefined;
+		const grouping = getLaunchpadItemGrouping(group);
+		const groupLabel = group != null ? launchpadGroupLabelMap.get(group) : undefined;
+		const groupIcon = group != null ? launchpadGroupIconMap.get(group) : undefined;
+		const groupIconString = groupIcon?.match(/\$\((.*?)\)/)?.[1].replace('gitlens', 'gl');
+
+		return html`<div class="hover__section">
+			${when(
+				pr != null,
+				() => html`
+					<div class="hover__row">
+						<span class="hover__icon">
+							<pr-icon ?draft=${pr!.draft} state=${pr!.state} pr-id=${pr!.id}></pr-icon>
+						</span>
+						<span class="hover__name">
+							<a href=${pr!.url} @click=${this.onLinkClick}>${pr!.title}</a>
+						</span>
+						<span class="hover__identifier">#${pr!.id}</span>
+					</div>
+					${when(
+						grouping != null && groupLabel != null && groupIconString != null,
+						() =>
+							html`<p class="hover__launchpad hover__launchpad--${grouping}">
+								<code-icon icon="${groupIconString!}"></code-icon
+								><span>${groupLabel!.toUpperCase()}</span>
+							</p>`,
+					)}
+				`,
+			)}
+			${[...issues, ...autolinks].map(item => this.renderHoverItemRow(item))}
+		</div>`;
+	}
+
+	private renderHoverItemRow(item: OverviewBranchIssue) {
+		const identifier = html`<span class="hover__identifier">${formatIssueIdentifier(item.id)}</span>`;
+		const link = html`<span class="hover__name">
+			<a href=${item.url} @click=${this.onLinkClick}>${item.title}</a>
+		</span>`;
+
+		switch (item.type) {
+			case 'pullrequest':
+				return html`<div class="hover__row">
+					<span class="hover__icon">
+						<pr-icon ?draft=${item.draft ?? false} state=${item.state} pr-id=${item.id}></pr-icon>
+					</span>
+					${link}${identifier}
+				</div>`;
+			case 'issue':
+				return html`<div class="hover__row">
+					<span class="hover__icon">
+						<issue-icon state=${item.state} issue-id=${item.id}></issue-icon>
+					</span>
+					${link}${identifier}
+				</div>`;
+			default:
+				return html`<div class="hover__row">
+					<span class="hover__icon"><code-icon icon="link"></code-icon></span>
+					${link}${identifier}
+				</div>`;
+		}
+	}
+
+	private renderHoverStatus(contributors: NonNullable<OverviewBranchEnrichment['contributors']>) {
+		const description = this.describeTracking();
+
+		return html`<div class="hover__section">
+			${when(description != null, () => html`<p class="hover__text">${description}</p>`)}
+			${when(
+				contributors.length > 0,
+				() =>
+					html`<div class="hover__avatars">
+						<gl-avatar-list
+							.avatars=${contributors.map(a => ({ name: a.name, src: a.avatarUrl }))}
+							max="8"
+						></gl-avatar-list>
+					</div>`,
+			)}
+		</div>`;
+	}
+
+	private renderHoverActions(hasPr: boolean) {
+		const branchActions: TemplateResult[] = [];
 
 		if (this.isWorktree) {
-			actions.push(
+			branchActions.push(
 				html`<action-item
-					label="Open Worktree"
-					icon="browser"
-					href=${this.createCommandLink('gitlens.openWorktree:')}
+					label="Open Worktree in New Window"
+					alt-label="Open Worktree"
+					icon="empty-window"
+					alt-icon="browser"
+					href=${this.createCommandLink<OpenWorktreeCommandArgs>('gitlens.openWorktree:', {
+						location: 'newWindow',
+					})}
+					alt-href=${this.createCommandLink('gitlens.openWorktree:')}
 				></action-item>`,
 			);
 		} else {
-			actions.push(
+			branchActions.push(
 				html`<action-item
 					label="Switch to Branch..."
 					icon="gl-switch"
@@ -711,7 +824,12 @@ export class GlGraphOverviewCard extends LitElement {
 			);
 		}
 
-		actions.push(
+		branchActions.push(
+			html`<action-item
+				label="Fetch"
+				icon="repo-fetch"
+				href=${this.createCommandLink('gitlens.fetch:')}
+			></action-item>`,
 			html`<action-item
 				label=${this.isWorktree ? 'Open in Worktrees View' : 'Open in Branches View'}
 				icon="arrow-right"
@@ -719,7 +837,32 @@ export class GlGraphOverviewCard extends LitElement {
 			></action-item>`,
 		);
 
-		return html`<action-nav class="branch-item__collapsed-actions">${actions}</action-nav>`;
+		const prActions = hasPr
+			? html`<action-nav>
+					<action-item
+						label="Open Pull Request Changes"
+						icon="request-changes"
+						href=${this.createCommandLink('gitlens.openPullRequestChanges:')}
+					></action-item>
+					<action-item
+						label="Compare Pull Request"
+						icon="git-compare"
+						href=${this.createCommandLink('gitlens.openPullRequestComparison:')}
+					></action-item>
+					<action-item
+						label="Open Pull Request Details"
+						icon="eye"
+						href=${this.createCommandLink('gitlens.openPullRequestDetails:')}
+					></action-item>
+				</action-nav>`
+			: nothing;
+
+		return html`<div class="hover__section">
+			<div class="hover__actions">
+				<action-nav>${branchActions}</action-nav>
+				${prActions}
+			</div>
+		</div>`;
 	}
 
 	private createCommandLink<T>(
@@ -732,25 +875,7 @@ export class GlGraphOverviewCard extends LitElement {
 		);
 	}
 
-	toggleExpanded(expanded = !this.expanded): void {
-		this.expanded = expanded;
-		queueMicrotask(() => {
-			this.dispatchEvent(
-				new CustomEvent('gl-graph-overview-card-expand-toggled', {
-					detail: { expanded: expanded },
-					bubbles: true,
-					composed: true,
-				}),
-			);
-		});
-	}
-
 	private onCardClick() {
-		if (this.expandable && !this.expanded) {
-			this.toggleExpanded(true);
-			return;
-		}
-
 		this.dispatchEvent(
 			new CustomEvent('gl-graph-overview-branch-selected', {
 				detail: {

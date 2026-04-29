@@ -111,9 +111,6 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	private _ipc!: HostIpc;
 
 	@state()
-	private _expandedCardId: string | undefined;
-
-	@state()
 	private _wipData: GetOverviewWipResponse = {};
 
 	@state()
@@ -253,19 +250,11 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 							.branch=${b}
 							.wip=${this._wipData[b.id]}
 							.enrichment=${this._enrichmentData[b.id]}
-							expandable
-							.expanded=${this._expandedCardId === b.id}
-							@gl-graph-overview-card-expand-toggled=${(e: CustomEvent<{ expanded: boolean }>) =>
-								this.onCardExpandToggled(b.id, e.detail.expanded)}
 						></gl-graph-overview-card>
 					`,
 				)}
 			</div>
 		`;
-	}
-
-	private onCardExpandToggled(branchId: string, expanded: boolean) {
-		this._expandedCardId = expanded ? branchId : undefined;
 	}
 }
 
