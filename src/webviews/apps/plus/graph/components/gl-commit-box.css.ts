@@ -1,6 +1,12 @@
 import { css } from 'lit';
 
 export const commitBoxStyles = css`
+	@property --gl-textarea-thumb-color {
+		syntax: '<color>';
+		inherits: true;
+		initial-value: transparent;
+	}
+
 	:host {
 		display: flex;
 		flex-direction: column;
@@ -38,6 +44,14 @@ export const commitBoxStyles = css`
 		position: relative;
 		display: flex;
 		flex-direction: column;
+		--gl-textarea-thumb-color: transparent;
+		transition: --gl-textarea-thumb-color 1s linear;
+	}
+
+	:host(:hover) .message,
+	:host(:focus-within) .message {
+		--gl-textarea-thumb-color: var(--vscode-scrollbarSlider-background);
+		transition: none;
 	}
 
 	.textarea {
@@ -76,6 +90,13 @@ export const commitBoxStyles = css`
 
 	.textarea::-webkit-scrollbar-corner {
 		background-color: transparent;
+	}
+
+	/* Override the shared scrollableBase mixin's border-color: inherit so the thumb's
+	   color comes from the animatable custom property on .message instead of the textarea's
+	   own (always-visible) input border. */
+	.textarea::-webkit-scrollbar-thumb {
+		border-color: var(--gl-textarea-thumb-color);
 	}
 
 	.controls {

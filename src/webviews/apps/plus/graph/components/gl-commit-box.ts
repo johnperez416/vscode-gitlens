@@ -9,6 +9,21 @@ import '../../../shared/components/branch-name.js';
 import '../../../shared/components/checkbox/checkbox.js';
 import '../../../shared/components/code-icon.js';
 
+// Register as a typed custom property so it can be animated/transitioned. @property in a
+// constructable stylesheet doesn't reliably register in Chromium; the JS API does.
+if (typeof CSS !== 'undefined' && 'registerProperty' in CSS) {
+	try {
+		CSS.registerProperty({
+			name: '--gl-textarea-thumb-color',
+			syntax: '<color>',
+			inherits: true,
+			initialValue: 'transparent',
+		});
+	} catch {
+		/* already registered */
+	}
+}
+
 @customElement('gl-commit-box')
 export class GlCommitBox extends LitElement {
 	static override styles = [elementBase, commitBoxStyles, scrollableBase];
@@ -73,7 +88,7 @@ export class GlCommitBox extends LitElement {
 		return html`
 			<div class="message">
 				<textarea
-					class="textarea scrollable"
+					class="textarea"
 					.value=${this.message}
 					placeholder=${`Commit message (${modifier}Enter to commit)`}
 					@input=${this.onMessageInput}
