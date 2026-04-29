@@ -382,7 +382,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 
 		if (this.activePanel === 'overview') {
 			return html`<div class="panel">
-				${this.renderHeader(config, false, undefined)}
+				${this.renderHeader(config, false)}
 				<div class="content">
 					<gl-graph-overview></gl-graph-overview>
 				</div>
@@ -395,7 +395,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		const isLoading = resource?.loading.get() ?? false;
 
 		return html`<div class="panel">
-			${this.renderHeader(config, isLoading, data?.layout)}
+			${this.renderHeader(config, isLoading)}
 			<div class="content">
 				${hasError
 					? html`<div class="empty">Failed to load data</div>`
@@ -406,13 +406,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		</div>`;
 	}
 
-	private renderHeader(config: PanelConfig, isLoading: boolean, currentLayout: 'tree' | 'list' | undefined) {
-		const hasLayout =
-			this.activePanel === 'worktrees' ||
-			this.activePanel === 'branches' ||
-			this.activePanel === 'remotes' ||
-			this.activePanel === 'tags';
-
+	private renderHeader(config: PanelConfig, isLoading: boolean) {
 		return html`<div class="header">
 			<span class="header-title">${config.title}</span>
 			<div class="header-actions">
@@ -426,15 +420,6 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 							><code-icon icon="${a.icon}"></code-icon
 						></gl-button>`,
 				)}
-				${hasLayout
-					? html`<gl-button
-							appearance="toolbar"
-							density="compact"
-							tooltip="${currentLayout === 'tree' ? 'Switch to List Layout' : 'Switch to Tree Layout'}"
-							@click=${this.handleToggleLayout}
-							><code-icon icon="${currentLayout === 'tree' ? 'list-flat' : 'list-tree'}"></code-icon
-						></gl-button>`
-					: nothing}
 				<gl-button appearance="toolbar" density="compact" tooltip="Refresh" @click=${this.handleRefresh}
 					><code-icon icon="refresh"></code-icon
 				></gl-button>
@@ -461,6 +446,13 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			applyOrSeedExpansion(model, paths);
 		}
 
+		const hasLayout =
+			this.activePanel === 'worktrees' ||
+			this.activePanel === 'branches' ||
+			this.activePanel === 'remotes' ||
+			this.activePanel === 'tags';
+		const currentLayout = data.layout;
+
 		return html`<gl-tree-view
 			focused-path=${this._actions.selectedPath[this.activePanel!] ?? nothing}
 			.model=${model}
@@ -475,7 +467,17 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			@gl-tree-generated-item-selected=${this.handleTreeItemSelected}
 			@gl-tree-generated-item-action-clicked=${this.handleTreeItemAction}
 			@gl-tree-expansion-changed=${this.handleTreeExpansionChanged}
-		></gl-tree-view>`;
+			>${hasLayout
+				? html`<gl-button
+						slot="filter-actions"
+						appearance="toolbar"
+						density="compact"
+						tooltip="${currentLayout === 'tree' ? 'View as List' : 'View as Tree'}"
+						@click=${this.handleToggleLayout}
+						><code-icon icon="${currentLayout === 'tree' ? 'list-flat' : 'list-tree'}"></code-icon
+					></gl-button>`
+				: nothing}</gl-tree-view
+		>`;
 	}
 
 	private renderSkeleton(): unknown {

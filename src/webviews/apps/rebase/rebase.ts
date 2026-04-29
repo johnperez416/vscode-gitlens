@@ -1553,9 +1553,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 				<gl-button
 					appearance="toolbar"
 					density="compact"
-					tooltip="${this._conflictFilesLayout === 'tree'
-						? 'Switch to List Layout'
-						: 'Switch to Tree Layout'}"
+					tooltip="${this._conflictFilesLayout === 'tree' ? 'View as List' : 'View as Tree'}"
 					@click=${this.onToggleConflictFilesLayout}
 					><code-icon icon="${this._conflictFilesLayout === 'tree' ? 'list-flat' : 'list-tree'}"></code-icon
 				></gl-button>

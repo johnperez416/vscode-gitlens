@@ -461,7 +461,7 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 				<gl-tooltip
 					slot="filter-actions"
 					placement="top"
-					content=${layout === 'tree' ? 'Switch to List Layout' : 'Switch to Tree Layout'}
+					content=${layout === 'tree' ? 'View as List' : 'View as Tree'}
 				>
 					<gl-button
 						appearance="toolbar"
