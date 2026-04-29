@@ -1,7 +1,7 @@
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
 import { StashApplyError, StashPushError } from '@gitlens/git/errors.js';
-import type { GitStashCommit, GitStashParentInfo } from '@gitlens/git/models/commit.js';
+import type { GitStashCommit } from '@gitlens/git/models/commit.js';
 import { GitCommit, GitCommitIdentity } from '@gitlens/git/models/commit.js';
 import { GitFileChange } from '@gitlens/git/models/fileChange.js';
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
@@ -110,18 +110,29 @@ export class StashGitSubProvider implements GitStashSubProvider {
 	): Promise<GitStash | undefined> {
 		if (repoPath == null) return undefined;
 
+		// Resolve options against config up front so the cache key reflects the actual values used
+		// to produce the cached payload — undefined inputs aren't conflated across config changes.
 		const cfg = this.context.config;
+		const includeFiles = options?.includeFiles ?? cfg?.commits.includeFileDetails ?? true;
+		const similarityThreshold = includeFiles
+			? (options?.similarityThreshold ?? cfg?.commits.similarityThreshold ?? null)
+			: null;
+		const reachableFrom = options?.reachableFrom;
+
+		// Cache only the unfiltered stash list; reachability projection runs below using the cached
+		// parent-timestamps and `getLogShas` layers, so re-projecting per `reachableFrom` is cheap.
+		const cacheKey = `f${includeFiles ? 1 : 0}|s${similarityThreshold ?? ''}`;
+
 		const stash = await this.cache.getStash(
 			repoPath,
+			cacheKey,
 			async (commonPath, _cacheable, signal) => {
 				// Prefer the aggregate signal from the cache; fall back to the caller's cancellation.
 				signal ??= cancellation;
-				const includeFiles = options?.includeFiles ?? cfg?.commits.includeFileDetails ?? true;
 				const parser = getStashLogParser(includeFiles);
 				const args = [...parser.arguments];
 
 				if (includeFiles) {
-					const similarityThreshold = options?.similarityThreshold ?? cfg?.commits.similarityThreshold;
 					args.push(`-M${similarityThreshold == null ? '' : `${similarityThreshold}%`}`);
 				}
 
@@ -130,78 +141,26 @@ export class StashGitSubProvider implements GitStashSubProvider {
 				const currentUser = await this.provider.config.getCurrentUser(repoPath);
 
 				const stashes = new Map<string, GitStashCommit>();
-				const parentShas = new Set<string>();
-
-				// First pass: create stashes and collect parent SHAs
 				for (const s of parser.parse(result.stdout)) {
 					stashes.set(s.sha, createStash(s, commonPath, currentUser));
-					// Collect all parent SHAs for timestamp lookup
-					if (s.parents) {
-						for (const parentSha of s.parents.split(' ')) {
-							if (parentSha.trim()) {
-								parentShas.add(parentSha.trim());
-							}
-						}
-					}
-				}
-
-				// Second pass: fetch parent timestamps if we have any parents
-				const parentTimestamps = new Map<string, { authorDate: number; committerDate: number }>();
-				if (parentShas.size > 0) {
-					try {
-						const datesParser = getShaAndDatesLogParser();
-						const parentResult = await this.git.exec(
-							{
-								cwd: repoPath,
-								cancellation: signal,
-								stdin: [...parentShas].join('\n'),
-							},
-							'log',
-							...datesParser.arguments,
-							'--no-walk',
-							'--stdin',
-						);
-
-						for (const entry of datesParser.parse(parentResult.stdout)) {
-							parentTimestamps.set(entry.sha, {
-								authorDate: Number(entry.authorDate),
-								committerDate: Number(entry.committerDate),
-							});
-						}
-					} catch (ex) {
-						Logger.debug(`Failed to fetch parent timestamps for stash commits: ${ex}`);
-					}
-				}
-
-				// Third pass: update stashes with parent timestamp information
-				for (const sha of stashes.keys()) {
-					const stashCommit = stashes.get(sha);
-					if (stashCommit?.parents.length) {
-						const parentsWithTimestamps: GitStashParentInfo[] = stashCommit.parents.map(parentSha => ({
-							sha: parentSha,
-							authorDate: parentTimestamps.get(parentSha)?.authorDate,
-							committerDate: parentTimestamps.get(parentSha)?.committerDate,
-						}));
-						// Store the parent timestamp information on the stash
-						stashes.set(sha, stashCommit.with({ parentTimestamps: parentsWithTimestamps }));
-					}
 				}
 
 				return { repoPath: commonPath, stashes: stashes };
 			},
-			cancellation,
+			{ cancellation: cancellation },
 		);
 
-		if (stash == null) return undefined;
-		if (!options?.reachableFrom || !stash?.stashes.size) return stash;
+		if (stash == null || !reachableFrom || !stash.stashes.size) return stash;
 
-		// Return only reachable stashes from the given ref
-		// Create a copy because we are going to modify it and we don't want to mutate the cache
+		// Copy because the cached `stash.stashes` map is shared and must not be mutated.
 		const stashes = new Map(stash.stashes);
 
-		const oldestStashDate = new Date(findOldestStashTimestamp(stash.stashes.values())).toISOString();
+		const parentTimestamps = await this.getOrFetchParentTimestamps(repoPath, stash.stashes, cancellation);
 
-		const { reachableFrom } = options;
+		const oldestStashDate = new Date(
+			findOldestStashTimestamp(stash.stashes.values(), parentTimestamps),
+		).toISOString();
+
 		const reachableShas = await this.provider.commits.getLogShas(repoPath, reachableFrom, {
 			since: oldestStashDate,
 			ordering: 'date',
@@ -242,6 +201,59 @@ export class StashGitSubProvider implements GitStashSubProvider {
 		}
 
 		return { ...stash, stashes: stashes };
+	}
+
+	/**
+	 * Lazy lookup of parent commit author/committer timestamps for the stashes' parent SHAs. The
+	 * parent set is a function of the stash list (invariant across `reachableFrom`), so the result
+	 * is shared via `cache.stashParentTimestamps` and invalidated together with the stash list.
+	 */
+	private getOrFetchParentTimestamps(
+		repoPath: string,
+		stashes: ReadonlyMap<string, GitStashCommit>,
+		cancellation?: AbortSignal,
+	): Promise<ReadonlyMap<string, { authorDate: number; committerDate: number }>> {
+		return this.cache.getStashParentTimestamps(
+			repoPath,
+			async (_commonPath, signal) => {
+				signal ??= cancellation;
+
+				const parentShas = new Set<string>();
+				for (const s of stashes.values()) {
+					for (const parentSha of s.parents) {
+						if (parentSha) {
+							parentShas.add(parentSha);
+						}
+					}
+				}
+
+				const map = new Map<string, { authorDate: number; committerDate: number }>();
+				if (parentShas.size === 0) return map;
+
+				try {
+					const datesParser = getShaAndDatesLogParser();
+					const result = await this.git.exec(
+						{ cwd: repoPath, cancellation: signal, stdin: [...parentShas].join('\n') },
+						'log',
+						...datesParser.arguments,
+						'--no-walk',
+						'--stdin',
+					);
+
+					for (const entry of datesParser.parse(result.stdout)) {
+						map.set(entry.sha, {
+							authorDate: Number(entry.authorDate),
+							committerDate: Number(entry.committerDate),
+						});
+					}
+				} catch (ex) {
+					Logger.debug(`Failed to fetch parent timestamps for stash commits: ${ex}`);
+				}
+
+				return map;
+			},
+			cancellation,
+		);
 	}
 
 	@debug()
@@ -608,19 +620,31 @@ function createStash(
 
 /**
  * Finds the oldest timestamp among stash commits and their parent commits.
- * This includes both the stash commit dates and all parent commit timestamps (author and committer dates).
+ * Considers each stash's committer date plus the author/committer dates of its parents (looked up
+ * in the supplied map, keyed by parent SHA). Parent timestamps are passed explicitly because they
+ * are computed lazily by `getStash`'s `reachableFrom` branch and are not stored on the commits.
  *
- * @param stashes - Collection of stash commits to analyze
+ * Non-finite parent timestamps are skipped — `Number(...)` of an empty/missing git output produces
+ * `NaN` or `0` which would otherwise corrupt the `Math.min` result and the derived `since:` cutoff.
+ *
  * @returns The oldest timestamp in milliseconds, or Infinity if no stashes provided
  */
-export function findOldestStashTimestamp(stashes: Iterable<GitStashCommit>): number {
+export function findOldestStashTimestamp(
+	stashes: Iterable<GitStashCommit>,
+	parentTimestamps: ReadonlyMap<string, { authorDate: number; committerDate: number }>,
+): number {
 	return min(stashes, c => {
-		return Math.min(
-			c.committer.date.getTime(),
-			...(c.parentTimestamps
-				?.flatMap(p => [p.authorDate, p.committerDate])
-				.filter((x): x is number => x != null)
-				.map(x => x * 1000) ?? []),
-		);
+		const candidates: number[] = [c.committer.date.getTime()];
+		for (const parentSha of c.parents) {
+			const ts = parentTimestamps.get(parentSha);
+			if (ts == null) continue;
+			if (Number.isFinite(ts.authorDate)) {
+				candidates.push(ts.authorDate * 1000);
+			}
+			if (Number.isFinite(ts.committerDate)) {
+				candidates.push(ts.committerDate * 1000);
+			}
+		}
+		return Math.min(...candidates);
 	});
 }

@@ -1,18 +1,30 @@
 import * as assert from 'assert';
-import type { GitStashCommit, GitStashParentInfo } from '@gitlens/git/models/commit.js';
+import type { GitStashCommit } from '@gitlens/git/models/commit.js';
 import { GitCommitIdentity } from '@gitlens/git/models/commit.js';
 import { findOldestStashTimestamp } from '../stash.js';
 
+type ParentTimestampInput = { sha: string; authorDate: number; committerDate: number };
+
 suite('findOldestStashTimestamp Test Suite', () => {
-	function createMockStashCommit(date: Date, parentTimestamps?: GitStashParentInfo[]): Partial<GitStashCommit> {
+	function createMockStashCommit(date: Date, parentShas: string[] = []): Partial<GitStashCommit> {
 		return {
 			committer: new GitCommitIdentity('Test', 'test@test.com', date),
-			parentTimestamps: parentTimestamps,
+			parents: parentShas,
 		};
 	}
 
+	function buildParentTimestamps(
+		entries: ParentTimestampInput[],
+	): Map<string, { authorDate: number; committerDate: number }> {
+		const map = new Map<string, { authorDate: number; committerDate: number }>();
+		for (const e of entries) {
+			map.set(e.sha, { authorDate: e.authorDate, committerDate: e.committerDate });
+		}
+		return map;
+	}
+
 	test('should return Infinity for empty stashes collection', () => {
-		const result = findOldestStashTimestamp([]);
+		const result = findOldestStashTimestamp([], new Map());
 		assert.strictEqual(result, Infinity);
 	});
 
@@ -20,76 +32,57 @@ suite('findOldestStashTimestamp Test Suite', () => {
 		const stashDate = new Date('2022-01-02T12:00:00Z');
 		const stashes = [createMockStashCommit(stashDate)] as GitStashCommit[];
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, new Map());
 		assert.strictEqual(result, stashDate.getTime());
 	});
 
-	test('should return stash date when parent timestamps are empty', () => {
+	test('should return stash date when parents have no entries in the timestamp map', () => {
 		const stashDate = new Date('2022-01-02T12:00:00Z');
-		const stashes = [createMockStashCommit(stashDate, [])] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1'])] as GitStashCommit[];
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, new Map());
 		assert.strictEqual(result, stashDate.getTime());
 	});
 
 	test('should return oldest parent timestamp when parent is older than stash', () => {
 		const stashDate = new Date('2022-01-02T12:00:00Z');
 		const oldest = 1640995200; // 2022-01-01 00:00:00 UTC
-		const parentTimestamps: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: oldest,
-				committerDate: 1640995260,
-			},
-		];
-		const stashes = [createMockStashCommit(stashDate, parentTimestamps)] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1'])] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: oldest, committerDate: 1640995260 },
+		]);
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		const expectedOldest = oldest * 1000; // Convert to milliseconds
 		assert.strictEqual(result, expectedOldest);
 	});
 
 	test('should return stash date when stash is older than parents', () => {
 		const stashDate = new Date('2022-01-01T00:00:00Z'); // Older
-		const parentTimestamps: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: 1641081600, // 2022-01-02 00:00:00 UTC (newer)
-				committerDate: 1641081660,
-			},
-		];
-		const stashes = [createMockStashCommit(stashDate, parentTimestamps)] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1'])] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: 1641081600, committerDate: 1641081660 }, // 2022-01-02 00:00:00 UTC (newer)
+		]);
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		assert.strictEqual(result, stashDate.getTime());
 	});
 
 	test('should handle multiple stashes and find the globally oldest timestamp', () => {
 		const stash1Date = new Date('2022-01-03T00:00:00Z');
 		const oldest = 1640995200; // 2022-01-01 00:00:00 UTC (oldest overall)
-		const stash1Parents: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: oldest,
-				committerDate: 1640995260,
-			},
-		];
-
 		const stash2Date = new Date('2022-01-02T00:00:00Z');
-		const stash2Parents: GitStashParentInfo[] = [
-			{
-				sha: 'parent2',
-				authorDate: 1641081600, // 2022-01-02 00:00:00 UTC
-				committerDate: 1641081660,
-			},
-		];
 
 		const stashes = [
-			createMockStashCommit(stash1Date, stash1Parents),
-			createMockStashCommit(stash2Date, stash2Parents),
+			createMockStashCommit(stash1Date, ['parent1']),
+			createMockStashCommit(stash2Date, ['parent2']),
 		] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: oldest, committerDate: 1640995260 },
+			{ sha: 'parent2', authorDate: 1641081600, committerDate: 1641081660 }, // 2022-01-02 00:00:00 UTC
+		]);
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		const expectedOldest = oldest * 1000; // parent1's authorDate
 		assert.strictEqual(result, expectedOldest);
 	});
@@ -97,38 +90,28 @@ suite('findOldestStashTimestamp Test Suite', () => {
 	test('should consider both authorDate and committerDate of parents', () => {
 		const stashDate = new Date('2022-01-02T00:00:00Z');
 		const oldest = 1640995200; // 2022-01-01 00:00:00 UTC (older)
-		const parentTimestamps: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: 1641081600, // 2022-01-02 00:00:00 UTC
-				committerDate: oldest,
-			},
-		];
-		const stashes = [createMockStashCommit(stashDate, parentTimestamps)] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1'])] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: 1641081600, committerDate: oldest }, // committerDate is older
+		]);
 
-		const result = findOldestStashTimestamp(stashes);
-		const expectedOldest = oldest * 1000; // committerDate is older
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
+		const expectedOldest = oldest * 1000;
 		assert.strictEqual(result, expectedOldest);
 	});
 
-	test('should handle null/undefined parent timestamps gracefully', () => {
+	test('should skip non-finite parent timestamp fields (NaN from missing git output)', () => {
+		// `Number('')` is 0 and `Number(undefined)` is NaN — both can leak from a malformed parser
+		// result; the function must skip them so they don't corrupt the Math.min.
 		const stashDate = new Date('2022-01-02T00:00:00Z');
 		const oldest = 1640995200; // 2022-01-01 00:00:00 UTC
-		const parentTimestamps: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: undefined,
-				committerDate: null as any,
-			},
-			{
-				sha: 'parent2',
-				authorDate: oldest,
-				committerDate: undefined,
-			},
-		];
-		const stashes = [createMockStashCommit(stashDate, parentTimestamps)] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1', 'parent2'])] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: NaN, committerDate: NaN },
+			{ sha: 'parent2', authorDate: oldest, committerDate: NaN },
+		]);
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		const expectedOldest = oldest * 1000; // Only valid timestamp
 		assert.strictEqual(result, expectedOldest);
 	});
@@ -136,26 +119,14 @@ suite('findOldestStashTimestamp Test Suite', () => {
 	test('should handle multiple parents per stash', () => {
 		const stashDate = new Date('2022-01-03T00:00:00Z');
 		const oldest = 1640995200; // 2022-01-01 00:00:00 UTC (oldest)
-		const parentTimestamps: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: 1641081600, // 2022-01-02 00:00:00 UTC
-				committerDate: 1641081660,
-			},
-			{
-				sha: 'parent2',
-				authorDate: oldest,
-				committerDate: 1640995260,
-			},
-			{
-				sha: 'parent3',
-				authorDate: 1641168000, // 2022-01-03 00:00:00 UTC
-				committerDate: 1641168060,
-			},
-		];
-		const stashes = [createMockStashCommit(stashDate, parentTimestamps)] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1', 'parent2', 'parent3'])] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: 1641081600, committerDate: 1641081660 }, // 2022-01-02 00:00:00 UTC
+			{ sha: 'parent2', authorDate: oldest, committerDate: 1640995260 },
+			{ sha: 'parent3', authorDate: 1641168000, committerDate: 1641168060 }, // 2022-01-03 00:00:00 UTC
+		]);
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		const expectedOldest = oldest * 1000; // parent2's authorDate
 		assert.strictEqual(result, expectedOldest);
 	});
@@ -165,54 +136,42 @@ suite('findOldestStashTimestamp Test Suite', () => {
 		const oldest = 1640995200; // 2022-01-01 00:00:00 UTC (oldest)
 
 		const stash1Date = new Date('2022-01-02T00:00:00Z');
-		const stash1Parents: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: oldest,
-				committerDate: 1640995260,
-			},
-		];
+		stashMap.set('stash1', createMockStashCommit(stash1Date, ['parent1']) as GitStashCommit);
+		const parentTimestamps = buildParentTimestamps([
+			{ sha: 'parent1', authorDate: oldest, committerDate: 1640995260 },
+		]);
 
-		stashMap.set('stash1', createMockStashCommit(stash1Date, stash1Parents) as GitStashCommit);
-
-		const result = findOldestStashTimestamp(stashMap.values());
+		const result = findOldestStashTimestamp(stashMap.values(), parentTimestamps);
 		const expectedOldest = oldest * 1000;
 		assert.strictEqual(result, expectedOldest);
 	});
 
-	test('should handle edge case with only null parent timestamps', () => {
+	test('should fall back to stash date when every parent timestamp is non-finite', () => {
 		const stashDate = new Date('2022-01-02T00:00:00Z');
-		const parentTimestamps: GitStashParentInfo[] = [
-			{
-				sha: 'parent1',
-				authorDate: null as any,
-				committerDate: undefined,
-			},
-		];
-		const stashes = [createMockStashCommit(stashDate, parentTimestamps)] as GitStashCommit[];
+		const stashes = [createMockStashCommit(stashDate, ['parent1'])] as GitStashCommit[];
+		const parentTimestamps = buildParentTimestamps([{ sha: 'parent1', authorDate: NaN, committerDate: NaN }]);
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		assert.strictEqual(result, stashDate.getTime()); // Falls back to stash date
 	});
 
 	test('should handle very large collections efficiently', () => {
 		const stashes: GitStashCommit[] = [];
 		const baseTime = new Date('2022-01-01T00:00:00Z').getTime();
+		const parentTimestamps = new Map<string, { authorDate: number; committerDate: number }>();
 
 		// Create 1000 stashes with various timestamps
 		for (let i = 0; i < 1000; i++) {
 			const stashDate = new Date(baseTime + i * 60000); // Each stash 1 minute apart
-			const parentTimestamps: GitStashParentInfo[] = [
-				{
-					sha: `parent${i}`,
-					authorDate: Math.floor((baseTime + i * 30000) / 1000), // 30 seconds apart
-					committerDate: Math.floor((baseTime + i * 45000) / 1000), // 45 seconds apart
-				},
-			];
-			stashes.push(createMockStashCommit(stashDate, parentTimestamps) as GitStashCommit);
+			const parentSha = `parent${i}`;
+			stashes.push(createMockStashCommit(stashDate, [parentSha]) as GitStashCommit);
+			parentTimestamps.set(parentSha, {
+				authorDate: Math.floor((baseTime + i * 30000) / 1000), // 30 seconds apart
+				committerDate: Math.floor((baseTime + i * 45000) / 1000), // 45 seconds apart
+			});
 		}
 
-		const result = findOldestStashTimestamp(stashes);
+		const result = findOldestStashTimestamp(stashes, parentTimestamps);
 		assert.strictEqual(result, baseTime); // Should be the first parent's authorDate
 	});
 });

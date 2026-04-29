@@ -100,7 +100,7 @@ export class GraphGitSubProvider implements GitGraphSubProvider {
 							'--',
 						)
 					: undefined,
-				this.provider.stash?.getStash(repoPath, undefined, cancellation),
+				this.provider.stash?.getStash(repoPath, { includeFiles: false }, cancellation),
 				this.provider.branches.getBranches(repoPath, undefined, cancellation),
 				this.provider.remotes.getRemotes(repoPath, undefined, cancellation),
 				this.provider.config.getCurrentUser(repoPath),
@@ -476,7 +476,7 @@ export class GraphGitSubProvider implements GitGraphSubProvider {
 								for (const stat of statsParser.parse(statsResult.stdout)) {
 									statShaOrRemapped = remappedIds.get(stat.sha) ?? stat.sha;
 
-									// If we already have the stats for this sha, skip it (e.g. stashes)
+									// Don't overwrite stats already populated for this sha
 									if (rowStats.has(statShaOrRemapped)) continue;
 
 									rowStats.set(statShaOrRemapped, stat.stats);
@@ -615,7 +615,7 @@ export class GraphGitSubProvider implements GitGraphSubProvider {
 				// Don't include stashes when using ref: filter, as they would add unrelated commits
 				// There *HAS* to be a better way to get git log to return stashes, but this is the best we've found
 				({ stdin, stashes, remappedIds } = convertStashesToStdin(
-					await this.provider.stash?.getStash(repoPath, undefined, cancellation),
+					await this.provider.stash?.getStash(repoPath, { includeFiles: false }, cancellation),
 				));
 			} else {
 				remappedIds = new Map();
