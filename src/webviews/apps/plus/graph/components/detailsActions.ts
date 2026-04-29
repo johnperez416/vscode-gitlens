@@ -1674,7 +1674,9 @@ export class DetailsActions {
 		try {
 			await this.services.repository.commit(repoPath, message, { amend: isAmend, all: all });
 			this.state.commitMessage.set('');
+			this.state.commitMessageDirty.set(false);
 			this.state.amend.set(false);
+			this.state.amendBaseSha.set(undefined);
 			this.state.commitError.set(undefined);
 			this.refreshWip();
 			void this.fetchDetails(sha, repoPath);
@@ -1691,6 +1693,9 @@ export class DetailsActions {
 			const result = await this.services.graphInspect.generateCommitMessage(repoPath);
 			if (result) {
 				this.state.commitMessage.set(result.body ? `${result.summary}\n\n${result.body}` : result.summary);
+				// AI output is the user's intentional generation against the current diff —
+				// treat as user-authored so HEAD-move auto-clear preserves it.
+				this.state.commitMessageDirty.set(true);
 			}
 		} finally {
 			this.state.generating.set(false);
@@ -1698,10 +1703,19 @@ export class DetailsActions {
 	}
 
 	async loadLastCommitMessage(repoPath: string | undefined): Promise<void> {
-		if (!repoPath) return;
+		// Skip entirely unless we'd actually use the result: amend must be on AND the box must
+		// be empty. The caller already checks both, but keeping the guard here means new
+		// callers can't accidentally clobber the user's work.
+		if (!repoPath || !this.state.amend.get() || this.state.commitMessage.get() !== '') return;
 
 		const message = await this.services.repository.getLastCommitMessage(repoPath);
-		if (message && this.state.amend.get()) {
+		if (!message) return;
+		// Re-check post-await: the user could have toggled amend off, or typed in the box,
+		// while the RPC was in flight. Only land the message into a still-empty box with
+		// amend still on. Leave `commitMessageDirty` false — this snapshot of HEAD's message
+		// is exactly what the HEAD-move auto-clear in `gl-graph-details-panel.ts` needs to be
+		// able to drop when HEAD moves.
+		if (this.state.amend.get() && this.state.commitMessage.get() === '') {
 			this.state.commitMessage.set(message);
 		}
 	}

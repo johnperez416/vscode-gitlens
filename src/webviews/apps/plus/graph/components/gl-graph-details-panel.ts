@@ -293,12 +293,63 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			if (this._workflow && this._state.activeMode.get() == null) {
 				this._workflow.review.invalidateSnapshot();
 				this._workflow.compose.invalidateSnapshot();
+
+				// `changedProperties.get(k)` returns the previous value only when `k` actually
+				// changed; otherwise fall back to the current value (the prior selection had
+				// the same value, by definition).
+				const prevSha = changedProperties.has('sha')
+					? (changedProperties.get('sha') as string | undefined)
+					: this.sha;
+				const prevWasWip = prevSha === uncommitted;
+				const repoChanged =
+					changedProperties.has('repoPath') && changedProperties.get('repoPath') !== this.repoPath;
+
+				if (repoChanged) {
+					// Repo identity changed (worktree switch, repo swap, etc.). Commit-form
+					// state is per-repo — it was authored against the prior repo's HEAD and
+					// would be wrong for the new repo. Wipe everything so the new repo's WIP
+					// (whether reached now or later) starts fresh. The form isn't visible
+					// during this transition, so clearing is invisible to the user.
+					this._state.amend.set(false);
+					this._state.amendBaseSha.set(undefined);
+					this._state.commitMessage.set('');
+					this._state.commitMessageDirty.set(false);
+					this._state.commitError.set(undefined);
+					this._state.generating.set(false);
+				} else if (prevWasWip && !this.isWip) {
+					// Leaving WIP within the same repo (clicking a commit to inspect): clear
+					// only per-attempt status. amend stays put — the HEAD-move check below
+					// validates it on return. commitMessage stays put — preserve the user's
+					// typing across brief round-trips.
+					this._state.commitError.set(undefined);
+					this._state.generating.set(false);
+				}
 			}
 
 			// Data fetches for sha/shas/repoPath changes happen in willUpdate so loading=true
 			// is observable during render (avoids a blank frame between prop change and the
 			// signal-driven re-render). Repo-change subscription re-wires via the controller's
 			// hostUpdate hook.
+		}
+
+		// Auto-clear amend if its basis HEAD has moved (external commit, pull, fetch, etc.).
+		// amend is bound to a specific commit identity; if that commit is no longer the tip,
+		// silently amending the new HEAD would surprise the user. Cheap signal reads on
+		// no-amend renders — guard early.
+		if (this._state.amend.get()) {
+			const base = this._state.amendBaseSha.get();
+			const head = this._state.wip.get()?.branch?.reference?.sha;
+			if (base != null && head != null && base !== head) {
+				this._state.amend.set(false);
+				this._state.amendBaseSha.set(undefined);
+				// If the message is an auto-loaded snapshot of the OLD HEAD's message, it's
+				// now stale data — clear it so the user doesn't accidentally commit it as a
+				// new commit (the manual uncheck path also clears for the same reason). If
+				// the user has typed or AI-generated, preserve their work.
+				if (!this._state.commitMessageDirty.get()) {
+					this._state.commitMessage.set('');
+				}
+			}
 		}
 	}
 
@@ -1000,15 +1051,29 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	private handleCommitMessageChange = (e: CustomEvent<{ value: string }>) => {
 		this._state.commitMessage.set(e.detail.value);
+		// User typed (or pasted): mark the message as user-authored so a HEAD-move auto-clear
+		// won't drop their work. An empty value also counts as dirty — they explicitly cleared
+		// the box and don't want it re-populated by the auto-load path.
+		this._state.commitMessageDirty.set(true);
 		this._state.commitError.set(undefined);
 	};
 
 	private handleAmendChange = (e: CustomEvent<{ checked: boolean }>) => {
 		this._state.amend.set(e.detail.checked);
 		if (e.detail.checked) {
-			void this._actions.loadLastCommitMessage(this.effectiveRepoPath);
+			// Bind the amend intent to the HEAD it was authored against. If HEAD moves later
+			// (external commit, pull, etc.), the panel auto-clears amend in `updated()` so the
+			// user doesn't inadvertently amend a different commit than they had in mind.
+			this._state.amendBaseSha.set(this._state.wip.get()?.branch?.reference?.sha);
+			// Only auto-load HEAD's message into an empty box. If the user has already typed
+			// something, skip the RPC entirely — never displace their work.
+			if (this._state.commitMessage.get() === '') {
+				void this._actions.loadLastCommitMessage(this.effectiveRepoPath);
+			}
 		} else {
+			this._state.amendBaseSha.set(undefined);
 			this._state.commitMessage.set('');
+			this._state.commitMessageDirty.set(false);
 		}
 	};
 
