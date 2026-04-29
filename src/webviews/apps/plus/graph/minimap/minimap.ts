@@ -299,12 +299,9 @@ export class GlGraphMinimap extends GlElement {
 		#tooltip .refs .worktree {
 			border-radius: 3px;
 			padding: 0 4px;
-			background-color: var(--color-graph-minimap-marker-worktree);
-			border: 1px solid var(--color-graph-minimap-marker-worktree);
-			/* The purple background is mid-luminance in both themes, so editor-foreground (which flips
-			   light/dark with the theme) gives borderline contrast in dark themes. A fixed near-black
-			   yields ~5:1 on both purple variants. */
-			color: #1f1f1f;
+			background-color: var(--color-graph-minimap-tip-worktreeBackground);
+			border: 1px solid var(--color-graph-minimap-tip-worktreeBorder);
+			color: var(--color-graph-minimap-tip-worktreeForeground);
 		}
 	`;
 

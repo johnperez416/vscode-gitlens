@@ -6177,10 +6177,10 @@
 				"id": "gitlens.graphMinimapMarkerWorktreeColor",
 				"description": "Specifies the color marking other worktrees on the minimap of the _Commit Graph_",
 				"defaults": {
-					"light": "#a371d4",
-					"highContrastLight": "#a371d4",
-					"dark": "#b87cdf",
-					"highContrast": "#b87cdf"
+					"light": "#9333ea",
+					"highContrastLight": "#9333ea",
+					"dark": "#c084fc",
+					"highContrast": "#c084fc"
 				}
 			},
 			{
@@ -6277,20 +6277,20 @@
 				"id": "gitlens.graphMinimapMarkerStashesColor",
 				"description": "Specifies the color marking stashes on the minimap of the _Commit Graph_",
 				"defaults": {
-					"light": "#e467e4",
-					"highContrastLight": "#e467e4",
-					"dark": "#b34db3",
-					"highContrast": "#b34db3"
+					"light": "#cd55cd",
+					"highContrastLight": "#cd55cd",
+					"dark": "#9e419e",
+					"highContrast": "#9e419e"
 				}
 			},
 			{
 				"id": "gitlens.graphScrollMarkerStashesColor",
 				"description": "Specifies the color marking stashes on the scrollbar of the _Commit Graph_",
 				"defaults": {
-					"light": "#e467e4",
-					"highContrastLight": "#e467e4",
-					"dark": "#b34db3",
-					"highContrast": "#b34db3"
+					"light": "#cd55cd",
+					"highContrastLight": "#cd55cd",
+					"dark": "#9e419e",
+					"highContrast": "#9e419e"
 				}
 			},
 			{
@@ -6317,10 +6317,10 @@
 				"id": "gitlens.graphScrollMarkerWipColor",
 				"description": "Specifies the color marking working tree (WIP) rows on the scrollbar of the _Commit Graph_",
 				"defaults": {
-					"light": "#a371d4",
-					"highContrastLight": "#a371d4",
-					"dark": "#b87cdf",
-					"highContrast": "#b87cdf"
+					"light": "#9333ea",
+					"highContrastLight": "#9333ea",
+					"dark": "#c084fc",
+					"highContrast": "#c084fc"
 				}
 			},
 			{

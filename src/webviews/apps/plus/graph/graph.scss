@@ -110,6 +110,12 @@
 	--color-graph-minimap-tip-upstreamBorder: var(--color-graph-scroll-marker-upstream);
 	--color-graph-minimap-tip-upstreamForeground: var(--vscode-editor-foreground, var(--vscode-foreground));
 
+	--color-graph-minimap-tip-worktreeBackground: var(--color-graph-minimap-marker-worktree);
+	--color-graph-minimap-tip-worktreeBorder: var(--color-graph-minimap-marker-worktree);
+	/* Violet bg is luminance-extreme in opposite directions per theme — using editor-background as
+	   the foreground inverts correctly in both. */
+	--color-graph-minimap-tip-worktreeForeground: var(--vscode-editor-background, var(--vscode-foreground));
+
 	--graph-stats-bar-height: 40%;
 	--graph-stats-bar-border-radius: 3px;
 
