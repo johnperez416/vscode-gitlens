@@ -578,6 +578,13 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 	private renderComposeMode() {
 		const scopeItems = this._actions.buildWipScopeItems();
 		const handleCompose = (e: CustomEvent<{ prompt?: string }>) => {
+			// Gate the AI call behind a configured model: if the user hasn't picked one,
+			// open the picker first so the click never produces a silent no-op. The user
+			// re-clicks Compose after selecting — keeps the dispatch path single-shot.
+			if (this._state.aiModel.get() == null) {
+				this._actions.switchAIModel();
+				return;
+			}
 			const panel = this.querySelector<import('./gl-details-compose-mode-panel.js').GlDetailsComposeModePanel>(
 				'gl-details-compose-mode-panel',
 			);
@@ -599,7 +606,13 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			composeResource.error.get() ??
 			(composeValue && 'error' in composeValue ? composeValue.error.message : undefined);
 		const mappedComposeStatus: 'idle' | 'loading' | 'ready' | 'error' =
-			composeStatus === 'success' ? (composeResult != null ? 'ready' : 'idle') : composeStatus;
+			composeStatus === 'success'
+				? composeResult != null
+					? 'ready'
+					: composeError != null
+						? 'error'
+						: 'idle'
+				: composeStatus;
 
 		const scopeFilesValue = this._actions.resources.scopeFiles.value.get();
 		const fallbackFiles = this._state.wip.get()?.changes?.files;
@@ -895,7 +908,13 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			reviewResource.error.get() ??
 			(reviewValue && 'error' in reviewValue ? reviewValue.error.message : undefined);
 		const mappedReviewStatus: 'idle' | 'loading' | 'ready' | 'error' =
-			reviewStatus === 'success' ? (reviewResult != null ? 'ready' : 'idle') : reviewStatus;
+			reviewStatus === 'success'
+				? reviewResult != null
+					? 'ready'
+					: reviewError != null
+						? 'error'
+						: 'idle'
+				: reviewStatus;
 
 		return html`<gl-details-review-mode-panel
 			.scope=${this._state.scope.get()}
@@ -911,6 +930,11 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.aiModel=${this._state.aiModel.get()}
 			?forward-available=${this._state.reviewForwardAvailable.get()}
 			@review-run=${(e: CustomEvent<{ prompt?: string }>) => {
+				// Same model gate as compose — open the picker first when no model is set.
+				if (this._state.aiModel.get() == null) {
+					this._actions.switchAIModel();
+					return;
+				}
 				const panel =
 					this.querySelector<import('./gl-details-review-mode-panel.js').GlDetailsReviewModePanel>(
 						'gl-details-review-mode-panel',
