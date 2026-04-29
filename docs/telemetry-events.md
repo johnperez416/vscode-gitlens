@@ -1089,7 +1089,6 @@ or
 
 ```typescript
 {
-  'context.attachedTo': 'graph' | 'default',
   'context.autolinks': number,
   'context.codeSuggestions': number,
   'context.inReview': boolean,
@@ -1112,7 +1111,6 @@ or
 
 ```typescript
 {
-  'context.attachedTo': 'graph' | 'default',
   'context.autolinks': number,
   'context.mode': 'commit',
   'context.pinned': boolean,
@@ -1169,7 +1167,6 @@ or
 
 ```typescript
 {
-  'context.attachedTo': 'graph' | 'default',
   'context.autolinks': number,
   'context.codeSuggestions': number,
   'context.config.autolinks.enabled': boolean,
@@ -1200,7 +1197,6 @@ or
 
 ```typescript
 {
-  'context.attachedTo': 'graph' | 'default',
   'context.autolinks': number,
   'context.config.autolinks.enabled': boolean,
   'context.config.autolinks.enhanced': boolean,
@@ -2741,7 +2737,6 @@ or
   'context.config.scrollMarkers.enabled': boolean,
   'context.config.scrollRowPadding': number,
   'context.config.searchItemLimit': number,
-  'context.config.showDetailsView': false | 'open' | 'selection',
   'context.config.showGhostRefsOnRowHover': boolean,
   'context.config.showRemoteNames': boolean,
   'context.config.showUpstreamStatus': boolean,
@@ -2765,57 +2760,14 @@ or
 
 ### graphDetails/closed
 
-```typescript
-{
-  [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
-  'context.webview.id': string,
-  'context.webview.instanceId': string,
-  'context.webview.type': string
-}
-```
-
-### graphDetails/mode/changed
-
-> Sent when the user changes the selected tab (mode) on the Graph Details view
+> Sent when the integrated graph details panel is collapsed
 
 ```typescript
 {
-  'context.attachedTo': 'graph' | 'default',
-  'context.autolinks': number,
-  'context.codeSuggestions': number,
-  'context.inReview': boolean,
-  'context.mode': 'wip',
-  'context.repository.closed': boolean,
-  'context.repository.folder.scheme': string,
-  'context.repository.id': string,
-  'context.repository.provider.id': string,
-  'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
-  'context.webview.id': string,
-  'context.webview.instanceId': string,
-  'context.webview.type': string,
-  'mode.new': 'wip' | 'commit',
-  'mode.old': 'wip' | 'commit'
-}
-```
-
-or
-
-```typescript
-{
-  'context.attachedTo': 'graph' | 'default',
-  'context.autolinks': number,
-  'context.mode': 'commit',
-  'context.pinned': boolean,
-  'context.type': 'stash' | 'commit',
-  'context.uncommitted': boolean,
-  'context.webview.host': 'view' | 'editor',
-  'context.webview.id': string,
-  'context.webview.instanceId': string,
-  'context.webview.type': string,
-  'mode.new': 'wip' | 'commit',
-  'mode.old': 'wip' | 'commit'
+  // How long the panel was open in milliseconds
+  'duration': number,
+  // Active panel mode at time of close
+  'mode': 'wip' | 'commit' | 'compare' | 'review' | 'multicommit' | 'compose' | 'none'
 }
 ```
 
@@ -2842,76 +2794,24 @@ or
 }
 ```
 
-### graphDetails/showAborted
-
-```typescript
-{
-  'context.webview.host': 'view' | 'editor',
-  'context.webview.id': string,
-  'context.webview.instanceId': string,
-  'context.webview.type': string,
-  'duration': number,
-  'loading': boolean
-}
-```
-
 ### graphDetails/shown
 
-> Sent when the Graph Details view is shown
+> Sent when the integrated graph details panel is expanded
 
 ```typescript
 {
-  'context.attachedTo': 'graph' | 'default',
-  'context.autolinks': number,
-  'context.codeSuggestions': number,
-  'context.config.autolinks.enabled': boolean,
-  'context.config.autolinks.enhanced': boolean,
-  'context.config.avatars': boolean,
-  'context.config.files.compact': boolean,
-  'context.config.files.icon': 'status' | 'type',
-  'context.config.files.layout': 'auto' | 'list' | 'tree',
-  'context.config.files.threshold': number,
-  'context.config.pullRequests.enabled': boolean,
-  'context.inReview': boolean,
-  'context.mode': 'wip',
-  'context.repository.closed': boolean,
-  'context.repository.folder.scheme': string,
-  'context.repository.id': string,
-  'context.repository.provider.id': string,
-  'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
-  'context.webview.id': string,
-  'context.webview.instanceId': string,
-  'context.webview.type': string,
-  'duration': number,
-  'loading': boolean
-}
-```
-
-or
-
-```typescript
-{
-  'context.attachedTo': 'graph' | 'default',
-  'context.autolinks': number,
-  'context.config.autolinks.enabled': boolean,
-  'context.config.autolinks.enhanced': boolean,
-  'context.config.avatars': boolean,
-  'context.config.files.compact': boolean,
-  'context.config.files.icon': 'status' | 'type',
-  'context.config.files.layout': 'auto' | 'list' | 'tree',
-  'context.config.files.threshold': number,
-  'context.config.pullRequests.enabled': boolean,
-  'context.mode': 'commit',
-  'context.pinned': boolean,
-  'context.type': 'stash' | 'commit',
-  'context.uncommitted': boolean,
-  'context.webview.host': 'view' | 'editor',
-  'context.webview.id': string,
-  'context.webview.instanceId': string,
-  'context.webview.type': string,
-  'duration': number,
-  'loading': boolean
+  // Which graph host the panel is in: editor area or bottom panel
+  'host': 'editor' | 'panel',
+  // Active panel mode at time of show
+  'mode': 'wip' | 'commit' | 'compare' | 'review' | 'multicommit' | 'compose' | 'none',
+  // Split-pane position percentage from the right edge (0–100)
+  'position': number,
+  // Number of rows currently selected in the graph (0, 1, or N)
+  'selection.count': number,
+  // Whether the active selection is the WIP / uncommitted row
+  'selection.uncommitted': boolean,
+  // What caused the panel to be shown
+  'trigger': 'toggle' | 'request-inspect' | 'auto-restore'
 }
 ```
 

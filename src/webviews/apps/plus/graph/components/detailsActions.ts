@@ -26,6 +26,7 @@ import { LruMap } from '@gitlens/utils/lruMap.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { Autolink } from '../../../../../autolinks/models/autolinks.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
+import type { TelemetryEvents } from '../../../../../constants.telemetry.js';
 import type { CommitDetails, CommitSignatureShape, CompareDiff, Wip } from '../../../../plus/graph/detailsProtocol.js';
 import type {
 	BranchComparisonContributorsScope,
@@ -43,7 +44,14 @@ import type { FileChangeListItemDetail } from '../../../commitDetails/components
 import { fetchCommitEnrichment } from '../../../shared/actions/commitEnrichment.js';
 import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
 import * as fileActions from '../../../shared/actions/file.js';
-import { enrichmentGuard, guardedEnrich, isAbortError, noop, noopUnlessReal } from '../../../shared/actions/rpc.js';
+import {
+	enrichmentGuard,
+	fireAndForget,
+	guardedEnrich,
+	isAbortError,
+	noop,
+	noopUnlessReal,
+} from '../../../shared/actions/rpc.js';
 import { subscribeAll } from '../../../shared/events/subscriptions.js';
 import type { Resource } from '../../../shared/state/resource.js';
 import type { DetailsState } from './detailsState.js';
@@ -83,6 +91,7 @@ export interface ResolvedServices {
 	readonly integrations: ResolvedSubService<'integrations'>;
 	readonly commands: ResolvedSubService<'commands'>;
 	readonly ai: ResolvedSubService<'ai'>;
+	readonly telemetry: ResolvedSubService<'telemetry'>;
 }
 
 export interface DetailsResources {
@@ -153,6 +162,13 @@ export class DetailsActions {
 		readonly services: ResolvedServices,
 		readonly resources: DetailsResources,
 	) {}
+
+	sendTelemetryEvent(
+		name: keyof TelemetryEvents,
+		data?: Record<string, string | number | boolean | undefined>,
+	): void {
+		fireAndForget(this.services.telemetry.sendEvent(name, data));
+	}
 
 	private clearCompareCore(): void {
 		this.state.commitFrom.set(undefined);
@@ -604,12 +620,22 @@ export class DetailsActions {
 		if (!commit) return;
 
 		this.state.reachabilityState.set('loading');
+		const start = performance.now();
 		try {
 			const result = await this.services.repository.getCommitReachability(commit.repoPath, commit.sha);
 			this.state.reachability.set(result);
 			this.state.reachabilityState.set('loaded');
-		} catch {
+			this.sendTelemetryEvent('graphDetails/reachability/loaded', {
+				'refs.count': result?.refs?.length ?? 0,
+				duration: performance.now() - start,
+			});
+		} catch (ex) {
 			this.state.reachabilityState.set('error');
+			this.sendTelemetryEvent('graphDetails/reachability/failed', {
+				duration: performance.now() - start,
+				'failed.reason': 'unknown',
+				'failed.error': ex instanceof Error ? ex.message : String(ex),
+			});
 		}
 	}
 

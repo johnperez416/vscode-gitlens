@@ -297,7 +297,6 @@ export interface GraphComponentConfig {
 	onlyFollowFirstParent?: boolean;
 	scrollMarkerTypes?: GraphScrollMarkerTypes[];
 	scrollRowPadding?: number;
-	showDetailsView?: 'open' | 'selection' | false;
 	showGhostRefsOnRowHover?: boolean;
 	showRemoteNamesOnRefs?: boolean;
 	showWorktreeWipStats?: boolean;

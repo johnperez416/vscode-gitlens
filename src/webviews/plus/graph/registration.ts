@@ -226,7 +226,6 @@ export function registerGraphWebviewCommands<T>(
 			await configuration.updateEffective('graph.layout', 'panel');
 			queueMicrotask(async () => {
 				await executeCoreCommand('gitlens.views.graph.resetViewLocation');
-				await executeCoreCommand('gitlens.views.graphDetails.resetViewLocation');
 				void executeCommand('gitlens.showGraphView');
 			});
 		}),

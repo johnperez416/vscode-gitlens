@@ -31,6 +31,7 @@ export async function resolveDetailsActions(
 		integrations,
 		commands,
 		ai,
+		telemetry,
 	] = await Promise.all([
 		services.files,
 		services.graphInspect,
@@ -44,6 +45,7 @@ export async function resolveDetailsActions(
 		services.integrations,
 		services.commands,
 		services.ai,
+		services.telemetry,
 	]);
 
 	const resolved: ResolvedServices = {
@@ -59,6 +61,7 @@ export async function resolveDetailsActions(
 		integrations: integrations,
 		commands: commands,
 		ai: ai,
+		telemetry: telemetry,
 	};
 
 	const resources: DetailsResources = {

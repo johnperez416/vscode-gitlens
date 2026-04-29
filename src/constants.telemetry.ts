@@ -255,10 +255,10 @@ export interface TelemetryEvents extends WebviewShowAbortedEvents, WebviewShownE
 	/** Sent when a search was performed on the Commit Graph */
 	'graph/searched': GraphSearchedEvent;
 
-	/** Sent when the Graph Details view is shown */
-	'graphDetails/shown': DetailsShownEvent;
-	/** Sent when the user changes the selected tab (mode) on the Graph Details view */
-	'graphDetails/mode/changed': DetailsModeChangedEvent;
+	/** Sent when the integrated graph details panel is expanded */
+	'graphDetails/shown': GraphDetailsShownEvent;
+	/** Sent when the integrated graph details panel is collapsed */
+	'graphDetails/closed': GraphDetailsClosedEvent;
 	/** Sent when commit reachability is successfully loaded in Graph Details */
 	'graphDetails/reachability/loaded': DetailsReachabilityLoadedEvent;
 	/** Sent when commit reachability fails to load in Graph Details */
@@ -475,7 +475,7 @@ type WebviewShowAbortedEvents = {
 type WebviewShownEvents = {
 	[K in `${Exclude<
 		WebviewTypes,
-		'commitDetails' | 'graph' | 'graphDetails' | 'rebaseEditor' | 'timeline'
+		'commitDetails' | 'graph' | 'rebaseEditor' | 'timeline'
 	>}/shown`]: WebviewShownEventData & Record<`context.${string}`, string | number | boolean | undefined>;
 };
 
@@ -832,6 +832,30 @@ type DetailsModeChangedEvent = InspectContextEventData & {
 	'mode.new': 'wip' | 'commit';
 };
 
+type GraphDetailsMode = 'commit' | 'wip' | 'multicommit' | 'review' | 'compose' | 'compare' | 'none';
+
+interface GraphDetailsShownEvent {
+	/** What caused the panel to be shown */
+	trigger: 'toggle' | 'request-inspect' | 'auto-restore';
+	/** Which graph host the panel is in: editor area or bottom panel */
+	host: 'editor' | 'panel';
+	/** Active panel mode at time of show */
+	mode: GraphDetailsMode;
+	/** Number of rows currently selected in the graph (0, 1, or N) */
+	'selection.count': number;
+	/** Whether the active selection is the WIP / uncommitted row */
+	'selection.uncommitted': boolean;
+	/** Split-pane position percentage from the right edge (0–100) */
+	position: number | undefined;
+}
+
+interface GraphDetailsClosedEvent {
+	/** How long the panel was open in milliseconds */
+	duration: number;
+	/** Active panel mode at time of close */
+	mode: GraphDetailsMode;
+}
+
 interface DetailsReachabilityLoadedEvent {
 	'refs.count': number;
 	duration: number;
@@ -964,7 +988,6 @@ interface HomeFailedEvent {
 
 type InspectWipContextEventData = {
 	'context.mode': 'wip';
-	'context.attachedTo': 'graph' | 'default';
 	'context.autolinks': number;
 	'context.inReview': boolean;
 	'context.codeSuggestions': number;
@@ -972,7 +995,6 @@ type InspectWipContextEventData = {
 
 type InspectCommitContextEventData = {
 	'context.mode': 'commit';
-	'context.attachedTo': 'graph' | 'default';
 	'context.autolinks': number;
 	'context.pinned': boolean;
 	'context.type': 'commit' | 'stash' | undefined;
@@ -1647,9 +1669,9 @@ type WebviewShownEventData = WebviewContextEventData & {
 export type WebviewTelemetryEvents = {
 	[K in keyof TelemetryEvents]: Omit<
 		TelemetryEvents[K],
-		keyof (K extends `commitDetails/${string}` | `graphDetails/${string}`
+		keyof (K extends `commitDetails/${string}`
 			? InspectTelemetryContext
-			: K extends `graph/${string}`
+			: K extends `graph/${string}` | `graphDetails/${string}`
 				? GraphTelemetryContext
 				: K extends `timeline/${string}`
 					? TimelineTelemetryContext

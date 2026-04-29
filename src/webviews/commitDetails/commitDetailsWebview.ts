@@ -124,8 +124,7 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 
 	constructor(
 		private readonly container: Container,
-		private readonly host: WebviewHost<'gitlens.views.commitDetails' | 'gitlens.views.graphDetails'>,
-		private readonly options: { attachedTo: 'default' | 'graph' },
+		private readonly host: WebviewHost<'gitlens.views.commitDetails'>,
 	) {
 		this._disposable = Disposable.from();
 	}
@@ -139,7 +138,7 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 	}
 
 	getTelemetrySource(): Sources {
-		return this.options.attachedTo === 'graph' ? 'graph-details' : 'inspect';
+		return 'inspect';
 	}
 
 	getTelemetryContext(): InspectTelemetryContext {
@@ -147,7 +146,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 			const context: InspectTelemetryContext = {
 				...this.host.getTelemetryContext(),
 				'context.mode': 'wip',
-				'context.attachedTo': this.options.attachedTo,
 				'context.autolinks': 0,
 				'context.inReview': this._showingInReview,
 				'context.codeSuggestions': 0,
@@ -159,7 +157,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		const context: InspectTelemetryContext = {
 			...this.host.getTelemetryContext(),
 			'context.mode': 'commit',
-			'context.attachedTo': this.options.attachedTo,
 			'context.autolinks': 0,
 			'context.pinned': this._pinned,
 			'context.type': undefined,
@@ -294,8 +291,8 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		| undefined {
 		if (this._pinned) return undefined;
 
-		// Check line tracker first (for the default inspect panel, not graph)
-		if (this.options.attachedTo !== 'graph' && window.activeTextEditor != null) {
+		// Check line tracker first
+		if (window.activeTextEditor != null) {
 			const { lineTracker } = this.container;
 			const line = lineTracker.selections?.[0]?.active;
 			if (line != null) {
@@ -307,16 +304,9 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		}
 
 		// Check event cache
-		if (this.options.attachedTo === 'graph') {
-			const args = this.container.events.getCachedEventArgsBySource('commit:selected', 'gitlens.views.graph');
-			if (args?.commit != null) {
-				return { repoPath: args.commit.repoPath, sha: args.commit.ref, refType: args.commit.refType };
-			}
-		} else {
-			const args = this.container.events.getCachedEventArgs('commit:selected');
-			if (args?.commit != null) {
-				return { repoPath: args.commit.repoPath, sha: args.commit.ref, refType: args.commit.refType };
-			}
+		const args = this.container.events.getCachedEventArgs('commit:selected');
+		if (args?.commit != null) {
+			return { repoPath: args.commit.repoPath, sha: args.commit.ref, refType: args.commit.refType };
 		}
 
 		return undefined;
@@ -431,14 +421,7 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 	}
 
 	private onCommitSelected(e: CommitSelectedEvent) {
-		// Filter events based on attachedTo
-		if (
-			e.data == null ||
-			(this.options.attachedTo === 'graph' && e.source !== 'gitlens.views.graph') ||
-			(this.options.attachedTo === 'default' && e.source === 'gitlens.views.graph')
-		) {
-			return;
-		}
+		if (e.data == null) return;
 
 		// Add to navigation stack and track what's being shown
 		const ref = getReferenceFromRevision(e.data.commit);
@@ -451,13 +434,6 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 			sha: e.data.commit.ref,
 			searchContext: e.data.searchContext,
 			passive: e.data.interaction === 'passive',
-			// Graph Details auto-switches between WIP and commit modes based on selection
-			requestedMode:
-				this.options.attachedTo === 'graph'
-					? e.data.commit.ref === uncommitted
-						? 'wip'
-						: 'commit'
-					: undefined,
 		});
 
 		// Show webview if not passive and not pinned
@@ -480,17 +456,15 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 
 		if (this._pinned) return;
 
-		if (this.options.attachedTo !== 'graph') {
-			const { lineTracker } = this.container;
-			this._lineTrackerDisposable = lineTracker.subscribe(
-				this,
-				lineTracker.onDidChangeActiveLines(this.onActiveEditorLinesChanged, this),
-			);
-		}
+		const { lineTracker } = this.container;
+		this._lineTrackerDisposable = lineTracker.subscribe(
+			this,
+			lineTracker.onDidChangeActiveLines(this.onActiveEditorLinesChanged, this),
+		);
 	}
 
 	private get isLineTrackerSuspended() {
-		return this.options.attachedTo !== 'graph' ? this._lineTrackerDisposable == null : false;
+		return this._lineTrackerDisposable == null;
 	}
 
 	private suspendLineTracker() {
@@ -757,10 +731,10 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		switch (params.action) {
 			case 'graph': {
 				const ref = createReference(params.sha, params.repoPath, { refType: 'revision' });
-				void executeCommand<ShowInCommitGraphCommandArgs>(
-					this.options.attachedTo === 'graph' ? 'gitlens.showInCommitGraphView' : 'gitlens.showInCommitGraph',
-					{ ref: ref, source: { source: this.getTelemetrySource() } },
-				);
+				void executeCommand<ShowInCommitGraphCommandArgs>('gitlens.showInCommitGraph', {
+					ref: ref,
+					source: { source: this.getTelemetrySource() },
+				});
 				break;
 			}
 			case 'more':
@@ -817,13 +791,10 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		// Track mode so onVisibilityChanged knows whether to fire passive commit selection
 		this._showingMode = params.mode;
 
-		this.host.sendTelemetryEvent(
-			`${this.options.attachedTo === 'graph' ? 'graphDetails' : 'commitDetails'}/mode/changed`,
-			{
-				'mode.old': params.mode === 'wip' ? 'commit' : 'wip', // Assume switching from opposite
-				'mode.new': params.mode,
-			},
-		);
+		this.host.sendTelemetryEvent('commitDetails/mode/changed', {
+			'mode.old': params.mode === 'wip' ? 'commit' : 'wip', // Assume switching from opposite
+			'mode.new': params.mode,
+		});
 	}
 
 	// ============================================================

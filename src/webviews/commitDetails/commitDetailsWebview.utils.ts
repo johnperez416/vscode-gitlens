@@ -19,7 +19,6 @@ export function isDetailsItemContext(item: unknown): item is DetailsItemContext 
 	return (
 		isWebviewItemContext(item) &&
 		(item.webview === 'gitlens.views.commitDetails' ||
-			item.webview === 'gitlens.views.graphDetails' ||
 			// The embedded graph details panel lives inside the graph webview,
 			// so VS Code may pass the graph panel/view ID as the webview context
 			item.webview === 'gitlens.graph' ||

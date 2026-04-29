@@ -42,7 +42,6 @@ const walkthroughRequiredMapping: Readonly<Map<WalkthroughContextKeys, Walkthrou
 			subscriptionStates: triedProStates,
 			subscriptionCommands: tryProCommands,
 			usage: [
-				'graphDetailsView:shown',
 				'graphView:shown',
 				'graphWebview:shown',
 				'commitDetailsView:shown',

@@ -512,7 +512,6 @@ export type ContributedCommands =
 	| 'gitlens.views.graph.openInNewWindow'
 	| 'gitlens.views.graph.openInTab'
 	| 'gitlens.views.graph.refresh'
-	| 'gitlens.views.graphDetails.refresh'
 	| 'gitlens.views.highlightChanges'
 	| 'gitlens.views.highlightChanges:commitDetails'
 	| 'gitlens.views.highlightChanges:graphDetails'

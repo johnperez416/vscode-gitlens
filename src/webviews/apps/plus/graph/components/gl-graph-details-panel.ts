@@ -105,6 +105,15 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		return this.sha === uncommitted;
 	}
 
+	/** Active mode used for telemetry — combines `activeMode` (review/compose/compare) and the
+	 *  effective selection context (commit/wip/multicommit). Returns `'none'` when no selection. */
+	get currentMode(): 'commit' | 'wip' | 'multicommit' | 'review' | 'compose' | 'compare' | 'none' {
+		const active = this._state.activeMode.get();
+		if (active != null) return active;
+		if (this.sha == null && (this.shas == null || this.shas.length === 0)) return 'none';
+		return this.isMultiCommit ? 'multicommit' : this.isWip ? 'wip' : 'commit';
+	}
+
 	/** Returns the effective context, respecting mode lock when active. */
 	private get effectiveContext(): DetailsContext {
 		return (

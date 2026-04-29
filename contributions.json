@@ -10817,26 +10817,6 @@
 				]
 			}
 		},
-		"gitlens.views.graphDetails.refresh": {
-			"label": "Refresh",
-			"icon": "$(refresh)",
-			"menus": {
-				"view/item/context": [
-					{
-						"when": "viewItem == gitlens:views:graphDetails",
-						"group": "inline",
-						"order": 99
-					}
-				],
-				"view/title": [
-					{
-						"when": "view == gitlens.views.graphDetails",
-						"group": "navigation",
-						"order": 99
-					}
-				]
-			}
-		},
 		"gitlens.views.highlightChanges": {
 			"label": "Highlight All Changes Since Before this Commit",
 			"menus": {

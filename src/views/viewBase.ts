@@ -161,8 +161,6 @@ export type WebviewViewByType = {
 		? CommitsView
 		: T extends 'graph'
 		? CommitsView
-		: T extends 'graphDetails'
-		? CommitsView
 		: T extends 'home'
 		? CommitsView
 		: T extends 'patchDetails'

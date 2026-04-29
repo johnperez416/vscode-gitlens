@@ -38,8 +38,6 @@ export interface CommitSelectionEvent {
 	searchContext?: GitCommitSearchContext;
 	/** Whether this is a passive selection (e.g., from line tracker) */
 	passive?: boolean;
-	/** Mode the host wants the webview to switch to (graph-attached panels only). */
-	requestedMode?: Mode;
 }
 
 /**
@@ -115,9 +113,8 @@ export interface CommitInspectService {
 	// ── Events ──
 
 	/**
-	 * Fired when a commit is selected elsewhere (graph, editor line, etc.).
-	 * View-specific: includes search context and passive flag, and filters
-	 * based on the view's attachedTo configuration.
+	 * Fired when a commit is selected elsewhere (editor line, tree views, etc.).
+	 * View-specific: includes search context and passive flag.
 	 */
 	onCommitSelected(callback: (event: CommitSelectionEvent) => void): Unsubscribe;
 

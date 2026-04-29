@@ -1121,26 +1121,6 @@
 						"scope": "window",
 						"order": 400
 					},
-					"gitlens.graph.showDetailsView": {
-						"type": [
-							"boolean",
-							"string"
-						],
-						"default": false,
-						"enum": [
-							false,
-							"open",
-							"selection"
-						],
-						"enumDescriptions": [
-							"Never shows the _Commit Details_ view automatically",
-							"Shows the _Commit Details_ view automatically only when opening the _Commit Graph_",
-							"Shows the _Commit Details_ view automatically when selection changes in the _Commit Graph_"
-						],
-						"markdownDescription": "Specifies when to show the _Commit Details_ view for the selected row in the _Commit Graph_",
-						"scope": "window",
-						"order": 500
-					},
 					"gitlens.graph.initialRowSelection": {
 						"type": [
 							"string"
@@ -9777,11 +9757,6 @@
 				"icon": "$(refresh)"
 			},
 			{
-				"command": "gitlens.views.graphDetails.refresh",
-				"title": "Refresh",
-				"icon": "$(refresh)"
-			},
-			{
 				"command": "gitlens.views.highlightChanges",
 				"title": "Highlight All Changes Since Before this Commit"
 			},
@@ -14649,10 +14624,6 @@
 				},
 				{
 					"command": "gitlens.views.graph.refresh",
-					"when": "false"
-				},
-				{
-					"command": "gitlens.views.graphDetails.refresh",
 					"when": "false"
 				},
 				{
@@ -21797,11 +21768,6 @@
 					"group": "inline@-99"
 				},
 				{
-					"command": "gitlens.views.graphDetails.refresh",
-					"when": "viewItem == gitlens:views:graphDetails",
-					"group": "inline@99"
-				},
-				{
 					"command": "gitlens.views.home.whatsNew",
 					"when": "viewItem == gitlens:views:home",
 					"group": "inline@1"
@@ -24046,11 +24012,6 @@
 					"submenu": "gitlens/graph/configuration",
 					"when": "view == gitlens.views.graph",
 					"group": "navigation@-98"
-				},
-				{
-					"command": "gitlens.views.graphDetails.refresh",
-					"when": "view == gitlens.views.graphDetails",
-					"group": "navigation@99"
 				},
 				{
 					"command": "gitlens.views.home.whatsNew",

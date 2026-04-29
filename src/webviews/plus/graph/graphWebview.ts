@@ -424,7 +424,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private _etag?: number;
 	private _etagSubscription?: number;
 	private _etagRepository?: number;
-	private _firstSelection = true;
 	private _getBranchesAndTagsTips:
 		| ((sha: string, options?: { compact?: boolean; icons?: boolean }) => string | undefined)
 		| undefined;
@@ -467,7 +466,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private _selectedId?: string;
 	private _honorSelectedId = false;
 	private _selectedRows: Record<string, SelectedRowState> | undefined;
-	private _showDetailsView: Config['graph']['showDetailsView'];
 	private _theme: ColorTheme | undefined;
 	private _repositoryEventsDisposable: Disposable | undefined;
 	private _lastFetchedDisposable: Disposable | undefined;
@@ -508,7 +506,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		private readonly container: Container,
 		private readonly host: WebviewHost<'gitlens.views.graph' | 'gitlens.graph'>,
 	) {
-		this._showDetailsView = configuration.get('graph.showDetailsView');
 		this._theme = window.activeColorTheme;
 		this.ensureRepositorySubscriptions();
 
@@ -1702,8 +1699,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		_options?: WebviewShowOptions,
 		...args: WebviewShowingArgs<GraphWebviewShowingArgs, State>
 	): Promise<[boolean, GraphShownTelemetryContext]> {
-		this._firstSelection = true;
-
 		this._etag = this.container.git.etag;
 		if (this.container.git.isDiscoveringRepositories) {
 			this._discovering = this.container.git.isDiscoveringRepositories.then(r => {
@@ -1822,7 +1817,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			);
 		}
 
-		// Register file action commands for the embedded details panel (graphDetails context)
+		// Register file action commands for the integrated details panel
 		this.registerDetailsFileCommands(commands);
 
 		return commands;
@@ -1855,25 +1850,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		this.isWindowFocused = focused;
 	}
 
-	onFocusChanged(focused: boolean): void {
-		this._showActiveSelectionDetailsDebounced?.cancel();
-
-		if (
-			!focused ||
-			this.activeSelection == null ||
-			(!this.container.views.commitDetails.visible && !this.container.views.graphDetails.visible)
-		) {
-			return;
-		}
-
-		this.showActiveSelectionDetails();
-	}
-
 	onVisibilityChanged(visible: boolean): void {
-		if (!visible) {
-			this._showActiveSelectionDetailsDebounced?.cancel();
-		}
-
 		if (
 			visible &&
 			((this.repository != null && this.repository.etag !== this._etagRepository) ||
@@ -1887,11 +1864,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 		if (visible) {
 			this.host.sendPendingIpcNotifications();
-
-			const { activeSelection } = this;
-			if (activeSelection == null) return;
-
-			this.showActiveSelectionDetails();
 		}
 	}
 
@@ -2400,32 +2372,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		updateSearchMode(this.container, this._search, params.searchMode);
 	}
 
-	private _showActiveSelectionDetailsDebounced:
-		| Deferrable<GraphWebviewProvider['showActiveSelectionDetails']>
-		| undefined = undefined;
-
-	private showActiveSelectionDetails() {
-		this._showActiveSelectionDetailsDebounced ??= debounce(this.showActiveSelectionDetailsCore.bind(this), 250);
-		this._showActiveSelectionDetailsDebounced();
-	}
-
-	private showActiveSelectionDetailsCore() {
-		const { activeSelection } = this;
-		if (activeSelection == null || !this.host.active) return;
-
-		this.container.events.fire(
-			'commit:selected',
-			{
-				commit: activeSelection,
-				interaction: 'passive',
-				preserveFocus: true,
-				preserveVisibility: this._showDetailsView === false,
-				searchContext: this.getSearchContext(activeSelection.ref),
-			},
-			{ source: this.host.id },
-		);
-	}
-
 	private getSearchContext(id: string | undefined): GitCommitSearchContext | undefined {
 		if (!this._search?.queryFilters.files || id == null) return undefined;
 
@@ -2439,10 +2385,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	private onConfigurationChanged(e: ConfigurationChangeEvent) {
-		if (configuration.changed(e, 'graph.showDetailsView')) {
-			this._showDetailsView = configuration.get('graph.showDetailsView');
-		}
-
 		if (configuration.changed(e, 'graph.commitOrdering')) {
 			this.updateState();
 
@@ -2672,36 +2614,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					ref,
 					configuration.isUnset('gitCommands.skipConfirmations') ? true : undefined,
 				);
-			}
-		} else if (params.type === 'row' && params.row) {
-			this._showActiveSelectionDetailsDebounced?.cancel();
-
-			const commit = this.getRevisionReference(this.repository?.path, params.row.id, params.row.type);
-			if (commit != null) {
-				const searchContext = this.getSearchContext(params.row.id);
-				this.container.events.fire(
-					'commit:selected',
-					{
-						commit: commit,
-						interaction: 'active',
-						preserveFocus: params.preserveFocus,
-						preserveVisibility: false,
-						searchContext: searchContext,
-					},
-					{ source: this.host.id },
-				);
-
-				const details = this.host.is('editor')
-					? this.container.views.commitDetails
-					: this.container.views.graphDetails;
-				if (!details.ready) {
-					void details.show({ preserveFocus: params.preserveFocus }, {
-						commit: commit,
-						interaction: 'active',
-						preserveVisibility: false,
-						searchContext: searchContext,
-					} satisfies CommitSelectedEvent['data']);
-				}
 			}
 		}
 
@@ -3927,8 +3839,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@ipcCommand(UpdateSelectionCommand)
 	private onSelectionChanged(params: IpcParams<typeof UpdateSelectionCommand>) {
-		this._showActiveSelectionDetailsDebounced?.cancel();
-
 		const item = params.selection.find(r => r.active) ?? params.selection[0];
 		this.setSelectedRows(item?.id, params.selection, { selected: true, hidden: item?.hidden });
 
@@ -3944,26 +3854,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (this.repository == null) return;
 
 		const commit = this.getRevisionReference(this.repository.path, id, type);
-		const commits = commit != null ? [commit] : undefined;
-
-		this._selection = commits;
-
-		if (commits == null) return;
-		if (!this._firstSelection && this.host.is('editor') && !this.host.active) return;
-
-		this.container.events.fire(
-			'commit:selected',
-			{
-				commit: commits[0],
-				interaction: 'passive',
-				preserveFocus: true,
-				// The embedded details panel handles inspection; suppress sidebar auto-reveal
-				preserveVisibility: true,
-				searchContext: this.getSearchContext(id),
-			},
-			{ source: this.host.id },
-		);
-		this._firstSelection = false;
+		this._selection = commit != null ? [commit] : undefined;
 	}
 
 	private _notifyDidChangeStateDebounced: Deferrable<GraphWebviewProvider['notifyDidChangeState']> | undefined =
@@ -4912,7 +4803,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			onlyFollowFirstParent: configuration.get('graph.onlyFollowFirstParent'),
 			scrollRowPadding: configuration.get('graph.scrollRowPadding'),
 			scrollMarkerTypes: this.getScrollMarkerTypes(),
-			showDetailsView: this._showDetailsView,
 			showGhostRefsOnRowHover: configuration.get('graph.showGhostRefsOnRowHover'),
 			showRemoteNamesOnRefs: configuration.get('graph.showRemoteNames'),
 			showWorktreeWipStats: configuration.get('graph.showWorktreeWipStats'),

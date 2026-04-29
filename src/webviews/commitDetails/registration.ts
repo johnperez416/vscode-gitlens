@@ -24,33 +24,7 @@ export function registerCommitDetailsWebviewView(
 			const { CommitDetailsWebviewProvider } = await import(
 				/* webpackChunkName: "webview-commitDetails" */ './commitDetailsWebview.js'
 			);
-			return new CommitDetailsWebviewProvider(container, host, { attachedTo: 'default' });
-		},
-	);
-}
-
-export function registerGraphDetailsWebviewView(
-	controller: WebviewsController,
-): WebviewViewProxy<'gitlens.views.graphDetails', CommitDetailsWebviewShowingArgs, State> {
-	return controller.registerWebviewView<'gitlens.views.graphDetails', State, State, CommitDetailsWebviewShowingArgs>(
-		{
-			id: 'gitlens.views.graphDetails',
-			fileName: 'commitDetails.html',
-			title: 'Commit Graph Inspect',
-			contextKeyPrefix: `gitlens:webviewView:graphDetails`,
-			trackingFeature: 'graphDetailsView',
-			type: 'graphDetails',
-			plusFeature: false,
-			location: 'panel',
-			webviewHostOptions: {
-				retainContextWhenHidden: true,
-			},
-		},
-		async (container, host) => {
-			const { CommitDetailsWebviewProvider } = await import(
-				/* webpackChunkName: "webview-commitDetails" */ './commitDetailsWebview.js'
-			);
-			return new CommitDetailsWebviewProvider(container, host, { attachedTo: 'graph' });
+			return new CommitDetailsWebviewProvider(container, host);
 		},
 	);
 }

@@ -27,6 +27,7 @@ import { ipcContext } from '../../shared/contexts/ipc.js';
 import type { TelemetryContext } from '../../shared/contexts/telemetry.js';
 import { telemetryContext } from '../../shared/contexts/telemetry.js';
 import { emitTelemetrySentEvent } from '../../shared/telemetry.js';
+import type { GlGraphDetailsPanel } from './components/gl-graph-details-panel.js';
 import type { AppState } from './context.js';
 import { graphServicesContext, graphStateContext } from './context.js';
 import type { GlGraphHeader } from './graph-header.js';
@@ -162,6 +163,12 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	@query('gl-graph-sidebar-panel')
 	private readonly sidebarPanelEl: GlGraphSidebarPanel | undefined;
 
+	@query('gl-graph-details-panel')
+	private readonly detailsPanelEl: GlGraphDetailsPanel | undefined;
+
+	private _detailsShownAt: number | undefined;
+	private _detailsTelemetryFirstRender = true;
+
 	onWebviewVisibilityChanged(visible: boolean): void {
 		if (!visible) return;
 
@@ -189,6 +196,15 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					});
 				}
 			}
+		}
+
+		// First-render auto-restore telemetry: panel was visible from persisted state, no explicit
+		// setDetailsVisible call. Fire once after first paint so `currentMode` is queryable.
+		if (this._detailsTelemetryFirstRender && detailsVisible) {
+			this._detailsTelemetryFirstRender = false;
+			this.emitDetailsVisibilityTelemetry(true, 'auto-restore');
+		} else if (this._detailsTelemetryFirstRender) {
+			this._detailsTelemetryFirstRender = false;
 		}
 
 		// Re-trigger the sidebar-panel's enter animation on transitions to visible AND on
@@ -523,11 +539,49 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		this.persistState();
 	}
 
-	private setDetailsVisible(visible: boolean): void {
+	private setDetailsVisible(visible: boolean, trigger?: 'toggle' | 'request-inspect' | 'auto-restore'): void {
 		const gs = this.graphState;
 		if (gs.detailsVisible === visible) return;
 		gs.detailsVisible = visible;
 		this.persistState();
+		this.emitDetailsVisibilityTelemetry(visible, trigger ?? 'toggle');
+	}
+
+	private emitDetailsVisibilityTelemetry(
+		visible: boolean,
+		trigger: 'toggle' | 'request-inspect' | 'auto-restore',
+	): void {
+		if (visible) {
+			this._detailsShownAt = performance.now();
+			const selectionCount =
+				this._selectedCommits != null
+					? this._selectedCommits.shas.length
+					: this._selectedCommit != null
+						? 1
+						: 0;
+			const selectedSha = this._selectedCommit?.sha;
+			const selectionUncommitted =
+				selectedSha === uncommitted || (selectedSha?.startsWith('worktree-wip::') ?? false);
+			const host = this.graphState.webviewId === 'gitlens.graph' ? 'editor' : 'panel';
+			this._telemetry.sendEvent({
+				name: 'graphDetails/shown',
+				data: {
+					trigger: trigger,
+					host: host,
+					mode: this.detailsPanelEl?.currentMode ?? 'none',
+					'selection.count': selectionCount,
+					'selection.uncommitted': selectionUncommitted,
+					position: this.graphState.detailsPosition,
+				},
+			});
+		} else {
+			const duration = this._detailsShownAt != null ? performance.now() - this._detailsShownAt : 0;
+			this._detailsShownAt = undefined;
+			this._telemetry.sendEvent({
+				name: 'graphDetails/closed',
+				data: { duration: duration, mode: this.detailsPanelEl?.currentMode ?? 'none' },
+			});
+		}
 	}
 
 	private handleDetailsSplitChange(e: CustomEvent<{ position: number }>) {
@@ -540,14 +594,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private handleDetailsClosedChange = (e: CustomEvent<{ closed: boolean; position: number }>): void => {
 		const gs = this.graphState;
 		if (e.detail.closed) {
-			if (gs.detailsVisible !== false) {
-				gs.detailsVisible = false;
-				this.persistState();
-			}
+			this.setDetailsVisible(false);
 		} else if (gs.detailsVisible !== true) {
-			gs.detailsVisible = true;
 			gs.detailsPosition = e.detail.position;
-			this.persistState();
+			this.setDetailsVisible(true, 'toggle');
 		}
 	};
 
@@ -556,7 +606,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 
 		this._selectedCommit = { sha: sha, repoPath: repoPath };
 		this._selectedCommits = undefined;
-		this.setDetailsVisible(true);
+		this.setDetailsVisible(true, 'request-inspect');
 		this.ensureDetailsPosition();
 
 		// Let the graph component handle row highlighting natively
@@ -568,7 +618,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		if (gs.detailsVisible) {
 			this.setDetailsVisible(false);
 		} else {
-			this.setDetailsVisible(true);
+			this.setDetailsVisible(true, 'toggle');
 			this.ensureDetailsPosition();
 		}
 	}
@@ -830,8 +880,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private handleGraphSelectionChanged(e: CustomEventType<'gl-graph-change-selection'>) {
 		this.graphHover.hide();
 
-		const showDetailsView = this.graphState.config?.showDetailsView;
-
 		const { selection, reachability, commits } = e.detail;
 		const fallbackRepoPath = this.fallbackRepoPath ?? '';
 
@@ -845,11 +893,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				// `commits` from the wrapper is already scoped to the current selection (WIP rows
 				// excluded), so it can be forwarded directly as the per-sha lite map.
 				this._selectedCommits = { shas: shas, repoPath: fallbackRepoPath, commitLites: commits };
-
-				if (showDetailsView !== false) {
-					this.setDetailsVisible(true);
-					this.ensureDetailsPosition();
-				}
 			} else if (shas.length === 1) {
 				// Multi-select included WIP + 1 commit — treat as single-select on the commit
 				const sha = shas[0];
@@ -859,11 +902,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					commitLite: commits?.[sha],
 				};
 				this._selectedCommits = undefined;
-
-				if (showDetailsView !== false) {
-					this.setDetailsVisible(true);
-					this.ensureDetailsPosition();
-				}
 			} else {
 				this._selectedCommit = undefined;
 				this._selectedCommits = undefined;
@@ -886,12 +924,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			// stats-less. Force-fetch stats for the selected row so it populates its pill.
 			if (isSecondaryWipSha(active.id) && this.graphState.config?.showWorktreeWipStats === false) {
 				void this.fetchSelectedWorktreeWipStats(active.id);
-			}
-
-			// Only auto-open the details panel if the setting allows it
-			if (showDetailsView !== false) {
-				this.setDetailsVisible(true);
-				this.ensureDetailsPosition();
 			}
 		} else {
 			this._selectedCommit = undefined;
