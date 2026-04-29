@@ -303,6 +303,10 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	@consume({ context: sidebarActionsContext, subscribe: true })
 	private _actions!: SidebarActions;
 
+	/** Memo for `buildTreeModel`. Renders fire on every filter/expansion change, so without this
+	 *  the tree model is rebuilt for an unchanged `data` reference. Reset on key change. */
+	private _treeModelCache?: { data: DidGetSidebarDataParams; model: TreeModel<SidebarItemContext>[] };
+
 	override connectedCallback(): void {
 		super.connectedCallback?.();
 		this.addEventListener('contextmenu', this.handleContextMenuProxy);
@@ -440,7 +444,14 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	}
 
 	private renderTreeContent(config: (typeof panelConfig)[GraphSidebarPanel], data: DidGetSidebarDataParams): unknown {
-		const model = this.buildTreeModel(data);
+		const cache = this._treeModelCache;
+		let model: TreeModel<SidebarItemContext>[];
+		if (cache?.data === data) {
+			model = cache.model;
+		} else {
+			model = this.buildTreeModel(data);
+			this._treeModelCache = { data: data, model: model };
+		}
 
 		// Automatically track/restore tree expansion state per panel.
 		// On first build (set empty): seed the set from the model's natural defaults.

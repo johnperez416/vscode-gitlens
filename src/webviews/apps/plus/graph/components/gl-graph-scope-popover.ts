@@ -85,6 +85,14 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 
 	private _lastBranchesData: DidGetSidebarDataParams | undefined;
 	private _branchesFetchRetryTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Memo for `getBranchModel`. Renders fire on every checkbox/filter toggle, so without this
+	 *  the tree/list model is rebuilt for an unchanged branches list. Reset on key change. */
+	private _branchModelCache?: {
+		branches: GraphSidebarBranch[];
+		layout: 'tree' | 'list';
+		scopedBranchName: string | undefined;
+		model: TreeModel<BranchTreeContext>[];
+	};
 	private _branchesFetchAttempts = 0;
 	@state() private _branchesFetchExhausted = false;
 
@@ -437,10 +445,7 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 
 		const scopedBranchName = this.graphState.scope?.branchName;
 		const focusedPath = scopedBranchName != null ? `branch:${scopedBranchName}` : undefined;
-		const model =
-			layout === 'tree'
-				? buildBranchTreeModel(branches, scopedBranchName)
-				: buildBranchListModel(branches, scopedBranchName);
+		const model = this.getBranchModel(branches, layout, scopedBranchName);
 
 		return html`<div class="mode-popover__branches">
 			<gl-tree-view
@@ -640,6 +645,28 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 		this._branchesFetchExhausted = false;
 		this.tryFetchBranches();
 	};
+
+	private getBranchModel(
+		branches: GraphSidebarBranch[],
+		layout: 'tree' | 'list',
+		scopedBranchName: string | undefined,
+	): TreeModel<BranchTreeContext>[] {
+		const cache = this._branchModelCache;
+		if (cache?.branches === branches && cache.layout === layout && cache.scopedBranchName === scopedBranchName) {
+			return cache.model;
+		}
+		const model =
+			layout === 'tree'
+				? buildBranchTreeModel(branches, scopedBranchName)
+				: buildBranchListModel(branches, scopedBranchName);
+		this._branchModelCache = {
+			branches: branches,
+			layout: layout,
+			scopedBranchName: scopedBranchName,
+			model: model,
+		};
+		return model;
+	}
 
 	private hideModePopover(): void {
 		const popover = this.renderRoot.querySelector<GlPopover>('gl-popover.mode-popover');
