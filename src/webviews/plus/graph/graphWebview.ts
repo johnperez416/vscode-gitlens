@@ -1213,10 +1213,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							{
 								cancellation: cancellation,
 								customInstructions: instructions,
-								progress: {
-									location: ProgressLocation.Notification,
-									title: 'Composing changes...',
-								},
 							},
 						);
 
