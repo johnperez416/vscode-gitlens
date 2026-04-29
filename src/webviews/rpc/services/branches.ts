@@ -87,6 +87,7 @@ export class BranchesService {
 		signal?.throwIfAborted();
 		return (
 			issues?.map(i => ({
+				type: 'issue' as const,
 				id: i.number || i.id,
 				title: i.title,
 				state: i.state,

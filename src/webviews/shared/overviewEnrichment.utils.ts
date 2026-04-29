@@ -45,7 +45,15 @@ export async function getAutolinkIssuesInfo(
 			const issue = await issueOrPullRequest;
 			if (issue == null) return undefined;
 
-			return { id: issue.id, title: issue.title, url: issue.url, state: issue.state };
+			return {
+				type: issue.type,
+				id: issue.id,
+				title: issue.title,
+				url: issue.url,
+				state: issue.state,
+				// `isDraft` is PR-only on `PullRequestShape`; safely cast for access.
+				draft: issue.type === 'pullrequest' ? (issue as { isDraft?: boolean }).isDraft : undefined,
+			};
 		}),
 	);
 
@@ -348,12 +356,16 @@ export async function getOverviewEnrichment(
 					promises.autolinks?.then(a => getAutolinkIssuesInfo(a)),
 					promises.issues?.then(
 						issues =>
-							issues?.map(i => ({
-								id: i.number || i.id,
-								title: i.title,
-								state: i.state,
-								url: i.url,
-							})) ?? [],
+							issues?.map(
+								i =>
+									({
+										type: 'issue',
+										id: i.number || i.id,
+										title: i.title,
+										state: i.state,
+										url: i.url,
+									}) satisfies OverviewBranchIssue,
+							) ?? [],
 					),
 					getContributorsInfo(container, promises.contributors),
 					promises.mergeTarget,
@@ -381,8 +393,37 @@ export async function getOverviewEnrichment(
 					enrichment.resolvedLaunchpad = await prValue.launchpad;
 				}
 			}
-			enrichment.autolinks = getSettledValue(autolinksResult);
-			enrichment.issues = getSettledValue(issuesResult);
+			// Partition resolved autolinks by their resolved `type`:
+			// - URL matches the branch's primary PR or any associated issue → drop (already represented).
+			// - Resolved as an issue → move into `issues` (rendered with the issue icon).
+			// - Resolved as a PR (and not the primary) → keep in `autolinks` (rendered with the PR icon).
+			// - Unresolved (`type` undefined) → keep in `autolinks` (rendered with the link icon).
+			// `getAutolinkIssuesInfo` filters out items whose underlying issueOrPullRequest is null,
+			// so today every item has a resolved `type`; the `undefined` branch is here for forward-compat.
+			const associatedIssues = getSettledValue(issuesResult) ?? [];
+			const rawAutolinks = getSettledValue(autolinksResult) ?? [];
+			const seenUrls = new Set<string>();
+			if (enrichment.pr != null) {
+				seenUrls.add(enrichment.pr.url);
+			}
+			for (const issue of associatedIssues) {
+				seenUrls.add(issue.url);
+			}
+
+			const finalIssues: OverviewBranchIssue[] = [...associatedIssues];
+			const finalAutolinks: OverviewBranchIssue[] = [];
+			for (const item of rawAutolinks) {
+				if (seenUrls.has(item.url)) continue;
+				seenUrls.add(item.url);
+				if (item.type === 'issue') {
+					finalIssues.push(item);
+				} else {
+					finalAutolinks.push(item);
+				}
+			}
+
+			enrichment.issues = finalIssues;
+			enrichment.autolinks = finalAutolinks;
 			enrichment.contributors = getSettledValue(contributorsResult);
 			enrichment.mergeTarget = getSettledValue(mergeTargetResult);
 

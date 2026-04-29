@@ -1,6 +1,6 @@
 import type { GitBranch, GitBranchStatus, GitTrackingState, GitTrackingUpstream } from '@gitlens/git/models/branch.js';
 import type { GitDiffFileStats } from '@gitlens/git/models/diff.js';
-import type { Issue } from '@gitlens/git/models/issue.js';
+import type { IssueOrPullRequestState, IssueOrPullRequestType } from '@gitlens/git/models/issueOrPullRequest.js';
 import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
 import type { GitPausedOperationStatus } from '@gitlens/git/models/pausedOperationStatus.js';
 import type { GitBranchReference } from '@gitlens/git/models/reference.js';
@@ -160,10 +160,14 @@ export interface OverviewBranchLaunchpadItem {
 }
 
 export interface OverviewBranchIssue {
+	/** Resolved type. `undefined` means the autolink reference was not resolved to an issue or PR. */
+	type?: IssueOrPullRequestType;
 	id: string;
 	title: string;
 	url: string;
-	state: Omit<Issue['state'], 'merged'>;
+	state: IssueOrPullRequestState;
+	/** PR-only: draft state. */
+	draft?: boolean;
 	/** Stable identifier used to unassociate from a branch; populated only for manually-associated issues. */
 	entityId?: string;
 }
