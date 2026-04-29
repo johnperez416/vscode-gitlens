@@ -1164,9 +1164,33 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							return filterDiffFiles(contents, paths => paths.filter(p => !excluded.has(p)));
 						};
 
+						// Surface untracked files in the unstaged diff: bare `git diff` doesn't include
+						// them, so we mark them intent-to-add inside a *temporary* index (the real
+						// index is untouched) and run the diff against it. Mirrors the standalone
+						// Composer's `getComposerDiffs` flow. Skipped when `includeUnstaged` is false
+						// — untracked files are by definition unstaged, so they don't belong in a
+						// staged-only compose.
+						await using untrackedIndex =
+							scope.includeUnstaged && svc.staging != null && svc.status != null
+								? await (async () => {
+										const untracked = (await svc.status.getUntrackedFiles?.()) ?? [];
+										if (!untracked.length) return undefined;
+										const index = await svc.staging!.createTemporaryIndex('current');
+										await svc.staging!.stageFiles(
+											untracked.map(f => f.path),
+											{ intentToAdd: true, index: index },
+										);
+										return index;
+									})()
+								: undefined;
+
 						const [stagedDiffRaw, unstagedDiffRaw] = await Promise.all([
-							scope.includeStaged ? svc.diff?.getDiff?.(uncommittedStaged) : Promise.resolve(undefined),
-							scope.includeUnstaged ? svc.diff?.getDiff?.(uncommitted) : Promise.resolve(undefined),
+							scope.includeStaged
+								? svc.diff?.getDiff?.(uncommittedStaged, undefined, { index: untrackedIndex })
+								: Promise.resolve(undefined),
+							scope.includeUnstaged
+								? svc.diff?.getDiff?.(uncommitted, undefined, { index: untrackedIndex })
+								: Promise.resolve(undefined),
 						]);
 						signal?.throwIfAborted();
 
