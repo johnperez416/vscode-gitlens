@@ -4742,6 +4742,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				'stashes',
 				'tags',
 				'pullRequests',
+				'wip',
 			];
 			const enabledScrollMarkerTypes = configuration.get('graph.scrollMarkers.additionalTypes');
 			for (const type of configurableScrollMarkerTypes) {
@@ -7414,6 +7415,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	@command('gitlens.graph.scrollMarkerPullRequestOff')
 	private scrollMarkerPullRequestOff() {
 		return this.toggleScrollMarker('pullRequests', false);
+	}
+	@command('gitlens.graph.scrollMarkerWipOn')
+	private scrollMarkerWipOn() {
+		return this.toggleScrollMarker('wip', true);
+	}
+	@command('gitlens.graph.scrollMarkerWipOff')
+	private scrollMarkerWipOff() {
+		return this.toggleScrollMarker('wip', false);
 	}
 
 	@debug()

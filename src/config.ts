@@ -115,7 +115,8 @@ export type GraphScrollMarkersAdditionalTypes =
 	| 'remoteBranches'
 	| 'stashes'
 	| 'tags'
-	| 'pullRequests';
+	| 'pullRequests'
+	| 'wip';
 export type GraphMinimapMarkersAdditionalTypes =
 	| 'localBranches'
 	| 'remoteBranches'

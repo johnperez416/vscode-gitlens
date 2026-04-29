@@ -121,7 +121,8 @@ export type GraphScrollMarkerTypes =
 	| 'remoteBranches'
 	| 'stashes'
 	| 'tags'
-	| 'upstream';
+	| 'upstream'
+	| 'wip';
 
 export type GraphMinimapMarkerTypes =
 	| 'selection'

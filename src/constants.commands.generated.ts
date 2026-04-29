@@ -207,6 +207,8 @@ export type ContributedCommands =
 	| 'gitlens.graph.scrollMarkerStashOn'
 	| 'gitlens.graph.scrollMarkerTagOff'
 	| 'gitlens.graph.scrollMarkerTagOn'
+	| 'gitlens.graph.scrollMarkerWipOff'
+	| 'gitlens.graph.scrollMarkerWipOn'
 	| 'gitlens.graph.shareAsCloudPatch'
 	| 'gitlens.graph.showInDetailsView'
 	| 'gitlens.graph.soloBranch'

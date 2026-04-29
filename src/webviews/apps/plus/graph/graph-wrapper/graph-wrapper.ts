@@ -610,6 +610,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 				'--scroll-marker-tags-color': getCssVariableValue('--color-graph-scroll-marker-tags'),
 				'--scroll-marker-selection-color': getCssVariableValue('--color-graph-scroll-marker-selection'),
 				'--scroll-marker-pull-requests-color': getCssVariableValue('--color-graph-scroll-marker-pull-requests'),
+				'--scroll-marker-wip-color': getCssVariableValue('--color-graph-scroll-marker-wip'),
 				'--stats-added-color': getCssVariableValue('--color-graph-stats-added'),
 				'--stats-deleted-color': getCssVariableValue('--color-graph-stats-deleted'),
 				'--stats-files-color': getCssVariableValue('--color-graph-stats-files'),

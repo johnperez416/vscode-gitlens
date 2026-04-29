@@ -3626,6 +3626,30 @@
 				]
 			}
 		},
+		"gitlens.graph.scrollMarkerWipOff": {
+			"label": "Hide Working Tree Markers",
+			"menus": {
+				"gitlens/graph/markers": [
+					{
+						"when": "webviewItem =~ /gitlens:graph:settings\\b/ && webviewItemValue =~ /\\bscrollMarker:wip:enabled\\b/",
+						"group": "4_settings",
+						"order": 6
+					}
+				]
+			}
+		},
+		"gitlens.graph.scrollMarkerWipOn": {
+			"label": "Show Working Tree Markers",
+			"menus": {
+				"gitlens/graph/markers": [
+					{
+						"when": "webviewItem =~ /gitlens:graph:settings\\b/ && webviewItemValue =~ /\\bscrollMarker:wip:disabled\\b/",
+						"group": "4_settings",
+						"order": 6
+					}
+				]
+			}
+		},
 		"gitlens.graph.shareAsCloudPatch": {
 			"label": "Share as Cloud Patch...",
 			"menus": {

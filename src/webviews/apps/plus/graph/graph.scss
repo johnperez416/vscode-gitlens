@@ -67,6 +67,7 @@
 	--color-graph-scroll-marker-stashes: var(--vscode-gitlens-graphScrollMarkerStashesColor);
 	--color-graph-minimap-marker-tags: var(--vscode-gitlens-graphMinimapMarkerTagsColor);
 	--color-graph-scroll-marker-tags: var(--vscode-gitlens-graphScrollMarkerTagsColor);
+	--color-graph-scroll-marker-wip: var(--vscode-gitlens-graphScrollMarkerWipColor);
 	--color-graph-minimap-marker-scope: var(--vscode-statusBarItem-prominentBackground, var(--vscode-foreground));
 	--color-graph-minimap-marker-scope-highlight: color-mix(
 		in srgb,

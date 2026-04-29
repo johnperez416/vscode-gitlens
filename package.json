@@ -1069,7 +1069,8 @@
 						"type": "array",
 						"default": [
 							"localBranches",
-							"stashes"
+							"stashes",
+							"wip"
 						],
 						"items": {
 							"type": "string",
@@ -1078,18 +1079,20 @@
 								"remoteBranches",
 								"pullRequests",
 								"stashes",
-								"tags"
+								"tags",
+								"wip"
 							],
 							"enumDescriptions": [
 								"Marks the location of local branches",
 								"Marks the location of remote branches",
 								"Marks the location of pull requests",
 								"Marks the location of stashes",
-								"Marks the location of tags"
+								"Marks the location of tags",
+								"Marks the location of working tree (WIP) rows"
 							]
 						},
 						"minItems": 0,
-						"maxItems": 5,
+						"maxItems": 6,
 						"uniqueItems": true,
 						"markdownDescription": "Specifies additional markers to show on the scrollbar in the _Commit Graph_",
 						"scope": "window",
@@ -6311,6 +6314,16 @@
 				}
 			},
 			{
+				"id": "gitlens.graphScrollMarkerWipColor",
+				"description": "Specifies the color marking working tree (WIP) rows on the scrollbar of the _Commit Graph_",
+				"defaults": {
+					"light": "#a371d4",
+					"highContrastLight": "#a371d4",
+					"dark": "#b87cdf",
+					"highContrast": "#b87cdf"
+				}
+			},
+			{
 				"id": "gitlens.launchpadIndicatorMergeableColor",
 				"description": "Specifies the color of the _Launchpad_ indicator icon when the priority is mergeable",
 				"defaults": {
@@ -7756,6 +7769,14 @@
 			{
 				"command": "gitlens.graph.scrollMarkerTagOn",
 				"title": "Show Tag Markers"
+			},
+			{
+				"command": "gitlens.graph.scrollMarkerWipOff",
+				"title": "Hide Working Tree Markers"
+			},
+			{
+				"command": "gitlens.graph.scrollMarkerWipOn",
+				"title": "Show Working Tree Markers"
 			},
 			{
 				"command": "gitlens.graph.shareAsCloudPatch",
@@ -13099,6 +13120,14 @@
 					"when": "false"
 				},
 				{
+					"command": "gitlens.graph.scrollMarkerWipOff",
+					"when": "false"
+				},
+				{
+					"command": "gitlens.graph.scrollMarkerWipOn",
+					"when": "false"
+				},
+				{
 					"command": "gitlens.graph.shareAsCloudPatch",
 					"when": "false"
 				},
@@ -17215,6 +17244,16 @@
 					"command": "gitlens.graph.scrollMarkerTagOn",
 					"when": "webviewItem =~ /gitlens:graph:settings\\b/ && webviewItemValue =~ /\\bscrollMarker:tags:disabled\\b/",
 					"group": "4_settings@5"
+				},
+				{
+					"command": "gitlens.graph.scrollMarkerWipOff",
+					"when": "webviewItem =~ /gitlens:graph:settings\\b/ && webviewItemValue =~ /\\bscrollMarker:wip:enabled\\b/",
+					"group": "4_settings@6"
+				},
+				{
+					"command": "gitlens.graph.scrollMarkerWipOn",
+					"when": "webviewItem =~ /gitlens:graph:settings\\b/ && webviewItemValue =~ /\\bscrollMarker:wip:disabled\\b/",
+					"group": "4_settings@6"
 				}
 			],
 			"gitlens/scm/resourceFolder/changes": [
