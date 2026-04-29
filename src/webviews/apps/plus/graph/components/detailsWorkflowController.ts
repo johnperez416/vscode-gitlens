@@ -37,10 +37,20 @@ export interface CompareModeOverrides {
  * internals.
  */
 export interface DetailsWorkflowHost extends ReactiveControllerHost {
-	/** Current repo path bound to the host's `repoPath` @property. */
+	/** Current repo path bound to the host's `repoPath` @property — derived from the active
+	 *  selection (with fallback to the graph's selected repo when no selection is held).
+	 *  May lag behind `graphRepoPath()` while a selection from a prior repo is still held. */
 	readonly repoPath?: string;
+	/** The graph's currently-selected repository's path — the user-perceived "which repo
+	 *  am I looking at" context. Updates immediately on repo-selector switches, before any
+	 *  selection event lands. Used to detect graph repo switches that haven't yet propagated
+	 *  to {@link repoPath}. */
+	graphRepoPath(): string | undefined;
 	/** Returns true when the active selection is the WIP/uncommitted sha. */
 	isWipSelection(): boolean;
+	/** Snapshot of the host's current selection — used to seed `exitMode` when the
+	 *  controller forces a mode exit on repo change. */
+	currentSelection(): DetailsSelection;
 }
 
 /**
@@ -67,6 +77,11 @@ export class DetailsWorkflowController implements ReactiveController {
 	private _subscribedRepoPath: string | undefined;
 	private readonly _subscriptionGen = getScopedCounter();
 	private _subscriptionUnsubscribe: (() => void) | undefined;
+	/** Tracks the graph's user-perceived repo so we can detect repo-selector switches that
+	 *  haven't yet propagated to `host.repoPath` (selection from the prior repo can mask the
+	 *  change until the user clicks a row in the new repo). `undefined` until the first
+	 *  observation, which is treated as a no-op transition (no spurious mode exit on mount). */
+	private _lastSeenGraphRepoPath: string | undefined;
 	// endregion
 
 	// region Workflow state
@@ -107,8 +122,49 @@ export class DetailsWorkflowController implements ReactiveController {
 	}
 
 	hostUpdate(): void {
+		// Trigger 1 — graph repo-selector switch. Fires before `host.repoPath` updates
+		// because `host.repoPath` is derived from the selection, which lingers across the
+		// switch until the user clicks a row in the new repo. Without this trigger, an
+		// active compose/review/compare mode would persist visibly with prior-repo data
+		// while the graph header shows the new repo.
+		const graphRepo = this.host.graphRepoPath();
+		if (graphRepo !== this._lastSeenGraphRepoPath) {
+			const previous = this._lastSeenGraphRepoPath;
+			this._lastSeenGraphRepoPath = graphRepo;
+			// Skip the first observation (no prior graph repo to compare against — would
+			// otherwise spuriously exit on mount).
+			if (previous != null) {
+				this.exitModeIfRepoMismatch(graphRepo);
+			}
+		}
+
+		// Trigger 2 — panel render target switched. Covers the worktree-row-jump case
+		// (selection moves between rows whose `repoPath`s differ) and the post-graph-switch
+		// row click (where `host.repoPath` updates after the user lands somewhere in the
+		// new repo). Re-wires the repo-change subscription either way.
 		if (this.host.repoPath !== this._subscribedRepoPath) {
+			this.exitModeIfRepoMismatch(this.host.repoPath);
+			// Drop webview-side enrichment caches + abort in-flight fetches keyed to the
+			// prior render target. No value-collision risk (keys include repoPath); this
+			// is memory hygiene + prevents stale-write races from slow fetches that have
+			// no key gate (notably `fetchBranchCommits`).
+			this.actions.clearEnrichmentCaches();
 			this.ensureSubscription(this.host.repoPath);
+		}
+	}
+
+	/**
+	 * Exit any active mode whose `activeModeRepoPath` doesn't match the supplied repo.
+	 * Re-reads state on every call so callers can invoke this from independent triggers
+	 * (graph switch + render-target switch) within the same `hostUpdate` cycle without
+	 * worrying about ordering — the second call is a no-op if the first already exited.
+	 */
+	private exitModeIfRepoMismatch(currentRepo: string | undefined): void {
+		const state = this.actions.state;
+		const activeMode = state.activeMode.get();
+		const activeModeRepo = state.activeModeRepoPath.get();
+		if (activeMode != null && activeModeRepo != null && currentRepo != null && activeModeRepo !== currentRepo) {
+			this.exitMode(this.host.currentSelection());
 		}
 	}
 
@@ -532,6 +588,9 @@ export class DetailsWorkflowController implements ReactiveController {
 		this._subscriptionUnsubscribe?.();
 		this._subscriptionUnsubscribe = undefined;
 		this._subscribedRepoPath = undefined;
+		// Reset so a future reconnect treats the first hostUpdate as a fresh observation
+		// (no spurious mode exit on re-attach).
+		this._lastSeenGraphRepoPath = undefined;
 	}
 
 	// endregion

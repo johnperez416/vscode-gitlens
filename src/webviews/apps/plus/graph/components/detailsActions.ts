@@ -216,6 +216,25 @@ export class DetailsActions {
 	}
 
 	/**
+	 * Drops the webview-side enrichment caches and aborts in-flight fetches keyed to the
+	 * prior repo. Called by {@link DetailsWorkflowController} when the host's render target
+	 * (`repoPath`) changes so cross-repo state doesn't linger.
+	 *
+	 * The cache LRU keys already include `repoPath`, so there is no value-collision risk —
+	 * the clear is memory hygiene. The aborts matter more: `_lastFetchedKey` already gates
+	 * stale writes for single-commit / WIP enrichment, but `fetchBranchCommits` and the
+	 * enrichment batch don't have an equivalent post-resolve key gate. Without abort, a
+	 * slow response from the prior repo could land and write into state for the new one.
+	 */
+	clearEnrichmentCaches(): void {
+		this._wipEnrichmentCache.clear();
+		this._commitEnrichmentCache.clear();
+		this._branchCommitsController?.abort();
+		this._branchCommitsLoadMoreController?.abort();
+		this._enrichmentController?.abort();
+	}
+
+	/**
 	 * Aborts the previous enrichment batch (autolinks, PRs, signature, merge target, etc.) and
 	 * returns a fresh signal that subsequent enrichment callbacks should check before writing
 	 * state — so a slow merge-target lookup from a prior selection can't keep the loading flag

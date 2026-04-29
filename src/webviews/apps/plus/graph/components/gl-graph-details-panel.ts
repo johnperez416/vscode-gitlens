@@ -130,7 +130,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		return this._state.activeModeShas.get() ?? this.shas;
 	}
 
-	private currentSelection(): DetailsSelection {
+	/** Public so the workflow controller can snapshot the selection when forcing a mode
+	 *  exit on repo change. Implements `DetailsWorkflowHost.currentSelection`. */
+	currentSelection(): DetailsSelection {
 		return {
 			sha: this.sha,
 			shas: this.shas,
@@ -139,6 +141,19 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			commitLite: this.commitLite,
 			commitLites: this.commitLites,
 		};
+	}
+
+	/** The graph's currently-selected repository's path — the user-perceived "which repo
+	 *  am I looking at" context. Updates immediately on repo-selector switches, before any
+	 *  selection event lands. Implements `DetailsWorkflowHost.graphRepoPath`. */
+	graphRepoPath(): string | undefined {
+		const repoId = this._graphState?.selectedRepository;
+		const repos = this._graphState?.repositories;
+		if (repoId != null) {
+			const found = repos?.find(r => r.id === repoId)?.path;
+			if (found != null) return found;
+		}
+		return repos?.[0]?.path;
 	}
 
 	/** Shared `@toggle-mode` handler — every sub-panel's toggle-mode wires to this. */
