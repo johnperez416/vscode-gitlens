@@ -116,6 +116,7 @@ const { command, getCommands } = createCommandDecorator<GlWebviewCommandsOrComma
 
 export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWebviewShowingArgs> {
 	private readonly _disposable: Disposable;
+	private _agentStatusBadgeSubscription: Disposable | undefined;
 	private _discovering: Promise<number | undefined> | undefined;
 	private _etag?: number;
 	private _etagRepository?: number;
@@ -130,12 +131,24 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 			this.container.subscription.onDidChange(this.onSubscriptionChanged, this),
 			this.container.integrations.onDidChange(this.onIntegrationsChanged, this),
 			this.container.integrations.onDidChangeConnectionState(this.onIntegrationConnectionStateChanged, this),
-			...(this.container.agentStatus != null
-				? [this.container.agentStatus.onDidChange(() => this.updateAgentBadge())]
-				: []),
+			this.container.onDidChangeAgentStatus(() => {
+				this.bindAgentStatusBadge();
+				this.updateAgentBadge();
+			}),
+			{
+				dispose: () => {
+					this._agentStatusBadgeSubscription?.dispose();
+				},
+			},
 		);
 
+		this.bindAgentStatusBadge();
 		this.updateAgentBadge();
+	}
+
+	private bindAgentStatusBadge(): void {
+		this._agentStatusBadgeSubscription?.dispose();
+		this._agentStatusBadgeSubscription = this.container.agentStatus?.onDidChange(() => this.updateAgentBadge());
 	}
 
 	dispose(): void {
@@ -205,15 +218,33 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 				'agentSessions',
 				'save-last',
 				buffered => {
-					if (this.container.agentStatus == null) return { dispose: () => {} };
-
 					let lastSerialized = '';
-					return this.container.agentStatus.onDidChange(() => {
+					let serviceSubscription: Disposable | undefined;
+
+					const notify = () => {
 						const state = this.getAgentSessionsState();
 						const serialized = JSON.stringify(state);
 						if (serialized === lastSerialized) return;
 						lastSerialized = serialized;
 						buffered(state);
+					};
+
+					const wire = () => {
+						serviceSubscription?.dispose();
+						serviceSubscription = this.container.agentStatus?.onDidChange(notify);
+					};
+
+					wire();
+					const containerSubscription = this.container.onDidChangeAgentStatus(() => {
+						wire();
+						// Push a fresh snapshot so subscribers see the new (or empty) sessions
+						notify();
+					});
+
+					return Disposable.from(containerSubscription, {
+						dispose: () => {
+							serviceSubscription?.dispose();
+						},
 					});
 				},
 				undefined,

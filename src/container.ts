@@ -61,6 +61,7 @@ import { scheduleAddMissingCurrentWorkspaceRepos, WorkspacesService } from './pl
 import { StatusBarController } from './statusbar/statusBarController.js';
 import { executeCommand } from './system/-webview/command.js';
 import { configuration } from './system/-webview/configuration.js';
+import { onDidChangeContext, setContext } from './system/-webview/context.js';
 import { Keyboard } from './system/-webview/keyboard.js';
 import type { Storage } from './system/-webview/storage.js';
 import { AIFeedbackProvider } from './telemetry/aiFeedbackProvider.js';
@@ -195,6 +196,11 @@ export class Container {
 	get agentStatus(): AgentStatusService | undefined {
 		return this._agentStatusService;
 	}
+
+	private readonly _onDidChangeAgentStatus = new EventEmitter<void>();
+	get onDidChangeAgentStatus(): Event<void> {
+		return this._onDidChangeAgentStatus.event;
+	}
 	private readonly _connection: ServerConnection;
 	private _disposables: Disposable[];
 	private _terminalLinks: GitTerminalLinkProvider | undefined;
@@ -291,10 +297,10 @@ export class Container {
 			this._disposables.push((this._launchpadIndicator = new LaunchpadIndicator(this, this._launchpadProvider)));
 		}
 
-		const agentProviders = getAgentSessionProviders(this);
-		if (agentProviders.length > 0) {
-			this._disposables.push((this._agentStatusService = new AgentStatusService(this, agentProviders)));
-		}
+		this._disposables.push(this._onDidChangeAgentStatus, {
+			dispose: () => this._agentStatusService?.dispose(),
+		});
+		this.updateAgentStatusService();
 
 		if (configuration.get('terminalLinks.enabled')) {
 			this._disposables.push((this._terminalLinks = new GitTerminalLinkProvider(this)));
@@ -326,6 +332,15 @@ export class Container {
 							(this._launchpadIndicator = new LaunchpadIndicator(this, this._launchpadProvider)),
 						);
 					}
+				}
+
+				if (configuration.changed(e, 'ai.enabled')) {
+					this.updateAgentStatusService();
+				}
+			}),
+			onDidChangeContext(key => {
+				if (key === 'gitlens:gk:organization:ai:enabled') {
+					this.updateAgentStatusService();
 				}
 			}),
 		);
@@ -366,6 +381,23 @@ export class Container {
 		const mcpProviders = await getMcpProviders(this);
 		if (mcpProviders != null) {
 			this._disposables.push(...mcpProviders);
+		}
+	}
+
+	private updateAgentStatusService(): void {
+		const enabled = this.ai.enabled && this.ai.allowed;
+		const providers = enabled ? getAgentSessionProviders(this) : [];
+		const canEnable = enabled && providers.length > 0;
+
+		void setContext('gitlens:agents:enabled', canEnable);
+
+		if (canEnable && this._agentStatusService == null) {
+			this._agentStatusService = new AgentStatusService(this, providers);
+			this._onDidChangeAgentStatus.fire();
+		} else if (!canEnable && this._agentStatusService != null) {
+			this._agentStatusService.dispose();
+			this._agentStatusService = undefined;
+			this._onDidChangeAgentStatus.fire();
 		}
 	}
 

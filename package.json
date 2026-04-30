@@ -12018,15 +12018,15 @@
 				},
 				{
 					"command": "gitlens.agents.installClaudeHook",
-					"when": "gitlens:enabled && !gitlens:hasVirtualFolders"
+					"when": "gitlens:enabled && !gitlens:hasVirtualFolders && gitlens:agents:enabled"
 				},
 				{
 					"command": "gitlens.agents.openSession",
-					"when": "gitlens:enabled && !gitlens:hasVirtualFolders"
+					"when": "gitlens:enabled && !gitlens:hasVirtualFolders && gitlens:agents:enabled"
 				},
 				{
 					"command": "gitlens.agents.uninstallClaudeHook",
-					"when": "gitlens:enabled && !gitlens:hasVirtualFolders"
+					"when": "gitlens:enabled && !gitlens:hasVirtualFolders && gitlens:agents:enabled"
 				},
 				{
 					"command": "gitlens.ai.enable",

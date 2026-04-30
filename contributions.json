@@ -25,16 +25,16 @@
 		},
 		"gitlens.agents.installClaudeHook": {
 			"label": "Install Claude Hook",
-			"commandPalette": "gitlens:enabled && !gitlens:hasVirtualFolders"
+			"commandPalette": "gitlens:enabled && !gitlens:hasVirtualFolders && gitlens:agents:enabled"
 		},
 		"gitlens.agents.openSession": {
 			"label": "Open AI Agent Session",
 			"icon": "$(hubot)",
-			"commandPalette": "gitlens:enabled && !gitlens:hasVirtualFolders"
+			"commandPalette": "gitlens:enabled && !gitlens:hasVirtualFolders && gitlens:agents:enabled"
 		},
 		"gitlens.agents.uninstallClaudeHook": {
 			"label": "Uninstall Claude Hook",
-			"commandPalette": "gitlens:enabled && !gitlens:hasVirtualFolders"
+			"commandPalette": "gitlens:enabled && !gitlens:hasVirtualFolders && gitlens:agents:enabled"
 		},
 		"gitlens.ai.enable": {
 			"label": "Enable AI Features...",
