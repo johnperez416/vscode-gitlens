@@ -511,6 +511,8 @@ export class GlGraphOverviewCard extends LitElement {
 					.indicator=${branchIndicator}
 					@click=${this.onCardClick}
 					@keydown=${this.onCardKeydown}
+					@focusin=${this.onCardFocusIn}
+					@focusout=${this.onCardFocusOut}
 				>
 					<div class="branch-item__container">
 						<p class="branch-item__grouping">
@@ -521,7 +523,7 @@ export class GlGraphOverviewCard extends LitElement {
 					</div>
 					${this.renderInlineActions()}
 				</gl-card>
-				<div slot="content" class="hover">${this.renderHoverContent()}</div>
+				<div slot="content" class="hover">${when(this._hoverShown, () => this.renderHoverContent())}</div>
 			</gl-popover>
 		`;
 	}
@@ -530,6 +532,25 @@ export class GlGraphOverviewCard extends LitElement {
 		if (!this._hoverShown) {
 			this._hoverShown = true;
 		}
+	};
+
+	// `<gl-popover>`'s built-in `focus` trigger relies on focus events bubbling out of the
+	// anchor, but `<gl-card focusable>` keeps the focusable target inside its shadow root and
+	// the underlying `focus` event isn't composed — so the popover never sees it. Wire
+	// focusin/focusout on the card host explicitly to drive the popover's show/hide.
+	private readonly onCardFocusIn = () => {
+		const popover = this.shadowRoot?.querySelector<
+			HTMLElement & { show: (triggeredBy?: 'hover' | 'focus' | 'click' | 'manual') => void }
+		>('gl-popover');
+		popover?.show('focus');
+	};
+
+	private readonly onCardFocusOut = (e: FocusEvent) => {
+		// Close only when focus leaves the card+popover entirely.
+		const next = e.relatedTarget as Node | null;
+		if (next && (this.shadowRoot?.contains(next) || this.contains(next))) return;
+		const popover = this.shadowRoot?.querySelector<HTMLElement & { hide: () => void }>('gl-popover');
+		popover?.hide();
 	};
 
 	private getMergeTargetPromise(): Promise<OverviewBranchMergeTarget | undefined> | undefined {
@@ -729,6 +750,14 @@ export class GlGraphOverviewCard extends LitElement {
 						></action-item>`,
 					);
 				}
+			} else {
+				actions.push(
+					html`<action-item
+						label="Publish Branch"
+						icon="cloud-upload"
+						href=${this.createCommandLink('gitlens.publishBranch:')}
+					></action-item>`,
+				);
 			}
 		} else if (this.isWorktree) {
 			actions.push(
@@ -758,7 +787,7 @@ export class GlGraphOverviewCard extends LitElement {
 	private renderHoverContent() {
 		const pr = this.enrichment?.pr;
 		const issues = this.enrichment?.issues ?? [];
-		const autolinks = this.dedupedAutolinks();
+		const autolinks = this.enrichment?.autolinks ?? [];
 		const contributors = this.enrichment?.contributors ?? [];
 
 		const hasItems = pr != null || issues.length > 0 || autolinks.length > 0;
@@ -781,22 +810,6 @@ export class GlGraphOverviewCard extends LitElement {
 		const promise = this.getMergeTargetPromise();
 		if (promise == null) return nothing;
 		return html`<gl-merge-target-status .branch=${this.branch} .targetPromise=${promise}></gl-merge-target-status>`;
-	}
-
-	private dedupedAutolinks(): NonNullable<OverviewBranchEnrichment['autolinks']> {
-		const autolinks = this.enrichment?.autolinks ?? [];
-		if (autolinks.length === 0) return [];
-
-		const seen = new Set<string>();
-		const pr = this.enrichment?.pr;
-		if (pr != null) {
-			seen.add(pr.url);
-		}
-		for (const issue of this.enrichment?.issues ?? []) {
-			seen.add(issue.url);
-		}
-
-		return autolinks.filter(a => !seen.has(a.url));
 	}
 
 	private renderHoverHeader() {
@@ -958,6 +971,14 @@ export class GlGraphOverviewCard extends LitElement {
 					label="Fetch"
 					icon="repo-fetch"
 					href=${this.createCommandLink('gitlens.fetch:')}
+				></action-item>`,
+			);
+		} else if (opened) {
+			branchActions.push(
+				html`<action-item
+					label="Publish Branch"
+					icon="cloud-upload"
+					href=${this.createCommandLink('gitlens.publishBranch:')}
 				></action-item>`,
 			);
 		}

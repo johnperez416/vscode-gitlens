@@ -1,6 +1,6 @@
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { Issue } from '@gitlens/git/models/issue.js';
-import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
+import type { PullRequest, PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import type { GitStatus } from '@gitlens/git/models/status.js';
@@ -51,8 +51,7 @@ export async function getAutolinkIssuesInfo(
 				title: issue.title,
 				url: issue.url,
 				state: issue.state,
-				// `isDraft` is PR-only on `PullRequestShape`; safely cast for access.
-				draft: issue.type === 'pullrequest' ? (issue as { isDraft?: boolean }).isDraft : undefined,
+				draft: issue.type === 'pullrequest' ? (issue as PullRequestShape).isDraft : undefined,
 			};
 		}),
 	);

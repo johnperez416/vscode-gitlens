@@ -242,7 +242,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	private renderCards(branches: GraphOverviewData['active']) {
 		if (!branches.length) return nothing;
 
-		const allSessions = this._state.agentSessions;
+		const sessionsByRepoAndBranch = indexAgentSessionsByRepoAndBranch(this._state.agentSessions);
 
 		return html`
 			<div class="cards">
@@ -254,7 +254,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 							.branch=${b}
 							.wip=${this._wipData[b.id]}
 							.enrichment=${this._enrichmentData[b.id]}
-							.agentSessions=${matchAgentSessionsForBranch(allSessions, b)}
+							.agentSessions=${matchAgentSessionsForBranch(sessionsByRepoAndBranch, b)}
 						></gl-graph-overview-card>
 					`,
 				)}
@@ -263,23 +263,41 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	}
 }
 
-function matchAgentSessionsForBranch(
+function indexAgentSessionsByRepoAndBranch(
 	sessions: AgentSessionState[] | undefined,
-	branch: OverviewBranch,
-): AgentSessionState[] | undefined {
+): Map<string, AgentSessionState[]> | undefined {
 	if (sessions == null || sessions.length === 0) return undefined;
 
-	const matches = sessions.filter(session => {
-		if (session.branch !== branch.name) return false;
-		if (session.workspacePath !== branch.repoPath) return false;
-		// Cross-check worktree info when both sides have it — guards against two same-named branches
-		// in different worktrees colliding.
-		if (session.worktreeName != null && branch.worktree != null) {
-			const worktreeBasename = branch.worktree.uri.split('/').pop() ?? '';
-			if (session.worktreeName !== worktreeBasename) return false;
+	const index = new Map<string, AgentSessionState[]>();
+	for (const session of sessions) {
+		if (session.branch == null || session.workspacePath == null) continue;
+		const key = `${session.workspacePath}\0${session.branch}`;
+		const existing = index.get(key);
+		if (existing != null) {
+			existing.push(session);
+		} else {
+			index.set(key, [session]);
 		}
-		return true;
-	});
+	}
+	return index;
+}
+
+function matchAgentSessionsForBranch(
+	index: Map<string, AgentSessionState[]> | undefined,
+	branch: OverviewBranch,
+): AgentSessionState[] | undefined {
+	if (index == null) return undefined;
+
+	const candidates = index.get(`${branch.repoPath}\0${branch.name}`);
+	if (candidates == null) return undefined;
+
+	const worktreeBasename = branch.worktree != null ? (branch.worktree.uri.split('/').pop() ?? '') : undefined;
+	// Cross-check worktree info when both sides have it — guards against two same-named branches
+	// in different worktrees colliding.
+	const matches = candidates.filter(
+		session =>
+			session.worktreeName == null || worktreeBasename == null || session.worktreeName === worktreeBasename,
+	);
 
 	return matches.length > 0 ? matches : undefined;
 }

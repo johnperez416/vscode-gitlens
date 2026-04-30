@@ -244,7 +244,7 @@ export class GlAgentStatusPill extends LitElement {
 
 		return html`
 			<gl-popover placement="bottom" hoist>
-				<span slot="anchor" class="pill pill--${category}" tabindex="0">
+				<span slot="anchor" class=${`pill ${category ? `pill--${category}` : ''}`.trim()} tabindex="0">
 					<span class="pill__dot"></span>
 					${label}
 				</span>
