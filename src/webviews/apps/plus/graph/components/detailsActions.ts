@@ -907,10 +907,10 @@ export class DetailsActions {
 		});
 	}
 
-	async initCompareDefaults(repoPath: string | undefined): Promise<void> {
+	async initCompareDefaults(repoPath: string | undefined, branchName?: string): Promise<void> {
 		if (!repoPath) return;
 
-		const defaultRef = await this.services.graphInspect.getDefaultComparisonRef(repoPath);
+		const defaultRef = await this.services.graphInspect.getMergeTargetComparisonRef(repoPath, branchName);
 		this.state.branchCompareRightRef.set(defaultRef ?? 'main');
 		this.clearBranchCompareEnrichmentCaches();
 		void this.refreshCompare(repoPath);

@@ -246,9 +246,13 @@ export class DetailsWorkflowController implements ReactiveController {
 			let leftRefType: 'branch' | 'commit' | undefined;
 			let rightRef: string | undefined;
 			let rightRefType: 'branch' | 'commit' | undefined;
+			// Branch whose merge target seeds the right ref. WIP uses the current branch; a
+			// single commit uses the branch it's reachable from (stashes use stashOnRef).
+			let mergeTargetBranchName: string | undefined;
 			if (isWip) {
 				leftRef = wip?.branch?.name;
 				leftRefType = 'branch';
+				mergeTargetBranchName = wip?.branch?.name;
 			} else if (isMultiCommit && commitTo && commitFrom) {
 				// Pivot from a multi-commit compare panel: the two sides of the existing
 				// comparison become the left and right sides of the new ref-to-ref comparison.
@@ -257,17 +261,15 @@ export class DetailsWorkflowController implements ReactiveController {
 				rightRef = commitFrom.shortSha;
 				rightRefType = 'commit';
 			} else if (commit) {
-				// Use the branch name if the commit is a branch tip, otherwise the SHA.
-				const branchRefs = state.reachability
-					.get()
-					?.refs?.filter((r): r is Extract<typeof r, { refType: 'branch' }> => r.refType === 'branch');
-				const currentBranch = branchRefs?.find(r => r.current) ?? branchRefs?.[0];
-				if (currentBranch?.name) {
-					leftRef = currentBranch.name;
-					leftRefType = 'branch';
+				leftRef = commit.shortSha;
+				leftRefType = 'commit';
+				if (commit.stashOnRef) {
+					mergeTargetBranchName = commit.stashOnRef;
 				} else {
-					leftRef = commit.shortSha;
-					leftRefType = 'commit';
+					const branchRefs = state.reachability
+						.get()
+						?.refs?.filter((r): r is Extract<typeof r, { refType: 'branch' }> => r.refType === 'branch');
+					mergeTargetBranchName = (branchRefs?.find(r => r.current) ?? branchRefs?.[0])?.name;
 				}
 			}
 			state.branchCompareLeftRef.set(leftRef);
@@ -301,7 +303,7 @@ export class DetailsWorkflowController implements ReactiveController {
 			} else {
 				state.branchCompareRightRef.set(undefined);
 				state.branchCompareRightRefType.set(undefined);
-				void this.actions.initCompareDefaults(repoPath);
+				void this.actions.initCompareDefaults(repoPath, mergeTargetBranchName);
 			}
 		}
 

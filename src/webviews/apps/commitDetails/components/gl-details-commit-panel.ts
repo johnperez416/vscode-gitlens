@@ -355,8 +355,8 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 			modes.push('review');
 		}
 		// Compare mode requires the host (graph orchestrator) to wire in a compare-refs panel
-		// for the @toggle-mode event. Stashes have no useful default ref to compare against.
-		if (this.compareEnabled && this.commit?.stashNumber == null) {
+		// for the @toggle-mode event.
+		if (this.compareEnabled) {
 			modes.push('compare');
 		}
 		return modes;

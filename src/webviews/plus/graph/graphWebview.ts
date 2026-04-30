@@ -130,6 +130,7 @@ import {
 	getBranchAssociatedPullRequest,
 	getBranchEnrichedAutolinks,
 	getBranchMergeTargetInfo,
+	getBranchMergeTargetName,
 	getBranchRemote,
 	setBranchDisposition,
 } from '../../../git/utils/-webview/branch.utils.js';
@@ -1579,14 +1580,16 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					const pick = result?.value;
 					return pick?.sha != null ? { name: pick.name, sha: pick.sha } : undefined;
 				},
-				getDefaultComparisonRef: async repoPath => {
+				getMergeTargetComparisonRef: async (repoPath, branchName) => {
 					try {
 						const svc = this.container.git.getRepositoryService(repoPath);
-						const branch = await svc.branches.getBranch();
-						if (!branch) return undefined;
-
-						if (branch.upstream?.name && !branch.upstream.missing) {
-							return branch.upstream.name;
+						const branch =
+							branchName != null
+								? await svc.branches.getBranch(branchName)
+								: await svc.branches.getBranch();
+						if (branch != null) {
+							const result = await getBranchMergeTargetName(this.container, branch);
+							if (!result.paused && result.value != null) return result.value;
 						}
 
 						const name = await svc.branches.getDefaultBranchName();

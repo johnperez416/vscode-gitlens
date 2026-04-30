@@ -243,7 +243,7 @@ export interface GraphInspectService {
 		signal?: AbortSignal,
 	): Promise<BranchComparisonContributorsResult | undefined>;
 	chooseRef(repoPath: string, title: string, picked?: string): Promise<{ name: string; sha: string } | undefined>;
-	getDefaultComparisonRef(repoPath: string): Promise<string | undefined>;
+	getMergeTargetComparisonRef(repoPath: string, branchName?: string): Promise<string | undefined>;
 }
 
 export interface GraphSidebarService {
