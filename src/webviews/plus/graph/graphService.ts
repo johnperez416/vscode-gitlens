@@ -244,6 +244,9 @@ export interface GraphInspectService {
 	): Promise<BranchComparisonContributorsResult | undefined>;
 	chooseRef(repoPath: string, title: string, picked?: string): Promise<{ name: string; sha: string } | undefined>;
 	getMergeTargetComparisonRef(repoPath: string, branchName?: string): Promise<string | undefined>;
+	/** Reveals the current compare-mode comparison as a saved node in the Search & Compare view —
+	 *  the persistence escape hatch for users who want to keep an ad-hoc graph comparison around. */
+	openComparisonInSearchAndCompare(repoPath: string, leftRef: string, rightRef: string): Promise<void>;
 }
 
 export interface GraphSidebarService {

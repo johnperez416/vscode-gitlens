@@ -407,6 +407,13 @@ export class GlDetailsCompareModePanel extends LitElement {
 				overlay="tooltip"
 				@click=${this.dispatchSwapRefs}
 			></gl-action-chip>
+			<gl-action-chip
+				class="wip-compare-open-in-sac"
+				icon="git-compare"
+				label="Open in Search &amp; Compare"
+				overlay="tooltip"
+				@click=${this.dispatchOpenInSearchAndCompare}
+			></gl-action-chip>
 			<div class="wip-compare-bar__group">
 				<gl-tooltip hoist placement="bottom">
 					<gl-branch-name
@@ -1008,6 +1015,10 @@ export class GlDetailsCompareModePanel extends LitElement {
 				composed: true,
 			}),
 		);
+	}
+
+	private dispatchOpenInSearchAndCompare() {
+		this.dispatchEvent(new CustomEvent('open-in-search-and-compare', { bubbles: true, composed: true }));
 	}
 
 	private dispatchSwapRefs() {

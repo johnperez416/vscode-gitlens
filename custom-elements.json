@@ -11567,6 +11567,23 @@
             },
             {
               "kind": "method",
+              "name": "openCompareInSearchAndCompare",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "repoPath",
+                  "type": {
+                    "text": "string | undefined"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "openComposer",
               "return": {
                 "type": {
@@ -14164,6 +14181,11 @@
               ]
             },
             {
+              "kind": "method",
+              "name": "dispatchOpenInSearchAndCompare",
+              "privacy": "private"
+            },
+            {
               "kind": "field",
               "name": "dispatchRefreshCompare",
               "privacy": "private"
@@ -14674,6 +14696,12 @@
           "events": [
             {
               "name": "change-ref",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "open-in-search-and-compare",
               "type": {
                 "text": "CustomEvent"
               }
@@ -18097,6 +18125,24 @@
             },
             {
               "kind": "method",
+              "name": "openCompareMode",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "params",
+                  "type": {
+                    "text": "{\n\t\trepoPath: string;\n\t\tleftRef: string;\n\t\tleftRefType?: 'branch' | 'tag' | 'commit';\n\t\trightRef: string;\n\t\trightRefType?: 'branch' | 'tag' | 'commit';\n\t\tincludeWorkingTree?: boolean;\n\t}"
+                  }
+                }
+              ],
+              "description": "External entry point — invoked when the extension requests entering compare mode with\nexplicit left/right refs (e.g. from a sidebar tree compare action). The current graph\nselection is left untouched; both sides of the comparison are driven by the supplied\noverrides."
+            },
+            {
+              "kind": "method",
               "name": "renderCommit",
               "privacy": "private"
             },
@@ -19359,7 +19405,7 @@
                 {
                   "name": "trigger",
                   "type": {
-                    "text": "'toggle' | 'request-inspect' | 'auto-restore'"
+                    "text": "'toggle' | 'request-compare' | 'auto-restore'"
                   }
                 }
               ]
@@ -19663,19 +19709,6 @@
             },
             {
               "kind": "method",
-              "name": "handleRequestInspect",
-              "privacy": "private",
-              "parameters": [
-                {
-                  "name": "e",
-                  "type": {
-                    "text": "CustomEvent<{ sha: string; repoPath: string }>"
-                  }
-                }
-              ]
-            },
-            {
-              "kind": "method",
               "name": "handleScopeToBranchFromHeader",
               "privacy": "private",
               "parameters": [
@@ -19808,6 +19841,24 @@
             },
             {
               "kind": "method",
+              "name": "openCompareMode",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "params",
+                  "type": {
+                    "text": "DidRequestOpenCompareModeParams"
+                  }
+                }
+              ],
+              "description": "Routed from GraphAppHost when the extension requests entering compare mode with\nexplicit refs (e.g. from a sidebar tree compare action). Ensures the details panel is\nvisible, then forwards to the details panel which owns the workflow controller."
+            },
+            {
+              "kind": "method",
               "name": "persistState",
               "privacy": "private",
               "return": {
@@ -19922,7 +19973,7 @@
                   "name": "trigger",
                   "optional": true,
                   "type": {
-                    "text": "'toggle' | 'request-inspect' | 'auto-restore'"
+                    "text": "'toggle' | 'request-compare' | 'auto-restore'"
                   }
                 }
               ]
@@ -21880,6 +21931,11 @@
                 "name": "GlWebviewApp",
                 "module": "src/webviews/apps/shared/appBase.ts"
               }
+            },
+            {
+              "kind": "field",
+              "name": "_handleRequestOpenCompareMode",
+              "privacy": "private"
             },
             {
               "kind": "field",
@@ -24835,6 +24891,11 @@
               "privacy": "private"
             },
             {
+              "kind": "method",
+              "name": "attachFocusListener",
+              "privacy": "private"
+            },
+            {
               "kind": "field",
               "name": "branch",
               "type": {
@@ -24876,32 +24937,40 @@
               ]
             },
             {
-              "kind": "method",
-              "name": "dedupedAutolinks",
-              "privacy": "private",
-              "return": {
-                "type": {
-                  "text": "NonNullable<OverviewBranchEnrichment['autolinks']>"
-                }
-              }
-            },
-            {
-              "kind": "method",
-              "name": "describeTracking",
-              "privacy": "private",
-              "return": {
-                "type": {
-                  "text": "TemplateResult | undefined"
-                }
-              }
-            },
-            {
               "kind": "field",
               "name": "enrichment",
               "type": {
                 "text": "OverviewBranchEnrichment | undefined"
               },
               "attribute": "enrichment"
+            },
+            {
+              "kind": "field",
+              "name": "eventController",
+              "type": {
+                "text": "AbortController | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "expandable",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "attribute": "expandable",
+              "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "expanded",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "attribute": "expanded",
+              "reflects": true
             },
             {
               "kind": "field",
@@ -24918,12 +24987,6 @@
               "type": {
                 "text": "boolean"
               },
-              "readonly": true
-            },
-            {
-              "kind": "field",
-              "name": "launchpadGrouping",
-              "privacy": "private",
               "readonly": true
             },
             {
@@ -24945,6 +25008,12 @@
               ]
             },
             {
+              "kind": "field",
+              "name": "onFocus",
+              "privacy": "private",
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "onLinkClick",
               "privacy": "private",
@@ -24959,109 +25028,60 @@
             },
             {
               "kind": "method",
+              "name": "renderAvatars",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderBranchActions",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
               "name": "renderBranchIcon",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderChanges",
+              "name": "renderBranchItem",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderHoverActions",
-              "privacy": "private",
-              "parameters": [
-                {
-                  "name": "hasPr",
-                  "type": {
-                    "text": "boolean"
-                  }
-                }
-              ]
-            },
-            {
-              "kind": "method",
-              "name": "renderHoverContent",
+              "name": "renderCollapsedActions",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderHoverHeader",
+              "name": "renderIssuesItem",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderHoverItemRow",
+              "name": "renderLaunchpadItem",
               "privacy": "private",
               "parameters": [
                 {
-                  "name": "item",
+                  "name": "launchpadItem",
                   "type": {
-                    "text": "OverviewBranchIssue"
+                    "text": "OverviewBranchLaunchpadItem | undefined"
                   }
                 }
               ]
             },
             {
               "kind": "method",
-              "name": "renderHoverItems",
-              "privacy": "private",
-              "parameters": [
-                {
-                  "name": "pr",
-                  "type": {
-                    "text": "OverviewBranchEnrichment['pr'] | undefined"
-                  }
-                },
-                {
-                  "name": "issues",
-                  "type": {
-                    "text": "NonNullable<OverviewBranchEnrichment['issues']>"
-                  }
-                },
-                {
-                  "name": "autolinks",
-                  "type": {
-                    "text": "NonNullable<OverviewBranchEnrichment['autolinks']>"
-                  }
-                }
-              ]
-            },
-            {
-              "kind": "method",
-              "name": "renderHoverStatus",
-              "privacy": "private",
-              "parameters": [
-                {
-                  "name": "contributors",
-                  "type": {
-                    "text": "NonNullable<OverviewBranchEnrichment['contributors']>"
-                  }
-                }
-              ]
-            },
-            {
-              "kind": "method",
-              "name": "renderInlineActions",
+              "name": "renderPrActions",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderItemChip",
-              "privacy": "private",
-              "parameters": [
-                {
-                  "name": "item",
-                  "type": {
-                    "text": "OverviewBranchIssue"
-                  }
-                }
-              ]
+              "name": "renderPrItem",
+              "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderPillsRow",
+              "name": "renderTimestamp",
               "privacy": "private"
             },
             {
@@ -25085,6 +25105,21 @@
               "reflects": true
             },
             {
+              "kind": "method",
+              "name": "toggleExpanded",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "expanded",
+                  "default": "!this.expanded"
+                }
+              ]
+            },
+            {
               "kind": "field",
               "name": "wip",
               "type": {
@@ -25096,6 +25131,12 @@
           "events": [
             {
               "name": "gl-graph-overview-branch-selected",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "gl-graph-overview-card-expand-toggled",
               "type": {
                 "text": "CustomEvent"
               }
@@ -25115,6 +25156,22 @@
                 "text": "OverviewBranchEnrichment | undefined"
               },
               "fieldName": "enrichment"
+            },
+            {
+              "name": "expandable",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "fieldName": "expandable"
+            },
+            {
+              "name": "expanded",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "fieldName": "expanded"
             },
             {
               "name": "scoped",
@@ -25176,6 +25233,14 @@
               },
               "privacy": "private",
               "default": "{}"
+            },
+            {
+              "kind": "field",
+              "name": "_expandedCardId",
+              "type": {
+                "text": "string | undefined"
+              },
+              "privacy": "private"
             },
             {
               "kind": "field",
@@ -25272,6 +25337,25 @@
                   "name": "overview",
                   "type": {
                     "text": "GraphOverviewData"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "onCardExpandToggled",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "branchId",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "expanded",
+                  "type": {
+                    "text": "boolean"
                   }
                 }
               ]
@@ -55414,7 +55498,7 @@
         {
           "kind": "variable",
           "name": "prIconStyles",
-          "default": "css` .pr-icon--opened { color: var(--vscode-gitlens-openPullRequestIconColor); } .pr-icon--closed { color: var(--vscode-gitlens-closedPullRequestIconColor); } .pr-icon--merged { color: var(--vscode-gitlens-mergedPullRequestIconColor); } .pr-icon--draft { color: var(--vscode-descriptionForeground); } `"
+          "default": "css` .pr-icon--opened { color: var(--vscode-gitlens-openPullRequestIconColor); } .pr-icon--closed { color: var(--vscode-gitlens-closedPullRequestIconColor); } .pr-icon--merged { color: var(--vscode-gitlens-mergedPullRequestIconColor); } `"
         }
       ],
       "exports": [
@@ -55445,21 +55529,14 @@
               "name": "type",
               "default": "'autolink'",
               "type": {
-                "text": "AutolinkIconType"
+                "text": "'autolink' | 'issue' | 'pr'"
               }
             },
             {
               "name": "status",
               "default": "'merged'",
               "type": {
-                "text": "AutolinkIconStatus"
-              }
-            },
-            {
-              "name": "isDraft",
-              "default": "false",
-              "type": {
-                "text": "boolean"
+                "text": "'opened' | 'closed' | 'merged'"
               }
             }
           ]

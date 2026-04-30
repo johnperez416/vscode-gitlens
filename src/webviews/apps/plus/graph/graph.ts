@@ -4,7 +4,7 @@ import { html } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
 import { Color } from '@gitlens/utils/color.js';
 import type { GraphServices } from '../../../plus/graph/graphService.js';
-import type { State } from '../../../plus/graph/protocol.js';
+import type { DidRequestOpenCompareModeParams, State } from '../../../plus/graph/protocol.js';
 import { GlAppHost } from '../../shared/appHost.js';
 import type { HostIpc } from '../../shared/ipc.js';
 import { RpcController } from '../../shared/rpc/rpcController.js';
@@ -64,10 +64,29 @@ export class GraphAppHost extends GlAppHost<State, GraphStateProvider> {
 		return Object.values(this.state.excludeTypes).includes(true);
 	}
 
+	override connectedCallback(): void {
+		super.connectedCallback?.();
+		// StateProvider dispatches webview-directed notifications on this element (the apphost).
+		// We listen here — descendants can't catch parent-dispatched events — and route to the
+		// graph-app, which holds the @query reference to the details panel.
+		this.addEventListener(
+			'gl-graph-request-open-compare-mode',
+			this._handleRequestOpenCompareMode as EventListener,
+		);
+	}
+
 	override disconnectedCallback(): void {
 		super.disconnectedCallback?.();
+		this.removeEventListener(
+			'gl-graph-request-open-compare-mode',
+			this._handleRequestOpenCompareMode as EventListener,
+		);
 		this._sidebarActions.dispose();
 	}
+
+	private _handleRequestOpenCompareMode = (e: CustomEvent<DidRequestOpenCompareModeParams>): void => {
+		this.appElement?.openCompareMode(e.detail);
+	};
 
 	override render() {
 		return html`<gl-graph-app></gl-graph-app>`;

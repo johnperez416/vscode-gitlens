@@ -16,7 +16,11 @@ import { getScopedCounter } from '@gitlens/utils/counter.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
 import type { CommitDetails } from '../../../commitDetails/protocol.js';
-import type { GraphMinimapMarkerTypes, GraphSidebarPanel } from '../../../plus/graph/protocol.js';
+import type {
+	DidRequestOpenCompareModeParams,
+	GraphMinimapMarkerTypes,
+	GraphSidebarPanel,
+} from '../../../plus/graph/protocol.js';
 import {
 	GetRowHoverRequest,
 	GetWipStatsRequest,
@@ -178,6 +182,15 @@ export class GraphApp extends SignalWatcher(LitElement) {
 
 		// Auto-focus the graph rows for keyboard navigation
 		this.graph?.focus();
+	}
+
+	/** Routed from {@link GraphAppHost} when the extension requests entering compare mode with
+	 *  explicit refs (e.g. from a sidebar tree compare action). Ensures the details panel is
+	 *  visible, then forwards to the details panel which owns the workflow controller. */
+	openCompareMode(params: DidRequestOpenCompareModeParams): void {
+		this.setDetailsVisible(true, 'request-compare');
+		this.ensureDetailsPosition();
+		this.detailsPanelEl?.openCompareMode(params);
 	}
 
 	override updated(changedProperties: Map<PropertyKey, unknown>): void {
@@ -557,7 +570,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		this.persistState();
 	}
 
-	private setDetailsVisible(visible: boolean, trigger?: 'toggle' | 'auto-restore'): void {
+	private setDetailsVisible(visible: boolean, trigger?: 'toggle' | 'request-compare' | 'auto-restore'): void {
 		const gs = this.graphState;
 		if (gs.detailsVisible === visible) return;
 		gs.detailsVisible = visible;
@@ -565,7 +578,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		this.emitDetailsVisibilityTelemetry(visible, trigger ?? 'toggle');
 	}
 
-	private emitDetailsVisibilityTelemetry(visible: boolean, trigger: 'toggle' | 'auto-restore'): void {
+	private emitDetailsVisibilityTelemetry(
+		visible: boolean,
+		trigger: 'toggle' | 'request-compare' | 'auto-restore',
+	): void {
 		if (visible) {
 			this._detailsShownAt = performance.now();
 			const selectionCount =

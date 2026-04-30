@@ -25,10 +25,16 @@ export interface DetailsSelection {
 	commitLites?: Record<string, CommitDetails>;
 }
 
-/** Optional overrides for entering compare mode. */
+/** Optional overrides for entering compare mode. When `leftRef` and `rightRef` are both
+ *  provided, the controller skips selection-derived ref resolution and merge-target defaulting
+ *  — used by external entry points (e.g. sidebar tree compare actions) that already know both
+ *  sides of the comparison. */
 export interface CompareModeOverrides {
+	leftRef?: string;
+	leftRefType?: 'branch' | 'tag' | 'commit';
 	rightRef?: string;
-	rightRefType?: 'branch' | 'commit';
+	rightRefType?: 'branch' | 'tag' | 'commit';
+	includeWorkingTree?: boolean;
 }
 
 /**
@@ -178,8 +184,11 @@ export class DetailsWorkflowController implements ReactiveController {
 		const resources = this.actions.resources;
 
 		// If already active, deactivate (leaving a mode is always allowed, even if the current
-		// selection wouldn't pass the activation guards below).
-		if (state.activeMode.get() === mode) {
+		// selection wouldn't pass the activation guards below). Exception: when entering compare
+		// mode with explicit ref overrides (e.g. from a sidebar tree compare action), treat it as
+		// a replace rather than a toggle — the user is asking for a different comparison, not to
+		// dismiss the current one.
+		if (state.activeMode.get() === mode && !(mode === 'compare' && compareOverrides?.leftRef != null)) {
 			this.exitMode(selection);
 			return;
 		}
@@ -189,7 +198,15 @@ export class DetailsWorkflowController implements ReactiveController {
 
 		// Activation guards — only apply when entering a mode.
 		if (mode === 'compose' && !isWip) return;
-		if (mode === 'compare' && !isWip && !state.commit.get() && !state.commitTo.get()) return;
+		if (
+			mode === 'compare' &&
+			!isWip &&
+			!state.commit.get() &&
+			!state.commitTo.get() &&
+			!compareOverrides?.leftRef
+		) {
+			return;
+		}
 
 		// Deactivate other mode if active.
 		if (state.activeMode.get() != null) {
@@ -243,9 +260,9 @@ export class DetailsWorkflowController implements ReactiveController {
 			const commitFrom = state.commitFrom.get();
 			const commit = state.commit.get();
 			let leftRef: string | undefined;
-			let leftRefType: 'branch' | 'commit' | undefined;
+			let leftRefType: 'branch' | 'tag' | 'commit' | undefined;
 			let rightRef: string | undefined;
-			let rightRefType: 'branch' | 'commit' | undefined;
+			let rightRefType: 'branch' | 'tag' | 'commit' | undefined;
 			// Branch whose merge target seeds the right ref. WIP uses the current branch; a
 			// single commit uses the branch it's reachable from (stashes use stashOnRef).
 			let mergeTargetBranchName: string | undefined;
@@ -272,9 +289,20 @@ export class DetailsWorkflowController implements ReactiveController {
 					mergeTargetBranchName = (branchRefs?.find(r => r.current) ?? branchRefs?.[0])?.name;
 				}
 			}
+
+			// Explicit overrides win — used when sidebar/external entry points already know both sides.
+			if (compareOverrides?.leftRef != null) {
+				leftRef = compareOverrides.leftRef;
+				leftRefType = compareOverrides.leftRefType ?? 'commit';
+			}
+			if (compareOverrides?.rightRef != null) {
+				rightRef = compareOverrides.rightRef;
+				rightRefType = compareOverrides.rightRefType ?? 'branch';
+			}
+
 			state.branchCompareLeftRef.set(leftRef);
 			state.branchCompareLeftRefType.set(leftRefType);
-			state.branchCompareIncludeWorkingTree.set(false);
+			state.branchCompareIncludeWorkingTree.set(compareOverrides?.includeWorkingTree ?? false);
 			state.branchCompareAheadCount.set(0);
 			state.branchCompareBehindCount.set(0);
 			state.branchCompareAheadCommits.set([]);
@@ -292,11 +320,7 @@ export class DetailsWorkflowController implements ReactiveController {
 			state.branchCompareEnrichmentLoading.set(false);
 			state.branchCompareContributorsLoading.set(false);
 
-			if (compareOverrides?.rightRef) {
-				state.branchCompareRightRef.set(compareOverrides.rightRef);
-				state.branchCompareRightRefType.set(compareOverrides.rightRefType ?? 'branch');
-				void this.actions.refreshCompare(repoPath);
-			} else if (rightRef) {
+			if (rightRef != null) {
 				state.branchCompareRightRef.set(rightRef);
 				state.branchCompareRightRefType.set(rightRefType);
 				void this.actions.refreshCompare(repoPath);

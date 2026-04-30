@@ -837,6 +837,19 @@ export const DidChangeSelectionNotification = new IpcNotification<DidChangeSelec
 	'selection/didChange',
 );
 
+export interface DidRequestOpenCompareModeParams {
+	repoPath: string;
+	leftRef: string;
+	leftRefType?: 'branch' | 'tag' | 'commit';
+	rightRef: string;
+	rightRefType?: 'branch' | 'tag' | 'commit';
+	includeWorkingTree?: boolean;
+}
+export const DidRequestOpenCompareModeNotification = new IpcNotification<DidRequestOpenCompareModeParams>(
+	scope,
+	'compareMode/didRequestOpen',
+);
+
 export interface DidChangeWorkingTreeParams {
 	stats: WorkDirStats;
 	wipMetadataBySha?: GraphWipMetadataBySha;

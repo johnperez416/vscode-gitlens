@@ -1044,6 +1044,14 @@ export class DetailsActions {
 		void this.refreshCompare(repoPath);
 	}
 
+	openCompareInSearchAndCompare(repoPath: string | undefined): void {
+		if (repoPath == null) return;
+		const leftRef = this.state.branchCompareLeftRef.get();
+		const rightRef = this.state.branchCompareRightRef.get();
+		if (!leftRef || !rightRef) return;
+		void this.services.graphInspect.openComparisonInSearchAndCompare(repoPath, leftRef, rightRef);
+	}
+
 	swapCompareRefs(repoPath: string | undefined): void {
 		const temp = this.state.branchCompareLeftRef.get();
 		this.state.branchCompareLeftRef.set(this.state.branchCompareRightRef.get());

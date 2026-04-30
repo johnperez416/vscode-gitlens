@@ -168,6 +168,32 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		this._workflow.exitMode(this.currentSelection());
 	};
 
+	/** External entry point — invoked when the extension requests entering compare mode with
+	 *  explicit left/right refs (e.g. from a sidebar tree compare action). The current graph
+	 *  selection is left untouched; both sides of the comparison are driven by the supplied
+	 *  overrides. */
+	openCompareMode(params: {
+		repoPath: string;
+		leftRef: string;
+		leftRefType?: 'branch' | 'tag' | 'commit';
+		rightRef: string;
+		rightRefType?: 'branch' | 'tag' | 'commit';
+		includeWorkingTree?: boolean;
+	}): void {
+		this.suppressContentOverflow();
+		const selection: DetailsSelection = {
+			...this.currentSelection(),
+			repoPath: params.repoPath,
+		};
+		this._workflow.toggleMode('compare', selection, {
+			leftRef: params.leftRef,
+			leftRefType: params.leftRefType,
+			rightRef: params.rightRef,
+			rightRefType: params.rightRefType,
+			includeWorkingTree: params.includeWorkingTree,
+		});
+	}
+
 	private get isLoading(): boolean {
 		if (!this._actions) {
 			return this.sha != null || (this.shas != null && this.shas.length > 0);
@@ -722,6 +748,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			@change-ref=${(e: CustomEvent<{ side: 'left' | 'right' }>) =>
 				void this._actions.changeCompareRef(e.detail.side, repoPath)}
 			@swap-refs=${() => this._actions.swapCompareRefs(repoPath)}
+			@open-in-search-and-compare=${() => this._actions.openCompareInSearchAndCompare(repoPath)}
 			@toggle-working-tree=${() => this._actions.toggleCompareWorkingTree(repoPath)}
 			@refresh-compare=${() => this._actions.refreshBranchCompare(repoPath)}
 			@switch-tab=${(e: CustomEvent<{ tab: 'all' | 'ahead' | 'behind' }>) =>

@@ -235,6 +235,7 @@ import {
 } from './graphWebview.utils.js';
 import type {
 	BranchState,
+	DidRequestOpenCompareModeParams,
 	GetWipStatsResponse,
 	GraphBranchContextValue,
 	GraphColumnConfig,
@@ -296,6 +297,7 @@ import {
 	DidChangeWipStaleNotification,
 	DidChangeWorkingTreeNotification,
 	DidFetchNotification,
+	DidRequestOpenCompareModeNotification,
 	DidSearchNotification,
 	DidStartFeaturePreviewNotification,
 	DoubleClickedCommand,
@@ -1596,6 +1598,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					} catch {
 						return undefined;
 					}
+				},
+				openComparisonInSearchAndCompare: async (repoPath, leftRef, rightRef) => {
+					await this.container.views.searchAndCompare.compare(repoPath, leftRef, rightRef);
 				},
 			},
 			sidebar: {
@@ -6139,7 +6144,13 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const [commit1, commit2] = selection;
 		const [ref1, ref2] = await getOrderedComparisonRefs(this.container, commit1.repoPath, commit1.ref, commit2.ref);
 
-		return this.container.views.searchAndCompare.compare(commit1.repoPath, ref1, ref2);
+		return this.notifyOpenCompareMode({
+			repoPath: commit1.repoPath,
+			leftRef: ref1,
+			leftRefType: 'commit',
+			rightRef: ref2,
+			rightRefType: 'commit',
+		});
 	}
 
 	@command('gitlens.pausedOperation.abort:')
@@ -6630,9 +6641,16 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			.refs.getMergeBase(branch.ref, ref.ref);
 		if (commonAncestor == null) return undefined;
 
-		return this.container.views.searchAndCompare.compare(ref.repoPath, '', {
-			ref: commonAncestor,
-			label: `${branch.ref} (${shortenRevision(commonAncestor)})`,
+		// WT-side comparison: graph compare-mode panel models WT as a flag layered on top of a
+		// ref-to-ref comparison. Anchor the WT side at HEAD so the current branch tip is the
+		// implicit "from" for WT changes.
+		return this.notifyOpenCompareMode({
+			repoPath: ref.repoPath,
+			leftRef: 'HEAD',
+			leftRefType: 'branch',
+			rightRef: commonAncestor,
+			rightRefType: 'commit',
+			includeWorkingTree: true,
 		});
 	}
 
@@ -6643,7 +6661,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (ref == null) return Promise.resolve();
 
 		const [ref1, ref2] = await getOrderedComparisonRefs(this.container, ref.repoPath, 'HEAD', ref.ref);
-		return this.container.views.searchAndCompare.compare(ref.repoPath, ref1, ref2);
+		const ref1IsHead = ref1 === 'HEAD';
+		return this.notifyOpenCompareMode({
+			repoPath: ref.repoPath,
+			leftRef: ref1,
+			leftRefType: ref1IsHead ? 'branch' : this.graphCompareRefType(ref.refType),
+			rightRef: ref2,
+			rightRefType: ref1IsHead ? this.graphCompareRefType(ref.refType) : 'branch',
+		});
 	}
 
 	@command('gitlens.graph.compareBranchWithHead')
@@ -6652,7 +6677,13 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
-		return this.container.views.searchAndCompare.compare(ref.repoPath, ref.ref, 'HEAD');
+		return this.notifyOpenCompareMode({
+			repoPath: ref.repoPath,
+			leftRef: ref.ref,
+			leftRefType: this.graphCompareRefType(ref.refType),
+			rightRef: 'HEAD',
+			rightRefType: 'branch',
+		});
 	}
 
 	@command('gitlens.graph.compareWithMergeBase')
@@ -6669,9 +6700,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			.refs.getMergeBase(branch.ref, ref.ref);
 		if (commonAncestor == null) return undefined;
 
-		return this.container.views.searchAndCompare.compare(ref.repoPath, ref.ref, {
-			ref: commonAncestor,
-			label: `${branch.ref} (${shortenRevision(commonAncestor)})`,
+		return this.notifyOpenCompareMode({
+			repoPath: ref.repoPath,
+			leftRef: ref.ref,
+			leftRefType: this.graphCompareRefType(ref.refType),
+			rightRef: commonAncestor,
+			rightRefType: 'commit',
 		});
 	}
 
@@ -6706,7 +6740,13 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (isGraphItemRefContext(item, 'branch')) {
 			const { ref } = item.webviewItemValue;
 			if (ref.upstream != null) {
-				return this.container.views.searchAndCompare.compare(ref.repoPath, ref.ref, ref.upstream.name);
+				return this.notifyOpenCompareMode({
+					repoPath: ref.repoPath,
+					leftRef: ref.ref,
+					leftRefType: 'branch',
+					rightRef: ref.upstream.name,
+					rightRefType: 'branch',
+				});
 			}
 		}
 
@@ -6728,7 +6768,16 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
-		return this.container.views.searchAndCompare.compare(ref.repoPath, '', ref.ref);
+		// WT-side comparison: anchor at HEAD with includeWorkingTree on top so the panel renders
+		// the WT delta against the chosen ref.
+		return this.notifyOpenCompareMode({
+			repoPath: ref.repoPath,
+			leftRef: 'HEAD',
+			leftRefType: 'branch',
+			rightRef: ref.ref,
+			rightRefType: this.graphCompareRefType(ref.refType),
+			includeWorkingTree: true,
+		});
 	}
 
 	@command('gitlens.views.selectForCompare:')
@@ -6756,9 +6805,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			return;
 		}
 
-		void this.container.views.searchAndCompare.compare(ref.repoPath, selectedRef, {
-			label: ref.name,
-			ref: ref.ref,
+		// `selectedRef` is a `StoredNamedRef` (no `refType`) — default to `commit`. The active ref
+		// carries its own `refType` from the graph item context.
+		void this.notifyOpenCompareMode({
+			repoPath: ref.repoPath,
+			leftRef: selectedRef.ref,
+			leftRefType: 'commit',
+			rightRef: ref.ref,
+			rightRefType: this.graphCompareRefType(ref.refType),
 		});
 	}
 
@@ -7522,6 +7576,29 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (ref != null) return this.container.git.getRepositoryService(ref.repoPath).commits.getCommit(ref.ref);
 
 		return Promise.resolve(undefined);
+	}
+
+	/** Maps a {@link GitReference}'s `refType` to the narrower compare-mode triple the graph
+	 *  details panel uses ({@link DidRequestOpenCompareModeParams}). `revision` and `stash`
+	 *  collapse to `commit`; the panel doesn't distinguish stashes here (they're reachable as
+	 *  commit shas). */
+	private graphCompareRefType(refType: GitReference['refType']): 'branch' | 'tag' | 'commit' {
+		switch (refType) {
+			case 'branch':
+				return 'branch';
+			case 'tag':
+				return 'tag';
+			default:
+				return 'commit';
+		}
+	}
+
+	/** Pushes the request to the graph webview to enter compare mode with the supplied refs.
+	 *  Fire-and-forget; the webview applies it on next render. Replaces the prior pattern of
+	 *  routing graph compare actions through the Search & Compare sidebar view. */
+	private notifyOpenCompareMode(params: DidRequestOpenCompareModeParams): Promise<void> {
+		void this.host.notify(DidRequestOpenCompareModeNotification, params);
+		return Promise.resolve();
 	}
 
 	private getGraphItemRef(item?: GraphItemContext | unknown | undefined): GitReference | undefined;
