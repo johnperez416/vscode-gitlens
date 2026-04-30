@@ -26,6 +26,7 @@ export interface OverviewBranch {
 	upstream: GitTrackingUpstream | undefined;
 	worktree?: {
 		name: string;
+		path: string;
 		uri: string;
 		isDefault: boolean;
 	};
@@ -53,7 +54,7 @@ export function toOverviewBranch(
 		timestamp: branch.effectiveDate?.getTime(),
 		status: branch.status,
 		upstream: branch.upstream,
-		worktree: wt ? { name: wt.name, uri: wt.uri.toString(), isDefault: wt.isDefault } : undefined,
+		worktree: wt ? { name: wt.name, path: wt.path, uri: wt.uri.toString(), isDefault: wt.isDefault } : undefined,
 	};
 }
 

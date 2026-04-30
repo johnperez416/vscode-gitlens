@@ -25,6 +25,7 @@ import {
 	GetRowHoverRequest,
 	GetWipStatsRequest,
 	isSecondaryWipSha,
+	makeSecondaryWipSha,
 	UpdateGraphConfigurationCommand,
 } from '../../../plus/graph/protocol.js';
 import type { CustomEventType } from '../../shared/components/element.js';
@@ -686,6 +687,35 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		e: CustomEvent<{ branchId: string; branchName: string; mergeTargetTipSha?: string }>,
 	) {
 		this.scopeToBranchById(e.detail.branchId, e.detail.mergeTargetTipSha);
+
+		const sha = this.getOverviewBranchSelectionSha(e.detail.branchId);
+		if (sha != null) {
+			this.graph?.ensureAndSelectCommit(sha);
+		}
+	}
+
+	private getOverviewBranchSelectionSha(branchId: string): string | undefined {
+		const overview = this.graphState.overview;
+		const branch = overview?.active.find(b => b.id === branchId) ?? overview?.recent.find(b => b.id === branchId);
+		if (branch == null) return undefined;
+
+		// A worktree is "secondary" for this graph only when its path differs from `branch.repoPath` —
+		// the same skip rule `getWipMetadataBySha` uses to emit synthetic worktree-WIP rows. When the
+		// workspace is itself a non-default worktree of an upstream repo, `isDefault` is false even
+		// though the worktree IS the graph's primary repo, so path equality is the source of truth.
+		if (branch.worktree != null && branch.worktree.path !== branch.repoPath) {
+			return makeSecondaryWipSha(branch.worktree.path);
+		}
+
+		// Current branch in the graph's primary worktree → WIP row if there are working changes, else tip.
+		if (branch.opened) {
+			const state = this.graphState.overviewWip?.[branchId]?.workingTreeState;
+			const hasWip = state != null && state.added + state.changed + state.deleted > 0;
+			if (hasWip) return uncommitted;
+		}
+
+		// Plain branch card (or current branch with no WIP) → tip commit.
+		return branch.reference.sha;
 	}
 
 	private handleScopeToBranchFromHeader(e: CustomEvent<{ branchName: string; upstreamName?: string }>) {
