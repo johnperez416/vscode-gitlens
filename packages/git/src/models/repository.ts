@@ -48,7 +48,8 @@ export type RepositoryChange =
 	| 'remoteProviders'
 	| 'starred'
 	| 'opened'
-	| 'gkConfig';
+	| 'gkConfig'
+	| 'lastFetched';
 
 export const repositoryChanges = exhaustiveArray<RepositoryChange>()([
 	'unknown',
@@ -71,6 +72,7 @@ export const repositoryChanges = exhaustiveArray<RepositoryChange>()([
 	'starred',
 	'opened',
 	'gkConfig',
+	'lastFetched',
 ]);
 
 export interface RepositoryInit {
@@ -357,6 +359,9 @@ export class Repository {
 	/** Called when the watch service notifies of FETCH_HEAD changes. */
 	protected onFetchHeadChanged(): void {
 		this._lastFetched = undefined;
+		// Force-fire so the event arrives immediately (no debounce); downstream consumers must
+		// invalidate any cached fetch timestamp before reading a fresh value.
+		this.fireChange('lastFetched', true);
 	}
 
 	/** Called when .gitignore changes in the working tree. */

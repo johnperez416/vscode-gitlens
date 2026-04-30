@@ -52,6 +52,7 @@ export type CachedGitTypes =
 	| 'contributors'
 	| 'gitignore'
 	| 'gkConfig'
+	| 'lastFetched'
 	| 'providers'
 	| 'remotes'
 	| 'stashes'
@@ -546,6 +547,10 @@ export class Cache implements Disposable {
 				keysToClear.add('branchOverviews');
 			}
 
+			if (types.includes('lastFetched')) {
+				keysToClear.add('lastFetched');
+			}
+
 			if (types.includes('providers')) {
 				keysToClear.add('remotes');
 				keysToClear.add('bestRemotes');
@@ -779,6 +784,10 @@ export class Cache implements Disposable {
 
 		if (hasAny('gkConfig')) {
 			types.add('gkConfig');
+		}
+
+		if (hasAny('lastFetched')) {
+			types.add('lastFetched');
 		}
 
 		if (hasAny('remoteProviders')) {

@@ -2499,6 +2499,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			void this.notifyDidChangeWorkingTree();
 		}
 
+		// FETCH_HEAD-only signal: refresh just the displayed fetch time, no need to rebuild
+		// the full state. Force re-arm the periodic interval so it picks up the fresh value
+		// (and starts running if there was no FETCH_HEAD before this fetch).
+		if (e.changed('lastFetched')) {
+			void this.notifyDidFetch();
+			void this.ensureLastFetchedSubscription(true);
+		}
+
 		if (
 			!e.changed(
 				'config',
