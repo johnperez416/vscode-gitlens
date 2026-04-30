@@ -4,6 +4,7 @@ import { consume } from '@lit/context';
 import { SignalWatcher } from '@lit-labs/signals';
 import { html, LitElement, nothing } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { when } from 'lit/directives/when.js';
 import type { GitGraphRowType } from '@gitlens/git/models/graph.js';
@@ -51,11 +52,11 @@ import '../../shared/components/button.js';
 import '../../shared/components/code-icon.js';
 import './components/gl-graph-details-panel.js';
 
-const sidebarDefaultPct = 18;
-const sidebarMinPct = 12;
-const sidebarMaxPct = 37.5;
+const sidebarDefaultPct = 20;
+const sidebarMinPct = 15;
+const sidebarMaxPct = 40;
 
-const detailsDefaultPct = 30;
+const detailsDefaultPct = 50;
 const detailsMinPct = 20;
 const detailsMaxPct = 50;
 
@@ -188,10 +189,14 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			if (detailsVisible) {
 				const pane = this.querySelector<HTMLElement>('.graph__details-pane');
 				if (pane) {
-					pane.classList.remove('details-opening');
+					const isBottom = this.graphState.config?.detailsLocation === 'bottom';
+					pane.classList.remove('details-opening', '-vertical');
 					void pane.offsetWidth;
 					pane.classList.add('details-opening');
-					pane.addEventListener('animationend', () => pane.classList.remove('details-opening'), {
+					if (isBottom) {
+						pane.classList.add('-vertical');
+					}
+					pane.addEventListener('animationend', () => pane.classList.remove('details-opening', '-vertical'), {
 						once: true,
 					});
 				}
@@ -290,9 +295,12 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		const effectiveRepoPath = (this._selectedCommit ?? this._selectedCommits)?.repoPath ?? fallbackPath;
 		const hasContent = effectiveSha != null || this._selectedCommits != null;
 		const detailsVisible = this.graphState.detailsVisible ?? false;
-		const position = detailsVisible ? (this.graphState.detailsPosition ?? 100 - detailsDefaultPct) : 100;
+		const isBottom = this.graphState.config?.detailsLocation === 'bottom';
+		const persisted = isBottom ? this.graphState.detailsBottomPosition : this.graphState.detailsPosition;
+		const position = detailsVisible ? (persisted ?? 100 - detailsDefaultPct) : 100;
 		return html`<gl-split-panel
-			class="graph__details-split"
+			class=${classMap({ 'graph__details-split': true, '-vertical': isBottom })}
+			orientation=${isBottom ? 'vertical' : 'horizontal'}
 			primary="end"
 			.position=${position}
 			.snap=${hasContent ? this._detailsSnap : undefined}
@@ -438,7 +446,11 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		const gs = this.graphState;
 		const state = {
 			panels: {
-				details: { visible: gs.detailsVisible, position: gs.detailsPosition },
+				details: {
+					visible: gs.detailsVisible,
+					position: gs.detailsPosition,
+					bottomPosition: gs.detailsBottomPosition,
+				},
 				sidebar: {
 					visible: gs.sidebarVisible,
 					position: gs.sidebarPosition,
@@ -529,13 +541,19 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		this.persistState();
 	}
 
+	private get detailsPositionKey(): 'detailsPosition' | 'detailsBottomPosition' {
+		return this.graphState.config?.detailsLocation === 'bottom' ? 'detailsBottomPosition' : 'detailsPosition';
+	}
+
 	private ensureDetailsPosition(): void {
 		const gs = this.graphState;
+		const key = this.detailsPositionKey;
 		// Reset to the default when the stored position is missing or snapped to closed — so
 		// reopening after a drag-to-close shows a usable width instead of a zero-width pane.
 		// Snap lands at exact 100 when the pane is closed; anything less is a usable open width.
-		if (gs.detailsPosition != null && gs.detailsPosition < 100) return;
-		gs.detailsPosition = 100 - detailsDefaultPct;
+		const stored = gs[key];
+		if (stored != null && stored < 100) return;
+		gs[key] = 100 - detailsDefaultPct;
 		this.persistState();
 	}
 
@@ -563,6 +581,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			const selectionUncommitted =
 				selectedSha === uncommitted || (selectedSha?.startsWith('worktree-wip::') ?? false);
 			const host = this.graphState.webviewId === 'gitlens.graph' ? 'editor' : 'panel';
+			const location = this.graphState.config?.detailsLocation === 'bottom' ? 'bottom' : 'right';
 			this._telemetry.sendEvent({
 				name: 'graphDetails/shown',
 				data: {
@@ -571,7 +590,8 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					mode: this.detailsPanelEl?.currentMode ?? 'none',
 					'selection.count': selectionCount,
 					'selection.uncommitted': selectionUncommitted,
-					position: this.graphState.detailsPosition,
+					position: this.graphState[this.detailsPositionKey],
+					location: location,
 				},
 			});
 		} else {
@@ -588,7 +608,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		// Skip the closed-edge position (snap lands at exact 100). `handleDetailsClosedChange`
 		// owns visibility; recording position=100 here would clobber the last open width.
 		if (e.detail.position >= 100) return;
-		this.graphState.detailsPosition = e.detail.position;
+		this.graphState[this.detailsPositionKey] = e.detail.position;
 	}
 
 	private handleDetailsClosedChange = (e: CustomEvent<{ closed: boolean; position: number }>): void => {
@@ -596,7 +616,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		if (e.detail.closed) {
 			this.setDetailsVisible(false);
 		} else if (gs.detailsVisible !== true) {
-			gs.detailsPosition = e.detail.position;
+			gs[this.detailsPositionKey] = e.detail.position;
 			this.setDetailsVisible(true, 'toggle');
 		}
 	};
@@ -613,7 +633,12 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		this.graph?.selectCommits([sha], { ensureVisible: true });
 	}
 
-	private handleToggleDetails() {
+	private handleToggleDetails(e: CustomEvent<{ altKey?: boolean } | void>) {
+		if (e.detail?.altKey) {
+			const next = this.graphState.config?.detailsLocation === 'bottom' ? 'right' : 'bottom';
+			this._ipc.sendCommand(UpdateGraphConfigurationCommand, { changes: { detailsLocation: next } });
+			return;
+		}
 		const gs = this.graphState;
 		if (gs.detailsVisible) {
 			this.setDetailsVisible(false);

@@ -8,6 +8,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { cache } from 'lit/directives/cache.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { when } from 'lit/directives/when.js';
+import { getAltKeySymbol } from '@env/platform.js';
 import type { SearchQuery } from '@gitlens/git/models/search.js';
 import { debounce } from '@gitlens/utils/decorators/debounce.js';
 import { hasTruthyKeys } from '@gitlens/utils/object.js';
@@ -46,6 +47,7 @@ import type { TelemetryContext } from '../../shared/contexts/telemetry.js';
 import { telemetryContext } from '../../shared/contexts/telemetry.js';
 import type { WebviewContext } from '../../shared/contexts/webview.js';
 import { webviewContext } from '../../shared/contexts/webview.js';
+import { ModifierKeysController } from '../../shared/controllers/modifier-keys.js';
 import { emitTelemetrySentEvent } from '../../shared/telemetry.js';
 import { ruleStyles } from '../shared/components/vscode.css.js';
 import { getDisplayedMode, isGraphFiltered } from './components/gl-graph-scope-popover.js';
@@ -156,6 +158,8 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 
 	@state() private aiAllowed = true;
 
+	private readonly _modifiers = new ModifierKeysController(this);
+
 	// Function to get commits without modifying selection, passed from graph-app
 	getCommits?: (shas: string[]) => ReadonlyGraphRow[];
 	// Function to select commits on the graph, passed from graph-app
@@ -231,8 +235,14 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 		this.dispatchEvent(new CustomEvent('toggle-sidebar', { bubbles: true, composed: true }));
 	}
 
-	private handleToggleDetails() {
-		this.dispatchEvent(new CustomEvent('toggle-details', { bubbles: true, composed: true }));
+	private handleToggleDetails(e: MouseEvent) {
+		this.dispatchEvent(
+			new CustomEvent('toggle-details', {
+				detail: { altKey: e.altKey },
+				bubbles: true,
+				composed: true,
+			}),
+		);
 	}
 
 	private async handleJumpToRef(e: MouseEvent) {
@@ -951,14 +961,18 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 						<gl-button class="jump-to-ref" appearance="toolbar" @click=${this.handleJumpToRef}>
 							<code-icon icon="target"></code-icon>
 							<span slot="tooltip">
-								Jump to HEAD
-								<br />
-								[Alt] Jump to Reference...
+								${this._modifiers.altKey
+									? html`Jump to Reference...`
+									: html`Jump to HEAD<br />[${getAltKeySymbol()}] Jump to Reference...`}
 							</span>
 						</gl-button>
-						<span>
-							<code-icon icon="chevron-right"></code-icon>
-						</span>
+					`,
+				)}
+			</div>
+			<div class="titlebar__group">
+				${when(
+					allowed && repo,
+					() => html`
 						<gl-git-actions-buttons
 							.branchName=${branch?.name}
 							.branchState=${branchState}
@@ -1224,16 +1238,33 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 								style="transform: rotate(180deg)"
 							></code-icon>
 						</gl-button>
-						<gl-button
-							appearance="toolbar"
-							tooltip=${this.detailsVisible ? 'Hide Details Panel' : 'Show Details Panel'}
-							aria-label=${this.detailsVisible ? 'Hide Details Panel' : 'Show Details Panel'}
-							@click=${this.handleToggleDetails}
-						>
-							<code-icon
-								icon=${this.detailsVisible ? 'layout-sidebar-right' : 'layout-sidebar-right-off'}
-							></code-icon>
-						</gl-button>
+						${(() => {
+							const currentLocation = config?.detailsLocation ?? 'right';
+							const altLocation = currentLocation === 'bottom' ? 'right' : 'bottom';
+							const effectiveLocation = this._modifiers.altKey ? altLocation : currentLocation;
+							const isBottom = effectiveLocation === 'bottom';
+							const baseLabel = this.detailsVisible ? 'Hide Details Panel' : 'Show Details Panel';
+							const altLabel = `Show Details Panel on ${altLocation === 'bottom' ? 'Bottom' : 'Right'}`;
+							const tooltip = this._modifiers.altKey
+								? altLabel
+								: `${baseLabel}\n[${getAltKeySymbol()}] ${altLabel}`;
+							return html`<gl-button
+								appearance="toolbar"
+								tooltip=${tooltip}
+								aria-label=${baseLabel}
+								@click=${this.handleToggleDetails}
+							>
+								<code-icon
+									icon=${isBottom
+										? this.detailsVisible || this._modifiers.altKey
+											? 'layout-panel'
+											: 'layout-panel-off'
+										: this.detailsVisible || this._modifiers.altKey
+											? 'layout-sidebar-right'
+											: 'layout-sidebar-right-off'}
+								></code-icon>
+							</gl-button>`;
+						})()}
 					</span>
 				</div>
 			</div>

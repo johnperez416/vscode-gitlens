@@ -426,6 +426,9 @@ export interface GraphConfig {
 	readonly dateFormat: DateTimeFormat | string | null;
 	readonly dateStyle: DateStyle | null;
 	readonly defaultItemLimit: number;
+	readonly details: {
+		readonly location: 'right' | 'bottom';
+	};
 	readonly dimMergeCommits: boolean;
 	readonly experimental: {
 		readonly renderer: {

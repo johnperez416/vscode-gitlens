@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing } from 'lit';
-import { customElement, property, query, state } from 'lit/decorators.js';
+import { customElement, property, query } from 'lit/decorators.js';
 import { getAltKeySymbol } from '@env/platform.js';
+import { ModifierKeysController } from '../../controllers/modifier-keys.js';
 import { focusOutline } from '../styles/lit/a11y.css.js';
 import '../overlays/tooltip.js';
 import '../code-icon.js';
@@ -104,8 +105,11 @@ export class ActionItem extends LitElement {
 	@query('a')
 	private defaultFocusEl!: HTMLAnchorElement;
 
-	@state()
-	private isAltKeyPressed = false;
+	private readonly _modifiers = new ModifierKeysController(this);
+
+	private get isAltKeyPressed(): boolean {
+		return this._modifiers.altKey || this._modifiers.shiftKey;
+	}
 
 	get effectiveIcon(): string {
 		if (this.isAltKeyPressed && this.altIcon) {
@@ -142,38 +146,6 @@ export class ActionItem extends LitElement {
 			return this.altHref;
 		}
 		return this.href;
-	}
-
-	override connectedCallback(): void {
-		super.connectedCallback?.();
-		window.addEventListener('keydown', this);
-		window.addEventListener('keyup', this);
-		this.addEventListener('pointerenter', this.handlePointerModifiers);
-		this.addEventListener('pointermove', this.handlePointerModifiers);
-	}
-
-	override disconnectedCallback(): void {
-		super.disconnectedCallback?.();
-		window.removeEventListener('keydown', this);
-		window.removeEventListener('keyup', this);
-		this.removeEventListener('pointerenter', this.handlePointerModifiers);
-		this.removeEventListener('pointermove', this.handlePointerModifiers);
-	}
-
-	private handlePointerModifiers = (e: PointerEvent) => {
-		const alt = e.altKey || e.shiftKey;
-		if (this.isAltKeyPressed !== alt) {
-			this.isAltKeyPressed = alt;
-		}
-	};
-
-	handleEvent(e: KeyboardEvent) {
-		const isAltKey = e.key === 'Alt' || e.key === 'Shift' || e.altKey || e.shiftKey;
-		if (e.type === 'keydown') {
-			this.isAltKeyPressed = isAltKey;
-		} else if (e.type === 'keyup' && isAltKey) {
-			this.isAltKeyPressed = false;
-		}
 	}
 
 	override render(): unknown {

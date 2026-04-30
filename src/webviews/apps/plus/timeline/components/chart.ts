@@ -2,6 +2,7 @@ import type { Chart, ChartOptions, ChartTypes, Data, DataItem } from 'billboard.
 import type { PropertyValues } from 'lit';
 import { html, LitElement, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
+import { getAltKeySymbol } from '@env/platform.js';
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { debounce } from '@gitlens/utils/debounce.js';
 import { debug } from '@gitlens/utils/decorators/log.js';
@@ -251,7 +252,7 @@ export class GlTimelineChart extends GlElement {
 						aria-label="Zoom Out"
 					>
 						<code-icon icon="zoom-out"></code-icon>
-						<span slot="tooltip">Zoom Out<br />[Alt] Reset Zoom</span>
+						<span slot="tooltip">Zoom Out<br />${getAltKeySymbol()} Reset Zoom</span>
 					</gl-button>`
 				: nothing}
 			<gl-button appearance="toolbar" @click=${() => this.zoom(0.5)} tooltip="Zoom In" aria-label="Zoom In">

@@ -114,6 +114,9 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	accessor detailsPosition: AppState['detailsPosition'];
 
 	@signalState()
+	accessor detailsBottomPosition: AppState['detailsBottomPosition'];
+
+	@signalState()
 	accessor sidebarVisible: AppState['sidebarVisible'];
 
 	@signalState()

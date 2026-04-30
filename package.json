@@ -976,6 +976,21 @@
 						"scope": "window",
 						"order": 2
 					},
+					"gitlens.graph.details.location": {
+						"type": "string",
+						"default": "right",
+						"enum": [
+							"right",
+							"bottom"
+						],
+						"enumDescriptions": [
+							"Show the details panel to the right of the Commit Graph",
+							"Show the details panel below the Commit Graph"
+						],
+						"markdownDescription": "Specifies the location of the details panel in the _Commit Graph_",
+						"scope": "window",
+						"order": 3
+					},
 					"gitlens.graph.multiselect": {
 						"type": [
 							"boolean",

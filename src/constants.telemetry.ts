@@ -845,8 +845,10 @@ interface GraphDetailsShownEvent {
 	'selection.count': number;
 	/** Whether the active selection is the WIP / uncommitted row */
 	'selection.uncommitted': boolean;
-	/** Split-pane position percentage from the right edge (0–100) */
+	/** Split-pane position percentage from the closed edge (0–100) */
 	position: number | undefined;
+	/** Where the details panel is anchored relative to the graph */
+	location: 'right' | 'bottom';
 }
 
 interface GraphDetailsClosedEvent {

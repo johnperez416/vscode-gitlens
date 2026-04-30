@@ -378,6 +378,7 @@ export interface StoredGraphState {
 		details?: {
 			visible?: boolean;
 			position?: number;
+			bottomPosition?: number;
 		};
 		sidebar?: {
 			visible?: boolean;

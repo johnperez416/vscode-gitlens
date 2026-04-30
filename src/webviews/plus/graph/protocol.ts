@@ -208,6 +208,7 @@ export interface State extends WebviewState<'gitlens.graph' | 'gitlens.views.gra
 	// Persisted UI state (from `graph:state` workspace memento)
 	detailsVisible?: boolean;
 	detailsPosition?: number;
+	detailsBottomPosition?: number;
 	sidebarVisible?: boolean;
 	activeSidebarPanel?: GraphSidebarPanel;
 	sidebarPosition?: number;
@@ -285,6 +286,7 @@ export interface GraphComponentConfig {
 	avatars?: boolean;
 	dateFormat: DateTimeFormat | string;
 	dateStyle: DateStyle;
+	detailsLocation?: 'right' | 'bottom';
 	dimMergeCommits?: boolean;
 	enabledRefMetadataTypes?: GraphRefMetadataType[];
 	experimentalFeaturesEnabled?: boolean;

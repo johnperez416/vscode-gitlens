@@ -2374,6 +2374,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					case 'onlyFollowFirstParent':
 						void configuration.updateEffective('graph.onlyFollowFirstParent', params.changes[key]);
 						break;
+					case 'detailsLocation':
+						void configuration.updateEffective('graph.details.location', params.changes[key]);
+						break;
 					default:
 						// TODO:@eamodio add more config options as needed
 						debugger;
@@ -4819,6 +4822,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			dateFormat:
 				configuration.get('graph.dateFormat') ?? configuration.get('defaultDateFormat') ?? 'short+short',
 			dateStyle: configuration.get('graph.dateStyle') ?? configuration.get('defaultDateStyle'),
+			detailsLocation: configuration.get('graph.details.location') ?? 'right',
 			enabledRefMetadataTypes: this.getEnabledRefMetadataTypes(),
 			dimMergeCommits: configuration.get('graph.dimMergeCommits'),
 			experimentalFeaturesEnabled: configuration.get('graph.experimentalFeatures.enabled'),
@@ -5268,6 +5272,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			searchRequest: searchRequest,
 			detailsVisible: storedPanels?.details?.visible ?? true,
 			detailsPosition: storedPanels?.details?.position,
+			detailsBottomPosition: storedPanels?.details?.bottomPosition,
 			sidebarVisible: storedPanels?.sidebar?.visible ?? true,
 			activeSidebarPanel: storedPanels?.sidebar?.activePanel,
 			sidebarPosition: storedPanels?.sidebar?.position,

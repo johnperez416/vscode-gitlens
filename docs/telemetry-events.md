@@ -2718,6 +2718,7 @@ or
   'context.config.dateFormat': string,
   'context.config.dateStyle': 'absolute' | 'relative',
   'context.config.defaultItemLimit': number,
+  'context.config.details.location': 'right' | 'bottom',
   'context.config.dimMergeCommits': boolean,
   'context.config.experimental.renderer.enabled': boolean,
   'context.config.experimentalFeatures.enabled': boolean,
@@ -2802,9 +2803,11 @@ or
 {
   // Which graph host the panel is in: editor area or bottom panel
   'host': 'editor' | 'panel',
+  // Where the details panel is anchored relative to the graph
+  'location': 'right' | 'bottom',
   // Active panel mode at time of show
   'mode': 'wip' | 'commit' | 'compare' | 'review' | 'multicommit' | 'compose' | 'none',
-  // Split-pane position percentage from the right edge (0–100)
+  // Split-pane position percentage from the closed edge (0–100)
   'position': number,
   // Number of rows currently selected in the graph (0, 1, or N)
   'selection.count': number,
