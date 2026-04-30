@@ -23,6 +23,17 @@ export const detailsBaseStyles = [
 			text-decoration: underline;
 		}
 
+		.compare-header__title {
+			display: block;
+			font-weight: 500;
+			font-size: var(--gl-font-base);
+			color: var(--color-foreground--85);
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
 		/* Section layout */
 		.section {
 			padding: 0 var(--gitlens-scrollbar-gutter-width) 1.5rem var(--gitlens-gutter-width);

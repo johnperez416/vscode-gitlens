@@ -1,5 +1,6 @@
 import { html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import { elementBase } from '../styles/lit/base.css.js';
 import { modeHeaderStyles, modeToggleStyles } from '../styles/lit/mode.css.js';
 import { detailsHeaderStyles } from './gl-details-header.css.js';
@@ -64,21 +65,30 @@ export class GlDetailsHeader extends LitElement {
 	private renderModeToggles() {
 		if (!this.modes?.length) return nothing;
 
+		const isAnyActive = this.activeMode != null;
+
 		return this.modes.map(mode => {
 			const isActive = this.activeMode === mode;
 			const config = modeConfig[mode];
 
-			const showText = isActive || config.collapsible;
+			// When any mode is active, only the active mode shows its label — the others
+			// collapse to icon-only so the active mode stands out and the cluster stays
+			// compact. When no mode is active, collapsible modes show their label (subject
+			// to the @container collapse rules in gl-details-header.css.ts).
+			const showText = isActive || (config.collapsible && !isAnyActive);
 
 			return html`<gl-action-chip
 				icon=${config.icon}
 				.activeIcon=${isActive ? 'close' : undefined}
 				label="${isActive ? config.closeLabel : config.label}"
 				overlay="tooltip"
-				class="${isActive ? 'mode-toggle--active' : ''}"
-				?auto-collapse=${config.collapsible && !isActive}
+				class=${classMap({
+					'mode-toggle': true,
+					[`mode-toggle--${mode}`]: true,
+					'mode-toggle--active': isActive,
+				})}
 				@click=${() => this.handleToggleMode(mode)}
-				>${showText ? html`<span>${config.text}</span>` : nothing}</gl-action-chip
+				>${showText ? html`<span class="mode-toggle__text">${config.text}</span>` : nothing}</gl-action-chip
 			>`;
 		});
 	}

@@ -8,17 +8,26 @@ export class GlRefName extends LitElement {
 	static override styles = css`
 		:host {
 			box-sizing: border-box;
-			display: flex;
-			align-content: center;
+			display: grid;
+			grid-template-columns: minmax(0, 1fr);
+			align-items: center;
 
 			max-width: 100%;
-			overflow: hidden;
-			text-overflow: ellipsis;
+			min-width: 1.4rem;
 			gap: 0.4rem;
+		}
+
+		:host([icon]) {
+			grid-template-columns: auto minmax(0, 1fr);
+			min-width: 3.6rem;
 		}
 
 		* {
 			box-sizing: border-box;
+		}
+
+		.icon {
+			flex-shrink: 0;
 		}
 
 		.icon.tag,
@@ -27,7 +36,6 @@ export class GlRefName extends LitElement {
 		}
 
 		.label {
-			min-width: 2.4rem;
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;

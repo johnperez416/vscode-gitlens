@@ -15,6 +15,7 @@ import type {
 	DetailsItemTypedContext,
 } from '../../../commitDetails/protocol.js';
 import { messageHeadlineSplitterToken } from '../../../commitDetails/protocol.js';
+import { renderLearnAboutAutolinks } from '../../shared/components/chips/learn-about-autolinks.js';
 import type { TreeItemAction, TreeItemBase } from '../../shared/components/tree/base.js';
 import { detailsBaseStyles } from './gl-details-base.css.js';
 import type { File } from './gl-details-base.js';
@@ -699,13 +700,25 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 	private renderAutoLinksChips() {
 		const autolinkState = this.autolinkState;
 		if (autolinkState == null) {
-			return this._commitChanging ? this.renderAutolinksLoading() : this.renderLearnAboutAutolinks(true);
+			return this._commitChanging
+				? this.renderAutolinksLoading()
+				: renderLearnAboutAutolinks({
+						hasIntegrationsConnected: this.hasIntegrationsConnected,
+						hasAccount: this.hasAccount,
+						showLabel: true,
+					});
 		}
 
 		const { autolinks, issues, prs, size } = autolinkState;
 
 		if (size === 0) {
-			return this._commitChanging ? this.renderAutolinksLoading() : this.renderLearnAboutAutolinks(true);
+			return this._commitChanging
+				? this.renderAutolinksLoading()
+				: renderLearnAboutAutolinks({
+						hasIntegrationsConnected: this.hasIntegrationsConnected,
+						hasAccount: this.hasAccount,
+						showLabel: true,
+					});
 		}
 
 		return html`<gl-chip-overflow max-rows="1">
@@ -757,7 +770,11 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 				),
 			)}
 			${this.renderAutoLinksPopover(autolinks, prs, issues)}
-			<span slot="suffix">${this.renderLearnAboutAutolinks()}</span>
+			${renderLearnAboutAutolinks({
+				hasIntegrationsConnected: this.hasIntegrationsConnected,
+				hasAccount: this.hasAccount,
+				slotName: 'suffix',
+			})}
 		</gl-chip-overflow>`;
 	}
 

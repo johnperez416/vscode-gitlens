@@ -3,12 +3,6 @@ import { css } from 'lit';
 export { panelActionInputStyles, panelHostStyles } from './shared-panel.css.js';
 
 export const multiCommitPanelStyles = css`
-	.compare-header__title {
-		font-weight: 500;
-		font-size: var(--gl-font-base);
-		color: var(--color-foreground--85);
-	}
-
 	.compare-metadata {
 		display: flex;
 		align-items: center;
@@ -162,6 +156,7 @@ export const multiCommitPanelStyles = css`
 		padding: 0.4rem 1.2rem 0.4rem 1.2rem;
 		font-size: var(--gl-font-sm);
 		flex: none;
+		min-width: 0;
 	}
 
 	.compare-enrichment gl-action-chip[data-action='autolink-settings'] {

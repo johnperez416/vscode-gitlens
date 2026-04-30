@@ -18,9 +18,38 @@ type Files = Mutable<FileItem[]>;
 @customElement('gl-wip-tree-pane')
 export class GlWipTreePane extends LitElement {
 	static override styles = css`
+		/* Establish the named container on this host so the @container query below resolves
+		   in the same shadow scope as the rule (cross-shadow container lookup is spotty). */
 		:host {
 			flex: 1 1 0%;
 			display: flex;
+			container-type: inline-size;
+			container-name: gl-wip-tree-pane;
+		}
+
+		/* Pin the button to a stable height in both expanded and collapsed states so the
+		   header doesn't jump vertically when the label hides. Uses px (not rem) to be
+		   immune to root-font-size differences across webview themes. 28px covers the
+		   natural icon+text height (~27.5px) so collapsed and expanded match. */
+		gl-button {
+			min-height: 28px;
+		}
+
+		/* Collapse the Stash label to icon-only when the pane runs out of room.
+		   display:none cleanly removes the slotted flex item so the button's internal gap
+		   collapses too — true icon-only, no half-clipped text. The custom properties get
+		   set on gl-file-tree-pane (a descendant of the gl-wip-tree-pane container, since
+		   :host IS the container and so isn't matched by @container rules) and inherit
+		   into its shadow so the surrounding action gaps collapse too. The button's
+		   tooltip="Stash Changes" keeps it accessible when the label is hidden. */
+		@container gl-wip-tree-pane (max-width: 340px) {
+			.stash-label {
+				display: none !important;
+			}
+			gl-file-tree-pane {
+				--gl-header-actions-gap: 0;
+				--gl-leading-action-trailing-gap: 0;
+			}
 		}
 	`;
 
@@ -182,7 +211,7 @@ export class GlWipTreePane extends LitElement {
 						@click=${this.onStashSave}
 					>
 						<code-icon icon="gl-stash-save" slot="prefix"></code-icon>
-						Stash
+						<span class="stash-label">Stash</span>
 					</gl-button>`
 				: nothing}
 			<slot name="before-tree" slot="before-tree"></slot>

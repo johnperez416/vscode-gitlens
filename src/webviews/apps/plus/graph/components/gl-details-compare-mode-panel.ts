@@ -7,8 +7,6 @@ import type { IssueOrPullRequest } from '@gitlens/git/models/issueOrPullRequest.
 import { uncommitted } from '@gitlens/git/models/revision.js';
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import type { Autolink } from '../../../../../autolinks/models/autolinks.js';
-import type { ConnectCloudIntegrationsCommandArgs } from '../../../../../commands/cloudIntegrations.js';
-import { createCommandLink } from '../../../../../system/commands.js';
 import { serializeWebviewItemContext } from '../../../../../system/webview.js';
 import type { DetailsItemTypedContext, Preferences } from '../../../../plus/graph/detailsProtocol.js';
 import type {
@@ -17,6 +15,7 @@ import type {
 	BranchComparisonFile,
 } from '../../../../plus/graph/graphService.js';
 import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
+import { renderLearnAboutAutolinks } from '../../../shared/components/chips/learn-about-autolinks.js';
 import { redispatch } from '../../../shared/components/element.js';
 import type { GlSplitPanelSnapFunction } from '../../../shared/components/split-panel/split-panel.js';
 import {
@@ -714,7 +713,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		const isLoadingEmpty = this._comparisonChanging && !hasChips;
 
 		return html`<div class="wip-compare-enrichment">
-			<gl-chip-overflow max-rows="99">
+			<gl-chip-overflow max-rows=${hasChips ? 99 : 1}>
 				${hasChips
 					? nothing
 					: isLoadingEmpty
@@ -722,7 +721,12 @@ export class GlDetailsCompareModePanel extends LitElement {
 								<code-icon icon="loading" modifier="spin"></code-icon>
 								<span>Loading autolinks…</span>
 							</span>`
-						: html`<span slot="prefix">${this.renderLearnAboutAutolinks(true)}</span>`}
+						: renderLearnAboutAutolinks({
+								hasIntegrationsConnected: this.hasIntegrationsConnected,
+								hasAccount: this.hasAccount,
+								showLabel: true,
+								slotName: 'prefix',
+							})}
 				${hasAutolinks
 					? autolinks.map(autolink => {
 							const name = autolink.description ?? autolink.title ?? `${autolink.prefix}${autolink.id}`;
@@ -750,42 +754,15 @@ export class GlDetailsCompareModePanel extends LitElement {
 						)
 					: nothing}
 				${this.renderAutolinksPopover(autolinks, enriched)} ${this.renderEnrichButton()}
-				${hasChips ? html`<span slot="suffix">${this.renderLearnAboutAutolinks()}</span>` : nothing}
+				${hasChips
+					? renderLearnAboutAutolinks({
+							hasIntegrationsConnected: this.hasIntegrationsConnected,
+							hasAccount: this.hasAccount,
+							slotName: 'suffix',
+						})
+					: nothing}
 			</gl-chip-overflow>
 		</div>`;
-	}
-
-	private renderLearnAboutAutolinks(showLabel = false) {
-		const autolinkSettingsLink = createCommandLink('gitlens.showSettingsPage!autolinks', {
-			showOptions: { preserveFocus: true },
-		});
-
-		let label =
-			'Configure autolinks to linkify external references, like Jira or Zendesk tickets, in commit messages.';
-		if (!this.hasIntegrationsConnected) {
-			label = `<a href="${autolinkSettingsLink}">Configure autolinks</a> to linkify external references, like Jira or Zendesk tickets, in commit messages.`;
-			label += `\n\n<a href="${createCommandLink<ConnectCloudIntegrationsCommandArgs>(
-				'gitlens.plus.cloudIntegrations.connect',
-				{
-					source: { source: 'inspect', detail: { action: 'connect' } },
-				},
-			)}">Connect an Integration</a> &mdash;`;
-
-			if (!this.hasAccount) {
-				label += ' sign up and';
-			}
-
-			label += ' to get access to automatic rich autolinks for services like Jira, GitHub, and more.';
-		}
-
-		return html`<gl-action-chip
-			href=${autolinkSettingsLink}
-			data-action="autolink-settings"
-			icon="info"
-			.label=${label}
-			overlay=${this.hasIntegrationsConnected ? 'tooltip' : 'popover'}
-			>${showLabel ? html`<span class="mq-hide-sm">&nbsp;No autolinks found</span>` : nothing}</gl-action-chip
-		>`;
 	}
 
 	private renderAutolinksPopover(autolinks: Autolink[], enriched: IssueOrPullRequest[]) {

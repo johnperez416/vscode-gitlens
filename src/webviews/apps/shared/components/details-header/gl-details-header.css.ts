@@ -34,4 +34,22 @@ export const detailsHeaderStyles = css`
 		gap: 0.2rem;
 		flex-shrink: 0;
 	}
+
+	/* Mode-toggle label collapse, staggered.
+	   The chip's slotted label is a normal child of <gl-action-chip> in this template,
+	   so we target it via descendant selectors. Hiding the slotted span with display:none
+	   cleanly removes the flex item and its surrounding gap inside the chip — yielding
+	   a true icon-only state instead of clipped/ellipsed text. The active chip is exempt
+	   so the selected mode keeps its label visible. Review yields first, then Compose. */
+	@container gl-action-chip-host (max-width: 320px) {
+		.mode-toggle--review:not(.mode-toggle--active) .mode-toggle__text {
+			display: none;
+		}
+	}
+
+	@container gl-action-chip-host (max-width: 260px) {
+		.mode-toggle--compose:not(.mode-toggle--active) .mode-toggle__text {
+			display: none;
+		}
+	}
 `;

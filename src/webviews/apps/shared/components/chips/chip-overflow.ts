@@ -98,6 +98,8 @@ export class GlChipOverflow extends LitElement {
 				vertical-align: middle;
 				margin-inline-end: var(--gl-chip-overflow-gap, 0.5rem);
 				margin-block-end: var(--gl-chip-overflow-gap, 0.5rem);
+				min-width: 0;
+				max-width: 100%;
 			}
 
 			/* Floated to the top-right so chips flow around it on the first row, then wrap
@@ -110,6 +112,8 @@ export class GlChipOverflow extends LitElement {
 				gap: var(--gl-chip-overflow-gap, 0.5rem);
 				margin-inline-start: var(--gl-chip-overflow-gap, 0.5rem);
 				margin-block-end: var(--gl-chip-overflow-gap, 0.5rem);
+				min-width: 0;
+				max-width: 100%;
 			}
 
 			/* Single-row: drop float, push to end of the line via auto margin, drop block-end gap. */
@@ -118,6 +122,7 @@ export class GlChipOverflow extends LitElement {
 				order: 3;
 				margin-inline-start: auto;
 				margin-block-end: 0;
+				flex-shrink: 0;
 			}
 
 			.container.is-single-row .prefix {

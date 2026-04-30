@@ -456,19 +456,27 @@ export const compareModePanelStyles = css`
 		gap: 0.6rem;
 	}
 
-	/* Line-stats summary in the file pane header. Color matches the per-file +N -N annotations. */
+	/* Line-stats summary in the file pane header. Color matches the per-file +N -N annotations.
+	   Stats yield width FIRST — shrink priority is far higher than the title (10) and badge
+	   (1) so the whole stats block clips out before the title text starts truncating. */
 	.wip-compare-stats {
-		display: inline-flex;
-		gap: 0.6rem;
+		display: inline-block;
 		margin-inline-start: 0.4rem;
 		font-size: var(--gl-font-micro);
 		font-weight: normal;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
+		min-width: 0;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		flex: 0 100 auto;
+		vertical-align: middle;
 	}
 
 	.wip-compare-stats__additions {
 		color: var(--vscode-gitDecoration-addedResourceForeground);
+		margin-inline-end: 0.6rem;
 	}
 
 	.wip-compare-stats__deletions {
@@ -534,9 +542,24 @@ export const compareModePanelStyles = css`
 	   visually sit inline with the title text it replaces (no margin/padding around the
 	   popover; the trigger button supplies its own hit-target padding). The 0-padding
 	   tooltip override removes the body inset so menu rows hug the popover edges. */
+	/* The title-content slot wrapper itself needs to be shrinkable so its inner
+	   popover/trigger/label can ellipse against the title slot's actual width. */
+	span[slot='title-content'] {
+		display: inline-flex;
+		min-width: 0;
+		max-width: 100%;
+		flex: 0 10 auto;
+		overflow: hidden;
+	}
+
 	.wip-compare-view-selector {
 		display: inline-flex;
 		--sl-tooltip-padding: 0;
+		/* Allow the popover host (and trigger inside) to shrink within the title slot's
+		   flex layout so the label ellipses instead of overflowing the row. */
+		min-width: 0;
+		max-width: 100%;
+		flex: 0 10 auto;
 	}
 
 	.wip-compare-view-trigger {
@@ -555,6 +578,9 @@ export const compareModePanelStyles = css`
 		margin-inline-start: -0.4rem;
 		border-radius: 3px;
 		cursor: pointer;
+		min-width: 0;
+		max-width: 100%;
+		overflow: hidden;
 	}
 
 	.wip-compare-view-trigger:hover,
@@ -566,6 +592,10 @@ export const compareModePanelStyles = css`
 	.wip-compare-view-trigger__label {
 		text-transform: inherit;
 		letter-spacing: inherit;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	/* Reset inherited title styles inside the popover menu. text-transform/letter-spacing

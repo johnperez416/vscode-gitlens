@@ -305,10 +305,12 @@ export class GlFileTreePane extends LitElement {
 	}
 
 	private renderTitle(badge?: string | number): TemplateResult {
-		return html`<slot name="title-content"><span>${this.header}</span></slot
-			>${badge != null ? html`<gl-badge appearance="filled">${badge}</gl-badge>` : nothing}<slot
-				name="header-badge"
-			></slot>`;
+		return html`<slot name="title-content"><span class="file-tree-pane__title">${this.header}</span></slot
+			>${badge != null
+				? html`<gl-badge appearance="filled"
+						><span class="checkbox-header__badge-text">${badge}</span></gl-badge
+					>`
+				: nothing}<slot name="header-badge"></slot>`;
 	}
 
 	private renderCheckboxTitle(_fileCount: number, badge?: string | number): TemplateResult {
@@ -392,8 +394,11 @@ export class GlFileTreePane extends LitElement {
 
 		const label =
 			effectiveBadge == null
-				? html`${this.header}`
-				: html`${this.header} <gl-badge appearance="filled">${effectiveBadge}</gl-badge>`;
+				? html`<span class="checkbox-header__title">${this.header}</span>`
+				: html`<span class="checkbox-header__title">${this.header}</span>
+						<gl-badge appearance="filled"
+							><span class="checkbox-header__badge-text">${effectiveBadge}</span></gl-badge
+						>`;
 
 		return html`<span class="checkbox-header" @click=${(e: Event) => e.stopPropagation()}>
 			${tooltipText

@@ -2,8 +2,6 @@ import type { CSSResultGroup, TemplateResult } from 'lit';
 import { html, LitElement, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
 import type { GitCommitStats } from '@gitlens/git/models/commit.js';
-import type { ConnectCloudIntegrationsCommandArgs } from '../../../../commands/cloudIntegrations.js';
-import { createCommandLink } from '../../../../system/commands.js';
 import type { FileShowOptions, Preferences, State } from '../../../commitDetails/protocol.js';
 import type { OpenMultipleChangesArgs } from '../../shared/actions/file.js';
 import { renderCommitStatsIcons } from '../../shared/components/commit/commit-stats.js';
@@ -133,44 +131,6 @@ export class GlDetailsBase extends LitElement {
 
 	protected renderChangedFilesSlottedContent(): TemplateResult<1> | typeof nothing {
 		return nothing;
-	}
-
-	protected renderLearnAboutAutolinks(showLabel = false) {
-		const autolinkSettingsLink = createCommandLink('gitlens.showSettingsPage!autolinks', {
-			showOptions: { preserveFocus: true },
-		});
-
-		let label =
-			'Configure autolinks to linkify external references, like Jira or Zendesk tickets, in commit messages.';
-		if (!this.hasIntegrationsConnected) {
-			label = `<a href="${autolinkSettingsLink}">Configure autolinks</a> to linkify external references, like Jira or Zendesk tickets, in commit messages.`;
-			label += `\n\n<a href="${createCommandLink<ConnectCloudIntegrationsCommandArgs>(
-				'gitlens.plus.cloudIntegrations.connect',
-				{
-					source: {
-						source: 'inspect',
-						detail: {
-							action: 'connect',
-						},
-					},
-				},
-			)}">Connect an Integration</a> &mdash;`;
-
-			if (!this.hasAccount) {
-				label += ' sign up and';
-			}
-
-			label += ' to get access to automatic rich autolinks for services like Jira, GitHub, and more.';
-		}
-
-		return html`<gl-action-chip
-			href=${autolinkSettingsLink}
-			data-action="autolink-settings"
-			icon="info"
-			.label=${label}
-			overlay=${this.hasIntegrationsConnected ? 'tooltip' : 'popover'}
-			>${showLabel ? html`<span class="mq-hide-sm">&nbsp;No autolinks found</span>` : nothing}</gl-action-chip
-		>`;
 	}
 
 	protected renderCommitStats(stats?: GitCommitStats) {

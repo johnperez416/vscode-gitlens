@@ -65,21 +65,78 @@ export const titlebarStyles = css`
 	}
 
 	.titlebar__row--wrap {
-		display: grid;
-		grid-auto-flow: column;
-		justify-content: start;
-		grid-template-columns: 1fr min-content;
+		/* Three flex groups: LEFT anchored left, RIGHT anchored right, CENTER between
+		   with empty space distributed via space-between. min-width: 0 keeps the row
+		   itself capped at parent width so RIGHT stays pinned to the visible right
+		   edge — overflow goes inside CENTER (clipped) instead of pushing RIGHT
+		   off-screen. */
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		justify-content: space-between;
+		min-width: 0;
+		/* Container so descendants (e.g. gl-fetch-button's text) can use container
+		   queries against the row's inline size for stepwise label collapsing. */
+		container-type: inline-size;
+		container-name: graph-titlebar;
 	}
 
 	.titlebar__group {
-		flex: auto 1 1;
+		flex: 1 1 auto;
 	}
 
 	.titlebar__row--wrap .titlebar__group {
+		flex: 0 1 auto;
 		white-space: nowrap;
 	}
-	.titlebar__row--wrap .titlebar__group:nth-child(odd) {
-		min-width: 0;
+	/* LEFT floor accommodates the user-facing minimum: repo provider icon + ~3 chars of
+	   repo name + chevron-right separator + branch picker icon + ~3 chars of branch
+	   name + jump-to-ref icon + 3 × 0.5rem inner gaps. */
+	.titlebar__row--wrap .titlebar__group:nth-child(1) {
+		flex-shrink: 10;
+	}
+	.titlebar__row--wrap .titlebar__group:nth-child(1) > * {
+		flex-shrink: 1;
+	}
+	.titlebar__row--wrap .titlebar__group:nth-child(1) > span,
+	.titlebar__row--wrap .titlebar__group:nth-child(1) > .jump-to-ref,
+	.titlebar__row--wrap .titlebar__group:nth-child(1) > gl-popover {
+		flex-shrink: 0;
+	}
+	.titlebar__row--wrap .titlebar__group:nth-child(2) {
+		flex-shrink: 100;
+	}
+	.titlebar__row--wrap .titlebar__group:nth-child(3) {
+		flex-shrink: 0;
+	}
+
+	/* Stage 7 of the shrink sequence: once everything else is at its narrow floor,
+	   start hiding the right group's action icons one at a time, rightmost first.
+	   Each progressively tighter breakpoint hides one more from the right end. */
+	@container graph-titlebar (max-width: 44rem) {
+		.titlebar__row--wrap .titlebar__group:nth-child(3) > :nth-last-child(-n + 1) {
+			display: none;
+		}
+	}
+	@container graph-titlebar (max-width: 41rem) {
+		.titlebar__row--wrap .titlebar__group:nth-child(3) > :nth-last-child(-n + 2) {
+			display: none;
+		}
+	}
+	@container graph-titlebar (max-width: 38rem) {
+		.titlebar__row--wrap .titlebar__group:nth-child(3) > :nth-last-child(-n + 3) {
+			display: none;
+		}
+	}
+	@container graph-titlebar (max-width: 35rem) {
+		.titlebar__row--wrap .titlebar__group:nth-child(3) > :nth-last-child(-n + 4) {
+			display: none;
+		}
+	}
+	@container graph-titlebar (max-width: 32rem) {
+		.titlebar__row--wrap .titlebar__group:nth-child(3) > :nth-last-child(-n + 5) {
+			display: none;
+		}
 	}
 
 	.titlebar__debugging > * {

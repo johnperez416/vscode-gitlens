@@ -17,6 +17,7 @@ export class GlRefButton extends LitElement {
 
 			gl-button {
 				max-width: 100%;
+				min-width: 0;
 			}
 
 			gl-ref-name:not([icon]) {

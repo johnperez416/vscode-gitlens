@@ -94,13 +94,24 @@ export class ActionChip extends LitElement {
 				text-transform: var(--chip-text-transform, capitalize);
 			}
 
-			@container gl-action-chip-host (max-width: 400px) {
-				:host([auto-collapse]) ::slotted(*) {
-					display: none;
-				}
+			:host([truncate]) {
+				min-width: 0;
+				max-width: 100%;
+			}
+			:host([truncate]) ::slotted(*) {
+				display: inline-block;
+				max-width: 100%;
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				vertical-align: middle;
 			}
 		`,
 	];
+
+	@property({ type: Boolean, reflect: true })
+	truncate = false;
 
 	@property()
 	href?: string;
@@ -119,9 +130,6 @@ export class ActionChip extends LitElement {
 
 	@property({ type: Boolean })
 	disabled = false;
-
-	@property({ type: Boolean, attribute: 'auto-collapse', reflect: true })
-	autoCollapse = false;
 
 	@query('.chip')
 	private defaultFocusEl!: HTMLElement;

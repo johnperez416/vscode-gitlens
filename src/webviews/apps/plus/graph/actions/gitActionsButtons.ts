@@ -26,6 +26,16 @@ export class GitActionsButtons extends LitElement {
 				display: contents;
 			}
 
+			gl-push-pull-button,
+			gl-tooltip {
+				flex-shrink: 0;
+			}
+
+			gl-fetch-button {
+				flex-shrink: 1;
+				min-width: 3.2rem;
+			}
+
 			.wip-button {
 				padding: 0;
 				background-color: transparent;
@@ -145,7 +155,38 @@ export class GitActionsButtons extends LitElement {
 
 @customElement('gl-fetch-button')
 export class GlFetchButton extends LitElement {
-	static override styles = [linkBase, inlineCode, actionButton, ruleStyles];
+	static override styles = [
+		linkBase,
+		inlineCode,
+		actionButton,
+		ruleStyles,
+		css`
+			:host {
+				display: block;
+				min-width: 0;
+			}
+			gl-tooltip {
+				display: block;
+				min-width: 0;
+				max-width: 100%;
+			}
+			/* Use CSS Grid so the text column's min-content is 0,
+			   allowing the text to shrink and ellipsize without expanding
+			   the parent's intrinsic min-content beyond the icon size. */
+			.action-button {
+				display: grid;
+				grid-template-columns: auto minmax(0, 1fr);
+				align-items: center;
+				max-width: 100%;
+			}
+			.action-button__text {
+				display: block;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+		`,
+	];
 
 	@consume({ context: webviewContext })
 	private _webview!: WebviewContext;
@@ -170,8 +211,11 @@ export class GlFetchButton extends LitElement {
 			<gl-tooltip placement="bottom">
 				<a href=${this._webview.createCommandLink('gitlens.fetch:')} class="action-button">
 					<code-icon class="action-button__icon" icon="repo-fetch"></code-icon>
-					Fetch
-					${this.fetchedText ? html`<span class="action-button__small">(${this.fetchedText})</span>` : ''}
+					<span class="action-button__text"
+						><span class="action-button__label">Fetch</span>${this.fetchedText
+							? html` <span class="action-button__small">(${this.fetchedText})</span>`
+							: ''}</span
+					>
 				</a>
 				<span slot="content">
 					Fetch from ${this.upstream}

@@ -38,26 +38,30 @@ export class GlRepoButtonGroup extends GlElement {
 		refButtonBaseStyles,
 		truncatedButtonStyles,
 		css`
+			:host {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr);
+				min-width: 1.4rem;
+			}
+
+			:host([icons]) {
+				grid-template-columns: auto minmax(0, 1fr);
+				min-width: 3.6rem;
+			}
+
 			:host([icons='1']:not([expandable])) {
-				min-width: 7rem;
-			}
-
-			:host([icons='1'][expandable]) {
-				min-width: 0;
-			}
-
-			:host([icons='2']:not([expandable])) {
-				min-width: 9.4rem;
-			}
-
-			:host([icons='2'][expandable]) {
-				min-width: 5.6rem;
+				min-width: 3rem;
 			}
 
 			.indicator-dot {
 				--gl-indicator-color: green;
 				--gl-indicator-size: 0.4rem;
 				margin-left: -0.2rem;
+			}
+
+			gl-popover,
+			[part='provider-icon'] {
+				flex-shrink: 0;
 			}
 
 			/* :host([expandable]) .truncated-button {
