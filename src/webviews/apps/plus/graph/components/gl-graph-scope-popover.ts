@@ -252,8 +252,12 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 	}
 
 	private renderGraphFiltersSection() {
-		const { config, excludeTypes } = this.graphState;
+		const { config, excludeTypes, scope } = this.graphState;
 		const isVirtual = this.repo?.virtual === true;
+		const inScope = scope != null;
+		// In scope mode the graph always renders as first-parent (the scope view is meaningful only
+		// along the focused branch's first-parent line), so the checkbox is locked-on and disabled.
+		const simplifyChecked = inScope ? true : (config?.onlyFollowFirstParent ?? false);
 
 		// Toggle semantics: icon "active" (pressed/highlighted) means the ref type is SHOWN.
 		// Clicking toggles it off to hide.
@@ -315,7 +319,8 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 						<gl-checkbox
 							value="onlyFollowFirstParent"
 							@gl-change-value=${this.handleFilterChange}
-							?checked=${config?.onlyFollowFirstParent ?? false}
+							?checked=${simplifyChecked}
+							?disabled=${inScope}
 						>
 							Simplify Merge History
 						</gl-checkbox>

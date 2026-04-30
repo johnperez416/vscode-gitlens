@@ -853,6 +853,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 			cssVariables={props.theming?.cssVariables}
 			customFooterRow={footer}
 			dimMergeCommits={config.dimMergeCommits}
+			onlyFirstParent={props.scope != null ? true : Boolean(config.onlyFollowFirstParent)}
 			downstreamsByUpstream={props.downstreams}
 			enabledRefMetadataTypes={config.enabledRefMetadataTypes}
 			enabledScrollMarkerTypes={config.scrollMarkerTypes}

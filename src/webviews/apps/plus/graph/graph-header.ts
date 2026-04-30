@@ -175,6 +175,8 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 	hasSelectedCommit = false;
 
 	get hasFilters() {
+		// Scope mode forces first-parent rendering, so it always counts as a filter.
+		if (this.graphState.scope != null) return true;
 		if (this.graphState.config?.onlyFollowFirstParent) return true;
 		if (this.graphState.excludeTypes == null) return false;
 
