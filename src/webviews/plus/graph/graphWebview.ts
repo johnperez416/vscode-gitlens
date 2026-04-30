@@ -1,6 +1,7 @@
 import type { emptySetMarker, GraphRefOptData, GraphSearchMode } from '@gitkraken/gitkraken-components';
 import type { CancellationToken, ColorTheme, ConfigurationChangeEvent } from 'vscode';
 import { CancellationTokenSource, Disposable, env, ProgressLocation, Uri, window } from 'vscode';
+import { isClaudeAvailable } from '@env/providers.js';
 import { GitSearchError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
@@ -280,6 +281,7 @@ import {
 	ChooseRepositoryCommand,
 	DidChangeAvatarsNotification,
 	DidChangeBranchStateNotification,
+	DidChangeCanInstallClaudeHook,
 	DidChangeColumnsNotification,
 	DidChangeGraphConfigurationNotification,
 	DidChangeMcpBanner,
@@ -2466,6 +2468,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (['gitlens:gk:organization:ai:enabled', 'gitlens:gk:organization:drafts:enabled'].includes(key)) {
 			this.notifyDidChangeOrgSettings();
 		}
+		if (key === 'gitlens:agents:enabled') {
+			void this.notifyDidChangeCanInstallClaudeHook();
+		}
 	}
 
 	@trace({ args: false })
@@ -4370,6 +4375,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	@trace()
+	private async notifyDidChangeCanInstallClaudeHook() {
+		const canInstall = getContext('gitlens:agents:enabled', false) && (await isClaudeAvailable());
+		void this.host.notify(DidChangeCanInstallClaudeHook, canInstall);
+	}
+
+	@trace()
 	private async notifyDidChangeState(): Promise<boolean> {
 		if (!this.host.ready || !this.host.visible) {
 			this.host.addPendingIpcNotification(DidChangeNotification, this._ipcNotificationMap, this);
@@ -5280,6 +5291,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			orgSettings: this.getOrgSettings(),
 			overview: this.getOverviewData(),
 			mcpBannerCollapsed: this.getMcpBannerCollapsed(),
+			canInstallClaudeHook: getContext('gitlens:agents:enabled', false) && (await isClaudeAvailable()),
 			searchRequest: searchRequest,
 			detailsVisible: storedPanels?.details?.visible ?? true,
 			detailsPosition: storedPanels?.details?.position,

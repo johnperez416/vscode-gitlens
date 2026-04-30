@@ -12,6 +12,7 @@ import type {
 import {
 	DidChangeAvatarsNotification,
 	DidChangeBranchStateNotification,
+	DidChangeCanInstallClaudeHook,
 	DidChangeColumnsNotification,
 	DidChangeGraphConfigurationNotification,
 	DidChangeMcpBanner,
@@ -285,6 +286,7 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	private _enrichmentFingerprint: string | undefined;
 
 	mcpBannerCollapsed?: boolean | undefined;
+	canInstallClaudeHook?: boolean | undefined;
 
 	constructor(
 		host: ReactiveElementHost,
@@ -643,6 +645,10 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 
 			case DidChangeMcpBanner.is(msg):
 				this.updateState({ mcpBannerCollapsed: msg.params });
+				break;
+
+			case DidChangeCanInstallClaudeHook.is(msg):
+				this.updateState({ canInstallClaudeHook: msg.params });
 				break;
 
 			case DidChangeWorkingTreeNotification.is(msg):

@@ -26240,6 +26240,13 @@
             },
             {
               "kind": "field",
+              "name": "canInstallClaudeHook",
+              "type": {
+                "text": "boolean | undefined | undefined"
+              }
+            },
+            {
+              "kind": "field",
               "name": "columns",
               "type": {
                 "text": "State['columns']"
@@ -51915,6 +51922,15 @@
             },
             {
               "kind": "field",
+              "name": "canInstallClaudeHook",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "attribute": "can-install-claude-hook"
+            },
+            {
+              "kind": "field",
               "name": "collapsed",
               "type": {
                 "text": "boolean"
@@ -51960,6 +51976,14 @@
             }
           ],
           "attributes": [
+            {
+              "name": "can-install-claude-hook",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "fieldName": "canInstallClaudeHook"
+            },
             {
               "name": "canAutoRegister",
               "type": {

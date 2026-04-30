@@ -7,6 +7,7 @@
  */
 
 import { Disposable } from 'vscode';
+import { isClaudeAvailable } from '@env/providers.js';
 import type { Container } from '../../../container.js';
 import { mcpRegistrationAllowed } from '../../../plus/gk/utils/-webview/mcp.utils.js';
 import { configuration } from '../../../system/-webview/configuration.js';
@@ -59,12 +60,16 @@ export class AIService {
 				Disposable.from(
 					configuration.onDidChange(e => {
 						if (configuration.changed(e, ['ai.enabled', 'gitkraken.mcp.autoEnabled'])) {
-							buffered(this.#getAIState());
+							void this.#getAIState().then(buffered);
 						}
 					}),
 					onDidChangeContext(key => {
-						if (key === 'gitlens:gk:organization:ai:enabled' || key === 'gitlens:gk:cli:installed') {
-							buffered(this.#getAIState());
+						if (
+							key === 'gitlens:gk:organization:ai:enabled' ||
+							key === 'gitlens:gk:cli:installed' ||
+							key === 'gitlens:agents:enabled'
+						) {
+							void this.#getAIState().then(buffered);
 						}
 					}),
 				),
@@ -90,10 +95,12 @@ export class AIService {
 	 * Get the current AI and MCP enablement state.
 	 */
 	getState(): Promise<AIState> {
-		return Promise.resolve(this.#getAIState());
+		return this.#getAIState();
 	}
 
-	#getAIState(): AIState {
+	async #getAIState(): Promise<AIState> {
+		const agentsEnabled = getContext('gitlens:agents:enabled', false);
+		const canInstallClaudeHook = agentsEnabled && (await isClaudeAvailable());
 		return {
 			enabled: this.#container.ai.enabled,
 			orgEnabled: getContext('gitlens:gk:organization:ai:enabled', true),
@@ -102,6 +109,7 @@ export class AIService {
 				settingEnabled: configuration.get('gitkraken.mcp.autoEnabled'),
 				installed: getContext('gitlens:gk:cli:installed', false),
 			},
+			hooks: { canInstallClaudeHook: canInstallClaudeHook },
 		};
 	}
 

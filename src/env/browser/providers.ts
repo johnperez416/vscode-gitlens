@@ -56,6 +56,8 @@ export function getAgentSessionProviders(_container: Container): AgentSessionPro
 	return [];
 }
 
+export { isClaudeAvailable } from './agents/detectClaude.js';
+
 export function getMcpProviders(_container: Container): Promise<Disposable[] | undefined> {
 	return Promise.resolve(undefined);
 }

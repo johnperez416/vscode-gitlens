@@ -96,6 +96,8 @@ export function getGkCliIntegrationProvider(container: Container): GkCliIntegrat
 	return new GkCliIntegrationProvider(container);
 }
 
+export { isClaudeAvailable } from './agents/detectClaude.js';
+
 export async function getMcpProviders(container: Container): Promise<Disposable[] | undefined> {
 	if (mcpRegistrationEnabled(container)) {
 		if (supportsMcpExtensionRegistration()) {

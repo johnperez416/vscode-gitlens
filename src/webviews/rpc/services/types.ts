@@ -159,6 +159,11 @@ export interface AIState {
 		readonly settingEnabled: boolean;
 		readonly installed: boolean;
 	};
+	/** AI hooks state — whether a hook-supporting agent is detected. */
+	readonly hooks: {
+		/** True if the `claude` CLI is on PATH. Drives the banner's "Install Claude Hook" secondary action. */
+		readonly canInstallClaudeHook: boolean;
+	};
 }
 
 // ============================================================

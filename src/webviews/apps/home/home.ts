@@ -616,7 +616,13 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 		if (!this._onboardingState.banners.mcpBanner) return nothing;
 
 		const aiState = this._aiState.state.get();
-		return html` <gl-mcp-banner source="home" .canAutoRegister=${aiState.mcp.bundled}></gl-mcp-banner> `;
+		return html`
+			<gl-mcp-banner
+				source="home"
+				.canAutoRegister=${aiState.mcp.bundled}
+				.canInstallClaudeHook=${aiState.hooks.canInstallClaudeHook}
+			></gl-mcp-banner>
+		`;
 	}
 
 	private renderMain(): unknown {

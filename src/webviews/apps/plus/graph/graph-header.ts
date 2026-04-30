@@ -1002,6 +1002,16 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 								<strong>Install GitKraken MCP for GitLens</strong> <br />
 								Leverage Git and Integration information from GitLens in AI chat.
 								<a href="https://help.gitkraken.com/mcp/mcp-getting-started">Learn more</a>
+								${when(
+									state.canInstallClaudeHook,
+									() => html`
+										<br /><br />
+										<a href=${createCommandLink('gitlens.agents.installClaudeHook')}
+											>Install Claude Hook</a
+										>
+										to let GitLens intercept Claude Code permission requests.
+									`,
+								)}
 							</div>
 						</gl-popover>
 					`,
