@@ -6,7 +6,7 @@ import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import type { GitTag } from '@gitlens/git/models/tag.js';
 import type { GitRefsSubProvider } from '@gitlens/git/providers/refs.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
-import { isShaWithOptionalRevisionSuffix, isUncommitted } from '@gitlens/git/utils/revision.utils.js';
+import { isSha, isShaWithOptionalRevisionSuffix, isUncommitted } from '@gitlens/git/utils/revision.utils.js';
 import { isCancellationError } from '@gitlens/utils/cancellation.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import { getScopedLogger } from '@gitlens/utils/logger.scoped.js';
@@ -48,6 +48,9 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 				{
 					cwd: repoPath,
 					cancellation: cancellation,
+					// Why: ref1/ref2 are usually branch names; correctness relies on the gitResults cache being
+					// cleared on 'heads'/'remotes' events when refs move. Web (no fs watcher) sees up to
+					// `accessTTL` of staleness — acceptable trade-off for the perf win on graph/branch reads.
 					caching: { cache: this.cache.gitResults, options: { accessTTL: 5 * 60 * 1000 } },
 				},
 				'merge-base',
@@ -106,7 +109,15 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		const supportsEndOfOptions = await this.git.supports('git:rev-parse:end-of-options');
 
 		const result = await this.git.exec(
-			{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
+			{
+				cwd: repoPath,
+				cancellation: cancellation,
+				errors: 'ignore',
+				// Why: a fixed ref name's symbolic name is itself stable; only HEAD is mutable, and the
+				// gitResults cache is cleared on 'head' events. 60s TTL is the failsafe for watcher
+				// latency / web — matches the other "resolve symbolic state" calls in commits.ts.
+				caching: { cache: this.cache.gitResults, options: { accessTTL: 60 * 1000 } },
+			},
 			'rev-parse',
 			'--verify',
 			'--quiet',
@@ -164,12 +175,20 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 
 		const supportsEndOfOptions = await this.git.supports('git:rev-parse:end-of-options');
 
+		// Why: a SHA-only validation (no path suffix) is effectively immutable — 5-min TTL is safe.
+		// Otherwise the resolved SHA can shift on ref move (or working-tree change for path-scoped
+		// validation); rely on gitResults being cleared on 'head'/'heads'/'remotes' events, with 60s
+		// TTL as the failsafe for watcher latency / web.
+		const stable = relativePath == null && isSha(ref);
 		const result = await this.git.exec(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
 				errors: 'ignore',
-				caching: { cache: this.cache.gitResults, options: { accessTTL: 5 * 60 * 1000 } },
+				caching: {
+					cache: this.cache.gitResults,
+					options: { accessTTL: stable ? 5 * 60 * 1000 : 60 * 1000 },
+				},
 			},
 			'rev-parse',
 			'--verify',

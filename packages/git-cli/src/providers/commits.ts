@@ -137,7 +137,18 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 	): Promise<{ authorDate: Date; committerDate: Date } | undefined> {
 		const parser = getShaAndDatesLogParser();
 		const result = await this.git.exec(
-			{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
+			{
+				cwd: repoPath,
+				cancellation: cancellation,
+				errors: 'ignore',
+				// Why: full SHAs identify immutable commits (5-min TTL is safe). Non-SHA refs rely on
+				// gitResults being cleared on 'head'/'heads'/'remotes' events; the 60s TTL is the
+				// failsafe for watcher latency / web (no fs watcher).
+				caching: {
+					cache: this.cache.gitResults,
+					options: { accessTTL: isSha(rev) ? 5 * 60 * 1000 : 60 * 1000 },
+				},
+			},
 			'log',
 			'-1',
 			...parser.arguments,

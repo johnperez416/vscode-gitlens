@@ -78,7 +78,7 @@ export interface GitCommitReachability {
 export interface GitCommitsSubProvider {
 	getCommit(repoPath: string, rev: string, cancellation?: AbortSignal): Promise<GitCommit | undefined>;
 	getCommitCount(repoPath: string, rev: string, cancellation?: AbortSignal): Promise<number | undefined>;
-	/** Cheap author/committer date lookup for a single ref. Skips the full commit parse (no files, parents, or message) — use when only the dates are needed. */
+	/** Cheap author/committer date lookup for a single revision. Skips the full commit parse (no files, parents, or message) — use when only the dates are needed. Pass a full SHA so caching stays correct (commits are immutable; refs are not). */
 	getCommitDates?(
 		repoPath: string,
 		rev: string,
