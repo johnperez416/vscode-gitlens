@@ -783,7 +783,7 @@ export class IntegrationService implements Disposable {
 		cancellation?: CancellationToken,
 		silent?: boolean,
 	): Promise<IntegrationResult<PullRequest[] | undefined>> {
-		const start = Date.now();
+		const start = performance.now();
 
 		const promises: Promise<IntegrationResult<PullRequest[] | undefined>>[] = [];
 		for (const [integration, repos] of integrations) {
@@ -816,7 +816,7 @@ export class IntegrationService implements Disposable {
 		return {
 			value: successfulResults,
 			error: error,
-			duration: Date.now() - start,
+			duration: performance.now() - start,
 		};
 	}
 

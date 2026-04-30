@@ -972,7 +972,7 @@ export class AIProviderService implements AIService, Disposable {
 		);
 		options?.generating?.fulfill(model);
 
-		const start = Date.now();
+		const start = performance.now();
 		const promise = (async (): Promise<AIProviderResponse<void> | 'cancelled' | undefined> => {
 			try {
 				const result = await (options?.progress != null
@@ -996,7 +996,7 @@ export class AIProviderService implements AIService, Disposable {
 				scope?.addExitInfo(`id: ${result?.id}`);
 				this.container.telemetry.sendEvent(
 					telementry.key,
-					{ ...telementry.data, duration: Date.now() - start, id: result?.id },
+					{ ...telementry.data, duration: performance.now() - start, id: result?.id },
 					source,
 				);
 
@@ -1012,7 +1012,7 @@ export class AIProviderService implements AIService, Disposable {
 						telementry.key,
 						{
 							...telementry.data,
-							duration: Date.now() - start,
+							duration: performance.now() - start,
 							failed: true,
 							'failed.reason': 'user-cancelled',
 						},
@@ -1028,7 +1028,7 @@ export class AIProviderService implements AIService, Disposable {
 						telementry.key,
 						{
 							...telementry.data,
-							duration: Date.now() - start,
+							duration: performance.now() - start,
 							failed: true,
 							'failed.error': String(ex),
 							'failed.error.detail': String(ex.original),
@@ -1171,7 +1171,7 @@ export class AIProviderService implements AIService, Disposable {
 					telementry.key,
 					{
 						...telementry.data,
-						duration: Date.now() - start,
+						duration: performance.now() - start,
 						failed: true,
 						'failed.error': String(ex),
 						'failed.error.detail': ex.original ? String(ex.original) : undefined,

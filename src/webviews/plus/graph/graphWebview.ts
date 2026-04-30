@@ -1797,7 +1797,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		// triggered by repo-change events during the bootstrap window waits on this op, then finds the
 		// state already fresh and skips the redundant getState/getGraph pipeline.
 		const op = this.getState(true).finally(() => {
-			this._lastStateSentAt = Date.now();
+			this._lastStateSentAt = performance.now();
 			this._pendingStateOp = undefined;
 		});
 		this._pendingStateOp = op;
@@ -3876,7 +3876,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		this.setSelectedRows(item?.id, params.selection, { selected: true, hidden: item?.hidden });
 
 		// Track when user explicitly selects
-		this._lastUserSelectionTime = Date.now();
+		this._lastUserSelectionTime = performance.now();
 		this._honorSelectedId = true;
 
 		this._fireSelectionChangedDebounced ??= debounce(this.fireSelectionChanged.bind(this), 50);
@@ -4380,7 +4380,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		// coalesces the rapid-fire notifies that follow bootstrap or repo subscription wiring, so legitimate
 		// changes that land during the window aren't silently lost.
 		if (this._lastStateSentAt != null) {
-			const elapsed = Date.now() - this._lastStateSentAt;
+			const elapsed = performance.now() - this._lastStateSentAt;
 			if (elapsed < GraphWebviewProvider.stateFreshnessMs) {
 				this._stateFreshnessRetryTimer ??= setTimeout(() => {
 					this._stateFreshnessRetryTimer = undefined;
@@ -4409,7 +4409,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				// `onRepositoryChanged` and the cold-open microtask.
 
 				const result = await this.host.notify(DidChangeNotification, { state: state });
-				this._lastStateSentAt = Date.now();
+				this._lastStateSentAt = performance.now();
 				return result;
 			} finally {
 				this._pendingStateNotify = undefined;
@@ -5105,7 +5105,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					this.setGraph(data);
 
 					// Don't override selection if user selected something in the last 500ms
-					const userRecentlySelected = Date.now() - this._lastUserSelectionTime < 500;
+					const userRecentlySelected = performance.now() - this._lastUserSelectionTime < 500;
 					if (!userRecentlySelected && this._selectedId !== data.id) {
 						selectionChanged = true;
 						this.setSelectedRows(data.id);

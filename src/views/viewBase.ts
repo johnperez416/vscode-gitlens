@@ -717,7 +717,7 @@ export abstract class ViewBase<
 			return;
 		}
 
-		const elapsed = Date.now() - this._lastTreeDataChangeAt;
+		const elapsed = performance.now() - this._lastTreeDataChangeAt;
 		if (elapsed < cooldownMs) {
 			await new Promise<void>(resolve => setTimeout(resolve, cooldownMs - elapsed));
 		}
@@ -1219,7 +1219,7 @@ export abstract class ViewBase<
 
 				this._onDidChangeTreeData.fire(target);
 				// Record when we fired so reveals can wait for VS Code's debounce
-				this._lastTreeDataChangeAt = Date.now();
+				this._lastTreeDataChangeAt = performance.now();
 			}
 		} finally {
 			this._processingNodeChanges = false;

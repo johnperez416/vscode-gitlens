@@ -1642,13 +1642,13 @@ export class GitProviderService implements UnifiedDisposable {
 		if (blameProvider == null) return undefined;
 
 		try {
-			const start = Date.now();
+			const start = performance.now();
 			const blame = await blameProvider.getBlame(path, uri.sha, undefined, this.getBlameOptions());
 
 			// Create snapshot so it's available for the very next call.
 			// The slow HEAD-content fetch (for HEAD-anchored baselines) runs in the background.
 			if (blame != null && uri.sha == null && doc != null && doc.blameSnapshot == null) {
-				doc.lastBlameDuration = Date.now() - start;
+				doc.lastBlameDuration = performance.now() - start;
 				doc.blameSnapshot = new BlameSnapshot(blame, document!.getText());
 				void this.upgradeBlameSnapshotToHead(doc, blame, document!, root, path);
 			}

@@ -419,8 +419,8 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 	private async waitForSearchComplete(timeoutMs: number = 30000): Promise<void> {
 		if (!this.graphState.searching) return;
 
-		const deadline = Date.now() + timeoutMs;
-		while (this.graphState.searching && Date.now() < deadline) {
+		const deadline = performance.now() + timeoutMs;
+		while (this.graphState.searching && performance.now() < deadline) {
 			// Wait for the next Lit render cycle — SignalWatcher triggers a
 			// re-render when `searching` changes, so updateComplete resolves
 			// once the new signal value is reflected.
@@ -829,9 +829,9 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 		id: string,
 		maxWaitMs: number = 1000,
 	): Promise<ReadonlyGraphRow[] | undefined> {
-		const startTime = Date.now();
+		const startTime = performance.now();
 
-		while (Date.now() - startTime < maxWaitMs) {
+		while (performance.now() - startTime < maxWaitMs) {
 			const rows = this.getCommits?.([id]);
 			if (rows != null) return rows;
 

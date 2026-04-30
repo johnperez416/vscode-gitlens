@@ -162,7 +162,7 @@ export class GlGraphHover extends GlElement {
 	private _showCoreDebounced: Deferrable<GlGraphHover['showCore']> | undefined = undefined;
 
 	onRowHovered(row: GraphRow, anchor: Anchor): void {
-		const showQuickly = Date.now() - this._lastUnhoveredTimestamp <= 750;
+		const showQuickly = performance.now() - this._lastUnhoveredTimestamp <= 750;
 		this.resetUnhoverTimer();
 
 		if (this.requestMarkdown == null) return;
@@ -254,7 +254,7 @@ export class GlGraphHover extends GlElement {
 	private _lastUnhoveredTimestamp = 0;
 
 	hide(): void {
-		this._lastUnhoveredTimestamp = Date.now();
+		this._lastUnhoveredTimestamp = performance.now();
 
 		this._showCoreDebounced?.cancel();
 		this.resetUnhoverTimer();

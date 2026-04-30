@@ -588,7 +588,7 @@ export class RebaseWebviewProvider implements Disposable {
 		params: IpcParams<typeof GetConflictsRequest>,
 	): Promise<IpcResponse<typeof GetConflictsRequest>> {
 		const { trigger, onto, commits, base, stopOnFirstConflict } = params;
-		const startTime = Date.now();
+		const startTime = performance.now();
 		const detection = trigger === 'initial' ? 'potential' : 'todo';
 
 		const subscription = await this.container.subscription.getSubscription();
@@ -598,7 +598,7 @@ export class RebaseWebviewProvider implements Disposable {
 
 		if (!commits?.length) {
 			this.host.sendTelemetryEvent('rebaseEditor/conflicts/detected', {
-				duration: Date.now() - startTime,
+				duration: performance.now() - startTime,
 				status: 'clean',
 				detection: detection,
 				'commits.count': 0,
@@ -613,7 +613,7 @@ export class RebaseWebviewProvider implements Disposable {
 				stopOnFirstConflict: trigger === 'initial' ? (stopOnFirstConflict ?? false) : false,
 			});
 
-			const duration = Date.now() - startTime;
+			const duration = performance.now() - startTime;
 			if (result?.status === 'conflicts') {
 				this.host.sendTelemetryEvent('rebaseEditor/conflicts/detected', {
 					duration: duration,
@@ -634,7 +634,7 @@ export class RebaseWebviewProvider implements Disposable {
 			return { conflicts: result };
 		} catch (ex) {
 			this.host.sendTelemetryEvent('rebaseEditor/conflicts/failed', {
-				duration: Date.now() - startTime,
+				duration: performance.now() - startTime,
 				'commits.count': commits.length,
 				error: ex instanceof Error ? ex.message : String(ex),
 			});
