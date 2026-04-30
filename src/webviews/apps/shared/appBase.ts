@@ -34,7 +34,7 @@ import { DOM } from './dom.js';
 import type { Disposable } from './events.js';
 import { createFocusTracker } from './focus.js';
 import type { HostIpcApi } from './ipc.js';
-import { getHostIpcApi, HostIpc } from './ipc.js';
+import { getHostIpcApi, getWebviewClientInfo, HostIpc } from './ipc.js';
 import { telemetryEventName } from './telemetry.js';
 import type { ThemeChangeEvent } from './theme.js';
 import { computeThemeColors, onDidChangeTheme, watchThemeColors } from './theme.js';
@@ -200,7 +200,7 @@ export abstract class SignalWatcherWebviewApp extends _SignalWatcherBase {
 		super.connectedCallback?.();
 
 		// Signal readiness to the host — triggers IPC flush and RPC expose()
-		void this._ipc.sendRequest(WebviewReadyRequest, { bootstrap: false });
+		void this._ipc.sendRequest(WebviewReadyRequest, { bootstrap: false, ...getWebviewClientInfo() });
 	}
 }
 
@@ -305,7 +305,7 @@ export abstract class App<
 					);
 				}
 
-				void this.sendRequest(WebviewReadyRequest, { bootstrap: false });
+				void this.sendRequest(WebviewReadyRequest, { bootstrap: false, ...getWebviewClientInfo() });
 
 				this.onInitialized?.();
 			} finally {

@@ -183,6 +183,9 @@ export class WebviewController<
 		return this._ready;
 	}
 
+	private _readyCount = 0;
+	private _lastHtmlSetAt: number | undefined;
+
 	/** Used to cancel pending ipc promise operations */
 	private cancellation: CancellationTokenSource | undefined;
 	private disposable: Disposable | undefined;
@@ -475,7 +478,12 @@ export class WebviewController<
 		if (loading) {
 			this.cancellation ??= new CancellationTokenSource();
 			try {
-				this.webview.html = await this.getHtml(this.webview);
+				const html = await this.getHtml(this.webview);
+				Logger.info(
+					`WebviewController(${this.id}|${this.instanceId}): webview.html set (reason=show:loading, length=${html.length})`,
+				);
+				this._lastHtmlSetAt = Date.now();
+				this.webview.html = html;
 			} catch (ex) {
 				if (isCancellationError(ex)) {
 					this.cancellation.cancel();
@@ -560,6 +568,10 @@ export class WebviewController<
 
 		if (force) {
 			// Reset the html to get the webview to reload
+			Logger.info(
+				`WebviewController(${this.id}|${this.instanceId}): webview.html set (reason=refresh:reset, length=0)`,
+			);
+			this._lastHtmlSetAt = Date.now();
 			this.webview.html = '';
 		}
 
@@ -572,6 +584,10 @@ export class WebviewController<
 			return;
 		}
 
+		Logger.info(
+			`WebviewController(${this.id}|${this.instanceId}): webview.html set (reason=refresh:apply, length=${html.length})`,
+		);
+		this._lastHtmlSetAt = Date.now();
 		this.webview.html = html;
 	}
 
@@ -592,7 +608,12 @@ export class WebviewController<
 		scope?.addExitInfo(`ipc (webview -> host) duration=${Date.now() - e.timestamp}ms`);
 
 		switch (true) {
-			case WebviewReadyRequest.is(e):
+			case WebviewReadyRequest.is(e): {
+				this._readyCount++;
+				const sinceLastHtmlSet = this._lastHtmlSetAt != null ? Date.now() - this._lastHtmlSetAt : -1;
+				Logger.info(
+					`WebviewController(${this.id}|${this.instanceId}): WebviewReadyRequest #${this._readyCount} (id=${e.id}, clientId=${e.params.clientId ?? '?'}, clientLoadedAt=${e.params.clientLoadedAt ?? '?'}, bootstrap=${e.params.bootstrap}, msgAge=${Date.now() - e.timestamp}ms, sinceLastHtmlSet=${sinceLastHtmlSet}ms, wasAlreadyReady=${this._ready}, parentVisible=${this.parent.visible})`,
+				);
 				this._ready = true;
 				this.exposeRpc();
 				void this.respond(WebviewReadyRequest, e, {
@@ -602,6 +623,7 @@ export class WebviewController<
 				void this.provider.onReady?.();
 
 				break;
+			}
 
 			case WebviewFocusChangedCommand.is(e):
 				this.onViewFocusChanged(e.params);
