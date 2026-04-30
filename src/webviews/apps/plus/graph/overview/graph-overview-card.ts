@@ -1,7 +1,7 @@
 import { consume } from '@lit/context';
 import type { TemplateResult } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
@@ -19,12 +19,14 @@ import type {
 	OverviewBranchEnrichment,
 	OverviewBranchIssue,
 	OverviewBranchLaunchpadItem,
+	OverviewBranchMergeTarget,
 	OverviewBranchWip,
 } from '../../../../shared/overviewBranches.js';
 import { renderBranchName } from '../../../shared/components/branch-name.js';
 import { srOnlyStyles } from '../../../shared/components/styles/lit/a11y.css.js';
 import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
+import '../../shared/components/merge-target-status.js';
 import '../../../shared/components/branch-icon.js';
 import '../../../shared/components/card/card.js';
 import '../../../shared/components/pills/agent-status-pill.js';
@@ -337,6 +339,14 @@ export class GlGraphOverviewCard extends LitElement {
 			gap: 0.4rem;
 		}
 
+		.hover__section--inline {
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: center;
+			justify-content: space-between;
+			gap: 0.6rem;
+		}
+
 		.hover__section + .hover__section {
 			padding-top: 0.6rem;
 			border-top: 1px solid var(--vscode-widget-border, transparent);
@@ -441,6 +451,16 @@ export class GlGraphOverviewCard extends LitElement {
 	@property({ type: Boolean, reflect: true })
 	scoped = false;
 
+	// Track when the rich hover has been shown at least once so <gl-merge-target-status>
+	// (which has its own popover/loading affordance) only mounts when the user actually opens
+	// the hover. The merge target data itself is already part of `enrichment` (eagerly fetched
+	// for the scope popover and indicator), so this defers rendering only — see #5170.
+	@state()
+	private _hoverShown = false;
+
+	private _mergeTargetPromise?: Promise<OverviewBranchMergeTarget | undefined>;
+	private _mergeTargetPromiseFor?: OverviewBranchMergeTarget;
+
 	get branchRef(): BranchRef {
 		return {
 			repoPath: this.branch.repoPath,
@@ -483,7 +503,7 @@ export class GlGraphOverviewCard extends LitElement {
 		// the sidebar in typical layouts) rather than into the editor's left margin. The
 		// popover's flip behavior auto-corrects when there isn't room.
 		return html`
-			<gl-popover hoist trigger="hover focus" placement="right">
+			<gl-popover hoist trigger="hover focus" placement="right" @gl-popover-show=${this.onPopoverShow}>
 				<gl-card
 					slot="anchor"
 					class=${cardClasses}
@@ -504,6 +524,25 @@ export class GlGraphOverviewCard extends LitElement {
 				<div slot="content" class="hover">${this.renderHoverContent()}</div>
 			</gl-popover>
 		`;
+	}
+
+	private readonly onPopoverShow = () => {
+		if (!this._hoverShown) {
+			this._hoverShown = true;
+		}
+	};
+
+	private getMergeTargetPromise(): Promise<OverviewBranchMergeTarget | undefined> | undefined {
+		const data = this.enrichment?.mergeTarget;
+		if (data == null) return undefined;
+		// Memoize per data reference — <gl-merge-target-status> short-circuits when targetPromise
+		// is the same reference, so we hand it the same Promise across re-renders unless the
+		// underlying enrichment changed.
+		if (this._mergeTargetPromiseFor !== data) {
+			this._mergeTargetPromiseFor = data;
+			this._mergeTargetPromise = Promise.resolve(data);
+		}
+		return this._mergeTargetPromise;
 	}
 
 	private renderBranchIcon() {
@@ -702,6 +741,17 @@ export class GlGraphOverviewCard extends LitElement {
 		`;
 	}
 
+	private renderHoverMergeTarget(): TemplateResult | typeof nothing {
+		// Only mount the chip after the user has actually opened the rich hover. The merge
+		// target data is in `enrichment` already (eagerly fetched for the scope popover and
+		// card indicator), so this defers DOM mount/loading affordance only — the underlying
+		// computation isn't deferred yet (#5170 follow-up).
+		if (!this._hoverShown) return nothing;
+		const promise = this.getMergeTargetPromise();
+		if (promise == null) return nothing;
+		return html`<gl-merge-target-status .branch=${this.branch} .targetPromise=${promise}></gl-merge-target-status>`;
+	}
+
 	private dedupedAutolinks(): NonNullable<OverviewBranchEnrichment['autolinks']> {
 		const autolinks = this.enrichment?.autolinks ?? [];
 		if (autolinks.length === 0) return [];
@@ -885,7 +935,8 @@ export class GlGraphOverviewCard extends LitElement {
 				</action-nav>`
 			: nothing;
 
-		return html`<div class="hover__section">
+		return html`<div class="hover__section hover__section--inline">
+			${this.renderHoverMergeTarget()}
 			<div class="hover__actions">
 				<action-nav>${branchActions}</action-nav>
 				${prActions}
