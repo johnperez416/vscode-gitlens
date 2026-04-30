@@ -13,7 +13,7 @@ import {
 	launchpadGroupIconMap,
 	launchpadGroupLabelMap,
 } from '../../../../../plus/launchpad/models/launchpad.js';
-import type { BranchRef, OpenWorktreeCommandArgs } from '../../../../home/protocol.js';
+import type { BranchRef } from '../../../../home/protocol.js';
 import type {
 	OverviewBranch,
 	OverviewBranchEnrichment,
@@ -688,18 +688,56 @@ export class GlGraphOverviewCard extends LitElement {
 	}
 
 	private renderInlineActions() {
-		const actions = [];
+		// Inline actions surface only the most-relevant single action per state. The full set
+		// (and PR-specific actions) live in the rich hover. Per #5170:
+		// - Opened (current/active) branches: state-aware sync (Pull/Push/Fetch). One action,
+		//   no alt-toggle — Pull/Fetch stay distinct so the click is unambiguous. NEVER Switch
+		//   or Open Worktree — the user is already on this branch.
+		// - Non-opened worktree branches: Open Worktree (new window default; alt-toggle to
+		//   open in current window).
+		// - Non-opened main-repo branches: Switch to Branch.
+		const actions: TemplateResult[] = [];
+		const opened = this.branch.opened;
+		const upstream = this.branch.upstream;
+		const tracking = upstream?.state;
+		const hasUpstream = upstream != null && !upstream.missing;
 
-		if (this.isWorktree) {
+		if (opened) {
+			if (hasUpstream) {
+				if (tracking?.behind) {
+					actions.push(
+						html`<action-item
+							label="Pull"
+							icon="repo-pull"
+							href=${this.createCommandLink('gitlens.graph.pull')}
+						></action-item>`,
+					);
+				} else if (tracking?.ahead) {
+					actions.push(
+						html`<action-item
+							label="Push"
+							icon="repo-push"
+							href=${this.createCommandLink('gitlens.graph.push')}
+						></action-item>`,
+					);
+				} else {
+					actions.push(
+						html`<action-item
+							label="Fetch"
+							icon="repo-fetch"
+							href=${this.createCommandLink('gitlens.fetch:')}
+						></action-item>`,
+					);
+				}
+			}
+		} else if (this.isWorktree) {
 			actions.push(
 				html`<action-item
 					label="Open Worktree in New Window"
 					alt-label="Open Worktree"
 					icon="empty-window"
 					alt-icon="browser"
-					href=${this.createCommandLink<OpenWorktreeCommandArgs>('gitlens.openWorktree:', {
-						location: 'newWindow',
-					})}
+					href=${this.createCommandLink('gitlens.openWorktreeInNewWindow:')}
 					alt-href=${this.createCommandLink('gitlens.openWorktree:')}
 				></action-item>`,
 			);
@@ -713,14 +751,7 @@ export class GlGraphOverviewCard extends LitElement {
 			);
 		}
 
-		actions.push(
-			html`<action-item
-				label="Fetch"
-				icon="repo-fetch"
-				href=${this.createCommandLink('gitlens.fetch:')}
-			></action-item>`,
-		);
-
+		if (actions.length === 0) return nothing;
 		return html`<action-nav class="branch-item__inline-actions">${actions}</action-nav>`;
 	}
 
@@ -877,19 +908,89 @@ export class GlGraphOverviewCard extends LitElement {
 	}
 
 	private renderHoverActions(hasPr: boolean) {
+		// Per-state action curation (#5170):
+		// - Opened (current/active) branches: state-aware sync (Push/Pull/Fetch) + Compare with
+		//   Working Tree + Open in Branches View. NEVER Switch or Open Worktree — already on it.
+		// - Non-opened worktree branches: state-aware sync + Open Worktree toggle (default new
+		//   window, alt same window) + Compare with HEAD + Open in Worktrees View. NEVER Switch.
+		// - Non-opened main-repo branches: state-aware sync + Switch to Branch + Compare with
+		//   HEAD + Open in Branches View. NEVER Open Worktree.
+		const opened = this.branch.opened;
+		const upstream = this.branch.upstream;
+		const tracking = upstream?.state;
+		const hasUpstream = upstream != null && !upstream.missing;
 		const branchActions: TemplateResult[] = [];
 
-		if (this.isWorktree) {
+		// Sync actions (state-aware, only when there's a usable upstream).
+		if (hasUpstream) {
+			if ((tracking?.behind ?? 0) > 0 && (tracking?.ahead ?? 0) > 0) {
+				branchActions.push(
+					html`<action-item
+						label="Pull"
+						icon="repo-pull"
+						href=${this.createCommandLink('gitlens.graph.pull')}
+					></action-item>`,
+					html`<action-item
+						label="Push"
+						icon="repo-push"
+						href=${this.createCommandLink('gitlens.graph.push')}
+					></action-item>`,
+				);
+			} else if ((tracking?.behind ?? 0) > 0) {
+				branchActions.push(
+					html`<action-item
+						label="Pull"
+						icon="repo-pull"
+						href=${this.createCommandLink('gitlens.graph.pull')}
+					></action-item>`,
+				);
+			} else if ((tracking?.ahead ?? 0) > 0) {
+				branchActions.push(
+					html`<action-item
+						label="Push"
+						icon="repo-push"
+						href=${this.createCommandLink('gitlens.graph.push')}
+					></action-item>`,
+				);
+			}
+			branchActions.push(
+				html`<action-item
+					label="Fetch"
+					icon="repo-fetch"
+					href=${this.createCommandLink('gitlens.fetch:')}
+				></action-item>`,
+			);
+		}
+
+		// Branch-state actions: Switch / Open Worktree / Compare with HEAD or Working Tree.
+		if (opened) {
+			branchActions.push(
+				html`<action-item
+					label="Compare with Working Tree"
+					icon="gl-compare-ref-working"
+					href=${this.createCommandLink('gitlens.graph.compareWithWorking')}
+				></action-item>`,
+			);
+		} else if (this.isWorktree) {
+			// Single toggle item — matches the inline overlay pattern: default opens in a new
+			// window (less disruptive to the current session); alt-modifier flips to opening
+			// in the current window.
 			branchActions.push(
 				html`<action-item
 					label="Open Worktree in New Window"
 					alt-label="Open Worktree"
 					icon="empty-window"
 					alt-icon="browser"
-					href=${this.createCommandLink<OpenWorktreeCommandArgs>('gitlens.openWorktree:', {
-						location: 'newWindow',
-					})}
+					href=${this.createCommandLink('gitlens.openWorktreeInNewWindow:')}
 					alt-href=${this.createCommandLink('gitlens.openWorktree:')}
+				></action-item>`,
+				html`<action-item
+					label="Compare with HEAD"
+					icon="compare-changes"
+					href=${this.createCommandLink('gitlens.graph.compareBranchWithHead')}
+					alt-label="Compare with Working Tree"
+					alt-icon="gl-compare-ref-working"
+					alt-href=${this.createCommandLink('gitlens.graph.compareWithWorking')}
 				></action-item>`,
 			);
 		} else {
@@ -899,15 +1000,19 @@ export class GlGraphOverviewCard extends LitElement {
 					icon="gl-switch"
 					href=${this.createCommandLink('gitlens.switchToBranch:')}
 				></action-item>`,
+				html`<action-item
+					label="Compare with HEAD"
+					icon="compare-changes"
+					href=${this.createCommandLink('gitlens.graph.compareBranchWithHead')}
+					alt-label="Compare with Working Tree"
+					alt-icon="gl-compare-ref-working"
+					alt-href=${this.createCommandLink('gitlens.graph.compareWithWorking')}
+				></action-item>`,
 			);
 		}
 
+		// Open in {Branches,Worktrees} View — last because it's a navigation, not a mutation.
 		branchActions.push(
-			html`<action-item
-				label="Fetch"
-				icon="repo-fetch"
-				href=${this.createCommandLink('gitlens.fetch:')}
-			></action-item>`,
 			html`<action-item
 				label=${this.isWorktree ? 'Open in Worktrees View' : 'Open in Branches View'}
 				icon="arrow-right"
