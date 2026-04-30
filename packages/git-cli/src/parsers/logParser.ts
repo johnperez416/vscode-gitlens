@@ -176,6 +176,10 @@ const stashMapping = {
 	parents: '%P',
 	stashName: '%gd',
 	summary: '%gs',
+	// %s (commit subject) is git's authoritative `On <branch>: …` / `WIP on <branch>: …` record,
+	// present even when the reflog message (%gs) was customized (autostash, `git stash store -m`).
+	// Used downstream to extract `stashOnRef` reliably.
+	commitSubject: '%s',
 };
 
 type StashLogParser = LogParser<typeof stashMapping>;

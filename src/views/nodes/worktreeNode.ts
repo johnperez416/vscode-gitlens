@@ -518,9 +518,12 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 
 	private _log: GitLog | undefined;
 	private async getLog() {
+		// Pass the worktree's branch name (when present) so stash filtering can match against
+		// `stashOnRef`. Detached / bare worktrees fall back to the SHA, which produces no metadata
+		// matches — those worktrees correctly show no inline stashes.
 		this._log ??= await this.view.container.git
 			.getRepositoryService(this.uri.repoPath!)
-			.commits.getLog(this.worktree.sha, {
+			.commits.getLog(this.worktree.branch?.name ?? this.worktree.sha, {
 				limit: this.limit ?? this.view.config.defaultItemLimit,
 				stashes: this.view.config.showStashes,
 			});

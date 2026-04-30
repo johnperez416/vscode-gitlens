@@ -112,9 +112,6 @@ interface SharedCaches {
 	remotes: PromiseMap<RepoPath, GitRemote[]> | undefined;
 	sharedBranches: PromiseMap<RepoPath, PagedResult<GitBranch>> | undefined;
 	stashes: RepoPromiseCacheMap<string, GitStash> | undefined;
-	stashParentTimestamps:
-		| PromiseMap<RepoPath, ReadonlyMap<string, { authorDate: number; committerDate: number }>>
-		| undefined;
 	tags: PromiseMap<RepoPath, PagedResult<GitTag>> | undefined;
 	worktrees: PromiseMap<RepoPath, GitWorktree[]> | undefined;
 }
@@ -143,7 +140,6 @@ const sharedCacheKeys: ReadonlySet<keyof AllCaches> = new Set(
 		'remotes',
 		'sharedBranches',
 		'stashes',
-		'stashParentTimestamps',
 		'tags',
 		'worktrees',
 	]),
@@ -187,7 +183,6 @@ function createEmptyCaches(): AllCaches {
 		remotes: undefined,
 		sharedBranches: undefined,
 		stashes: undefined,
-		stashParentTimestamps: undefined,
 		tags: undefined,
 		trackedPaths: undefined,
 		worktrees: undefined,
@@ -420,21 +415,6 @@ export class Cache implements Disposable {
 		}));
 	}
 
-	/**
-	 * Cache for parent commit timestamps of stashes — populated lazily by `getStash` on the first
-	 * `reachableFrom`-having call. The set of parent SHAs is a function of the stash list, so this
-	 * is invalidated together with `stashes` (see `clearCaches('stashes')`).
-	 */
-	get stashParentTimestamps(): PromiseMap<
-		RepoPath,
-		ReadonlyMap<string, { authorDate: number; committerDate: number }>
-	> {
-		return (this._caches.stashParentTimestamps ??= new PromiseMap<
-			RepoPath,
-			ReadonlyMap<string, { authorDate: number; committerDate: number }>
-		>());
-	}
-
 	get tags(): PromiseMap<RepoPath, PagedResult<GitTag>> {
 		return (this._caches.tags ??= new PromiseMap<RepoPath, PagedResult<GitTag>>());
 	}
@@ -565,7 +545,6 @@ export class Cache implements Disposable {
 
 			if (types.includes('stashes')) {
 				keysToClear.add('stashes');
-				keysToClear.add('stashParentTimestamps');
 			}
 			if (types.includes('status')) {
 				keysToClear.add('pausedOperationStatus');
@@ -1158,22 +1137,6 @@ export class Cache implements Disposable {
 				),
 			}),
 			options,
-		);
-	}
-
-	getStashParentTimestamps(
-		repoPath: string,
-		factory: (
-			commonPath: string,
-			cancellation?: AbortSignal,
-		) => PromiseOrValue<ReadonlyMap<string, { authorDate: number; committerDate: number }>>,
-		cancellation?: AbortSignal,
-	): Promise<ReadonlyMap<string, { authorDate: number; committerDate: number }>> {
-		const commonPath = this.getCommonPath(repoPath);
-		return this.stashParentTimestamps.getOrCreate(
-			commonPath,
-			(_cacheable, signal) => Promise.resolve(factory(commonPath, signal)),
-			cancellation,
 		);
 	}
 
