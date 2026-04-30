@@ -186,6 +186,7 @@ src/
     └── webviewController.ts  # Base controller for all webviews
 tests/                        # E2E and Unit tests
 walkthroughs/                 # Welcome and tips walkthroughs
+custom-elements.json          # Custom Elements Manifest - generated web component metadata
 ```
 
 > For detailed architecture (patterns, services, environment abstraction, webviews, build config): see `docs/architecture.md`

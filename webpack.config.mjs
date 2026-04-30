@@ -605,6 +605,11 @@ function getWebviewConfig(webviews, overrides, mode, env) {
 		plugins.push(new CompileComposerTemplatesPlugin());
 	}
 
+	// Keep `custom-elements.json` fresh during dev/watch builds (skipped in production and quick modes)
+	if (mode !== 'production' && !env.quick) {
+		plugins.push(new CustomElementsManifestPlugin());
+	}
+
 	let name = '';
 	let filePrefix = '';
 	if (Object.keys(webviews).length > 1) {
@@ -1442,5 +1447,57 @@ class CompileComposerTemplatesPlugin {
 			fs.writeFileSync(outPath, newContent, 'utf8');
 			console.log(`[CompileComposerTemplatesPlugin] Wrote ${outPath}`);
 		}
+	}
+}
+
+class CustomElementsManifestPlugin {
+	static name = 'CustomElementsManifestPlugin';
+
+	#firstRun = true;
+	#sourcePrefix = `${path.sep}src${path.sep}webviews${path.sep}apps${path.sep}`;
+
+	/**
+	 * @param {import('webpack').Compiler} compiler
+	 */
+	apply(compiler) {
+		compiler.hooks.afterEmit.tapAsync(CustomElementsManifestPlugin.name, (_compilation, callback) => {
+			// On the first compile, regenerate unconditionally to refresh any stale committed manifest.
+			// On subsequent compiles (watch mode), only regenerate when a webview source file changed.
+			if (!this.#firstRun) {
+				const changed = [...(compiler.modifiedFiles ?? []), ...(compiler.removedFiles ?? [])];
+				const relevant = changed.some(f => f.includes(this.#sourcePrefix) && /\.tsx?$/.test(f));
+				if (!relevant) {
+					callback();
+					return;
+				}
+			}
+			this.#firstRun = false;
+
+			const logger = compiler.getInfrastructureLogger(CustomElementsManifestPlugin.name);
+			try {
+				logger.log(`Generating 'custom-elements.json'...`);
+				const start = Date.now();
+
+				const result = spawnSync(pkgMgr, ['run', 'generate:customElements'], {
+					cwd: __dirname,
+					encoding: 'utf8',
+					shell: true,
+				});
+
+				if (result.status === 0) {
+					logger.log(`Generated 'custom-elements.json' in \x1b[32m${Date.now() - start}ms\x1b[0m`);
+				} else {
+					logger.warn(
+						`Failed to generate 'custom-elements.json' (exit ${result.status})${
+							result.stderr ? `: ${result.stderr.trim()}` : ''
+						}`,
+					);
+				}
+			} catch (ex) {
+				logger.warn(`Error generating 'custom-elements.json': ${ex}`);
+			}
+
+			callback();
+		});
 	}
 }

@@ -204,6 +204,7 @@ Pro features integrate with GitKraken accounts and require authentication via Su
 - Webview UI code in `src/webviews/apps/{webviewName}/`
 - Use IPC protocol for communication: `postMessage()` → `onIpc()`
 - Refresh webview without restarting extension during development
+- **Custom Elements Manifest** (`custom-elements.json`) - Powers Lit/Web Component language servers and MCP tools. Auto-regenerated during dev/watch webview builds. Commit the updated manifest alongside webview source changes.
 
 For accessibility requirements when creating or modifying webviews, see `docs/accessibility.md`.
 
