@@ -275,6 +275,169 @@ suite('GitQueue Test Suite', () => {
 			assert.strictEqual(queue.getStats().maxConcurrent, 10);
 		});
 	});
+
+	suite('cancellation', () => {
+		test('rejects immediately when signal is already aborted', async () => {
+			const queue = new GitQueue({ maxConcurrent: 2 });
+			const controller = new AbortController();
+			controller.abort(new Error('pre-aborted'));
+
+			let ran = false;
+			await assert.rejects(
+				queue.execute(
+					'normal',
+					async () => {
+						ran = true;
+					},
+					controller.signal,
+				),
+				(err: Error) => {
+					assert.strictEqual(err.message, 'pre-aborted');
+					return true;
+				},
+			);
+			assert.strictEqual(ran, false, 'fn must not run when signal is pre-aborted');
+		});
+
+		test('removes a queued command when its signal aborts before it runs', async () => {
+			const queue = new GitQueue({ maxConcurrent: 1 });
+
+			// Saturate the single slot with a blocking task
+			const blocker = deferred();
+			void queue.execute('normal', () => blocker.promise);
+			await new Promise(r => setTimeout(r, 10));
+
+			// Queue a task with an abortable signal
+			const controller = new AbortController();
+			let ran = false;
+			const queuedTask = queue.execute(
+				'normal',
+				async () => {
+					ran = true;
+				},
+				controller.signal,
+			);
+
+			// Confirm it's queued
+			assert.strictEqual(queue.getStats().queued.normal, 1);
+
+			// Abort while still queued
+			controller.abort(new Error('cancelled'));
+
+			await assert.rejects(queuedTask, (err: Error) => {
+				assert.strictEqual(err.message, 'cancelled');
+				return true;
+			});
+			assert.strictEqual(ran, false, 'aborted queued task must never run');
+			assert.strictEqual(queue.getStats().queued.normal, 0, 'aborted task must be removed from queue');
+
+			blocker.resolve();
+			await new Promise(r => setTimeout(r, 10));
+		});
+
+		test('does not interrupt a running task when its signal aborts mid-flight', async () => {
+			const queue = new GitQueue({ maxConcurrent: 2 });
+			const controller = new AbortController();
+
+			// Task starts running immediately (capacity available)
+			const taskDeferred = deferred();
+			let ran = false;
+			let aborted = false;
+			const task = queue.execute(
+				'normal',
+				async () => {
+					ran = true;
+					await taskDeferred.promise;
+					return 'done';
+				},
+				controller.signal,
+			);
+
+			// Wait for task to start
+			await new Promise(r => setTimeout(r, 10));
+			assert.strictEqual(ran, true);
+
+			// Abort once the task is running — the queue must not interrupt it
+			// (in-flight cancellation is the running operation's responsibility).
+			controller.abort();
+			try {
+				taskDeferred.resolve();
+				const result = await task;
+				assert.strictEqual(result, 'done');
+			} catch {
+				aborted = true;
+			}
+			assert.strictEqual(aborted, false, 'queue must not abort a task that is already running');
+		});
+
+		test('aborting one queued command does not affect siblings', async () => {
+			const queue = new GitQueue({ maxConcurrent: 1 });
+
+			const blocker = deferred();
+			void queue.execute('normal', () => blocker.promise);
+			await new Promise(r => setTimeout(r, 10));
+
+			const controllerA = new AbortController();
+			const controllerB = new AbortController();
+			let aRan = false;
+			let bRan = false;
+
+			const taskA = queue.execute(
+				'normal',
+				async () => {
+					aRan = true;
+				},
+				controllerA.signal,
+			);
+			const taskB = queue.execute(
+				'normal',
+				async () => {
+					bRan = true;
+				},
+				controllerB.signal,
+			);
+
+			assert.strictEqual(queue.getStats().queued.normal, 2);
+
+			// Abort only A
+			controllerA.abort(new Error('only A'));
+			await assert.rejects(taskA);
+			assert.strictEqual(queue.getStats().queued.normal, 1, 'B must remain queued');
+
+			blocker.resolve();
+			await taskB;
+			assert.strictEqual(aRan, false);
+			assert.strictEqual(bRan, true);
+		});
+
+		test('abort listener is detached when a task starts running', async () => {
+			// Sanity check: aborting *after* a task has already dequeued and started running
+			// must not throw or interfere with completion.
+			const queue = new GitQueue({ maxConcurrent: 2 });
+			const controller = new AbortController();
+			const taskDeferred = deferred();
+
+			const task = queue.execute(
+				'normal',
+				async () => {
+					await taskDeferred.promise;
+					return 'completed';
+				},
+				controller.signal,
+			);
+
+			// Wait for it to start
+			await new Promise(r => setTimeout(r, 10));
+
+			// Abort after it has dequeued — the listener must already be removed,
+			// so the queue takes no action; the task completes normally.
+			controller.abort();
+			taskDeferred.resolve();
+
+			const result = await task;
+			assert.strictEqual(result, 'completed');
+		});
+	});
 });
 
 suite('inferGitCommandPriority() Test Suite', () => {

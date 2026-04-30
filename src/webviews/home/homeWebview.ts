@@ -839,7 +839,7 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 	}
 
 	private async formatRepository(repo: GlRepository, signal?: AbortSignal): Promise<OverviewRepository> {
-		const remotes = await repo.git.remotes.getBestRemotesWithProviders();
+		const remotes = await repo.git.remotes.getBestRemotesWithProviders(signal);
 		signal?.throwIfAborted();
 		const remote = remotes.find(r => remoteSupportsIntegration(r)) ?? remotes[0];
 		return toRepositoryShapeWithProvider(repo, remote);
@@ -893,14 +893,20 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 	private async getBranchesData(repo: GlRepository, force = false, signal?: AbortSignal) {
 		if (force || !this._repositoryBranches.has(repo.path) || repo.etag !== this._etagRepository) {
 			signal?.throwIfAborted();
-			const worktrees = (await repo.git.worktrees?.getWorktrees()) ?? [];
+			const worktrees = (await repo.git.worktrees?.getWorktrees(signal)) ?? [];
 			signal?.throwIfAborted();
 			const worktreesByBranch = groupWorktreesByBranch(worktrees, { includeDefault: true });
 			const [branchesResult] = await Promise.allSettled([
-				repo.git.branches.getBranches({
-					filter: b => !b.remote,
-					sort: { current: true, openedWorktreesByBranch: getOpenedWorktreesByBranch(worktreesByBranch) },
-				}),
+				repo.git.branches.getBranches(
+					{
+						filter: b => !b.remote,
+						sort: {
+							current: true,
+							openedWorktreesByBranch: getOpenedWorktreesByBranch(worktreesByBranch),
+						},
+					},
+					signal,
+				),
 			]);
 			signal?.throwIfAborted();
 

@@ -81,6 +81,7 @@ export async function getContributorsInfo(
 export async function getBranchMergeTargetStatusInfo(
 	container: Container,
 	branch: GitBranch,
+	cancellation?: AbortSignal,
 ): Promise<OverviewBranchMergeTarget | undefined> {
 	const info = await getBranchMergeTargetInfo(container, branch, {
 		associatedPullRequest: getBranchAssociatedPullRequest(container, branch),
@@ -95,16 +96,18 @@ export async function getBranchMergeTargetStatusInfo(
 	if (target == null) return undefined;
 
 	const svc = container.git.getRepositoryService(branch.repoPath);
-	const targetBranch = await svc.branches.getBranch(target);
+	const targetBranch = await svc.branches.getBranch(target, cancellation);
 	// The tip SHA is required — without it the graph's scope anchor can't be placed.
 	if (targetBranch?.sha == null) return undefined;
 
 	const [countsResult, conflictResult, mergedStatusResult] = await Promise.allSettled([
-		svc.commits.getLeftRightCommitCount(createRevisionRange(targetBranch.name, branch.ref, '...'), {
-			excludeMerges: true,
-		}),
-		svc.branches.getPotentialMergeConflicts?.(branch.name, targetBranch.name),
-		svc.branches.getBranchMergedStatus?.(branch, targetBranch),
+		svc.commits.getLeftRightCommitCount(
+			createRevisionRange(targetBranch.name, branch.ref, '...'),
+			{ excludeMerges: true },
+			cancellation,
+		),
+		svc.branches.getPotentialMergeConflicts?.(branch.name, targetBranch.name, cancellation),
+		svc.branches.getBranchMergedStatus?.(branch, targetBranch, cancellation),
 	]);
 
 	const counts = getSettledValue(countsResult);
@@ -200,6 +203,8 @@ export async function getOverviewWip(
 ): Promise<GetOverviewWipResponse> {
 	if (branchIds.length === 0) return {};
 
+	const signal = options?.signal;
+
 	const branchesById = new Map<string, GitBranch>();
 	for (const branch of branches) {
 		if (branch.remote) continue;
@@ -216,9 +221,9 @@ export async function getOverviewWip(
 
 		const wt = worktreesByBranch.get(branchId);
 		if (wt != null) {
-			statusPromises.set(branchId, GitWorktree.getStatus(wt));
+			statusPromises.set(branchId, GitWorktree.getStatus(wt, signal));
 		} else if (branch.current) {
-			repoStatusPromise ??= container.git.getRepositoryService(branch.repoPath).status.getStatus();
+			repoStatusPromise ??= container.git.getRepositoryService(branch.repoPath).status.getStatus(signal);
 			statusPromises.set(branchId, repoStatusPromise);
 		}
 	}
@@ -230,7 +235,7 @@ export async function getOverviewWip(
 			const [statusResult, pausedOpStatusResult] = await Promise.allSettled([
 				statusPromise,
 				isActive
-					? container.git.getRepositoryService(branch.repoPath).pausedOps?.getPausedOperationStatus?.()
+					? container.git.getRepositoryService(branch.repoPath).pausedOps?.getPausedOperationStatus?.(signal)
 					: undefined,
 			]);
 
@@ -316,11 +321,15 @@ export async function getOverviewEnrichment(
 				getBranchOverview?.(branch, associatedPR) ??
 				container.git
 					.getRepositoryService(branch.repoPath)
-					.branches.getBranchContributionsOverview(branch.ref, { associatedPullRequest: associatedPR });
+					.branches.getBranchContributionsOverview(
+						branch.ref,
+						{ associatedPullRequest: associatedPR },
+						signal,
+					);
 			// Compute merge target for every enriched branch (not just the current one) so the graph's
 			// scope popover can render a merge-target anchor when the user focuses any branch, and so
 			// recent-branch cards can show merged status.
-			promises.mergeTarget = getBranchMergeTargetStatusInfo(container, branch);
+			promises.mergeTarget = getBranchMergeTargetStatusInfo(container, branch, signal);
 		}
 
 		enrichmentPromises.set(branchId, promises);

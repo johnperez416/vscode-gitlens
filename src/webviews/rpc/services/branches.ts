@@ -38,14 +38,14 @@ export class BranchesService {
 	): Promise<BranchMergeTargetStatus | undefined> {
 		signal?.throwIfAborted();
 		const svc = this.container.git.getRepositoryService(repoPath);
-		const branch = await svc.branches.getBranch(branchName);
+		const branch = await svc.branches.getBranch(branchName, signal);
 		signal?.throwIfAborted();
 		if (branch == null) return undefined;
 
 		const repo = this.container.git.getRepository(repoPath);
 		const [worktreesByBranch, mergeTarget] = await Promise.all([
 			repo != null ? getWorktreesByBranch(repo) : Promise.resolve(new Map<string, GitWorktree>()),
-			getBranchMergeTargetStatusInfo(this.container, branch),
+			getBranchMergeTargetStatusInfo(this.container, branch, signal),
 		]);
 		signal?.throwIfAborted();
 		const opened = branch.current || worktreesByBranch.get(branch.id)?.opened === true;
@@ -77,7 +77,7 @@ export class BranchesService {
 	): Promise<OverviewBranchIssue[]> {
 		signal?.throwIfAborted();
 		const svc = this.container.git.getRepositoryService(repoPath);
-		const branch = await svc.branches.getBranch(branchName);
+		const branch = await svc.branches.getBranch(branchName, signal);
 		signal?.throwIfAborted();
 		if (branch == null) return [];
 

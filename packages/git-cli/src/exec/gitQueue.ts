@@ -6,6 +6,8 @@ interface QueuedCommand {
 	reject: (reason: unknown) => void;
 	queuedAt: number;
 	priority: GitCommandPriority;
+	signal?: AbortSignal;
+	abortHandler?: () => void;
 }
 
 /** Priority levels in descending order (highest first) */
@@ -13,6 +15,10 @@ const priorities: GitCommandPriority[] = ['interactive', 'normal', 'background']
 
 /** How many extra slots interactive commands can use when at capacity */
 const interactiveBurstCapacity = 2;
+
+function abortReason(signal: AbortSignal): Error {
+	return signal.reason instanceof Error ? signal.reason : new Error('Aborted');
+}
 
 export interface GitQueueConfig {
 	/** Maximum number of concurrent git processes. Defaults to 7. */
@@ -67,6 +73,9 @@ export class GitQueue {
 		this._disposed = true;
 		for (const queue of this._queues.values()) {
 			for (const cmd of queue) {
+				if (cmd.signal != null && cmd.abortHandler != null) {
+					cmd.signal.removeEventListener('abort', cmd.abortHandler);
+				}
 				cmd.reject(new Error('GitQueue disposed'));
 			}
 			queue.length = 0;
@@ -115,14 +124,26 @@ export class GitQueue {
 		return false;
 	}
 
-	/** Execute a git command with the specified priority */
-	execute<T>(priority: GitCommandPriority, fn: () => Promise<T>): Promise<T> {
+	/**
+	 * Execute a git command with the specified priority.
+	 *
+	 * When `signal` is provided:
+	 * - If already aborted, rejects immediately without running.
+	 * - If aborted while queued, the command is removed from the queue and rejected before it ever runs.
+	 * - If aborted while running, the in-flight spawn must honor the same signal separately
+	 *   (callers pass it via `runOpts.cancellation`); the queue does not interrupt running work.
+	 */
+	execute<T>(priority: GitCommandPriority, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		if (this._disposed) {
 			return Promise.reject(new Error('GitQueue disposed'));
 		}
 
+		if (signal?.aborted) {
+			return Promise.reject(abortReason(signal));
+		}
+
 		if (!this.canExecuteNow(priority)) {
-			return this.enqueue(fn, priority);
+			return this.enqueue(fn, priority, signal);
 		}
 
 		return this.run(fn);
@@ -138,7 +159,7 @@ export class GitQueue {
 		}
 	}
 
-	private enqueue<T>(fn: () => Promise<T>, priority: GitCommandPriority): Promise<T> {
+	private enqueue<T>(fn: () => Promise<T>, priority: GitCommandPriority, signal?: AbortSignal): Promise<T> {
 		const queue = this._queues.get(priority)!;
 		const maxDepth = this._config.maxQueueDepth ?? 500;
 		if (maxDepth > 0 && queue.length >= maxDepth) {
@@ -146,13 +167,29 @@ export class GitQueue {
 		}
 
 		return new Promise<T>((resolve, reject) => {
-			queue.push({
+			const cmd: QueuedCommand = {
 				execute: fn,
 				resolve: resolve as (value: unknown) => void,
 				reject: reject,
 				queuedAt: Date.now(),
 				priority: priority,
-			});
+				signal: signal,
+			};
+
+			if (signal != null) {
+				cmd.abortHandler = () => {
+					const idx = queue.indexOf(cmd);
+					// If still queued, remove and reject so it never runs.
+					// If already dequeued, the running command should honor the signal at its own layer.
+					if (idx !== -1) {
+						queue.splice(idx, 1);
+						cmd.reject(abortReason(signal));
+					}
+				};
+				signal.addEventListener('abort', cmd.abortHandler, { once: true });
+			}
+
+			queue.push(cmd);
 		});
 	}
 
@@ -172,6 +209,13 @@ export class GitQueue {
 	}
 
 	private runQueued(cmd: QueuedCommand): void {
+		// Detach the abort listener now that the command has left the queue — any subsequent
+		// abort must be handled by the running spawn itself (via runOpts.cancellation).
+		if (cmd.signal != null && cmd.abortHandler != null) {
+			cmd.signal.removeEventListener('abort', cmd.abortHandler);
+			cmd.abortHandler = undefined;
+		}
+
 		const waitTime = Date.now() - cmd.queuedAt;
 		if (waitTime > 1000) {
 			this._hooks.onSlowQueue?.({

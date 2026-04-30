@@ -135,10 +135,10 @@ export class GitWorktree {
 			: GitWorktree.formatDateFromNow(worktree);
 	}
 
-	static async getStatus(worktree: GitWorktree): Promise<GitStatus | undefined> {
+	static async getStatus(worktree: GitWorktree, cancellation?: AbortSignal): Promise<GitStatus | undefined> {
 		if (worktree.type === 'bare') return undefined;
 		const repo = getRepositoryService(worktree.path);
-		return repo?.status.getStatus();
+		return repo?.status.getStatus(cancellation);
 	}
 
 	static async hasWorkingChanges(

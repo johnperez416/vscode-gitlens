@@ -731,7 +731,7 @@ export class Git {
 			// Execute through the queue (interactive/normal run immediately, background is throttled)
 			const gitPath = await this.path();
 			void this._queue
-				.execute(priority, () => runSpawn<T>(gitPath, args, encoding ?? 'utf8', runOpts))
+				.execute(priority, () => runSpawn<T>(gitPath, args, encoding ?? 'utf8', runOpts), cancellation)
 				.then(deferred.fulfill, (e: unknown) => deferred.cancel(e instanceof Error ? e : new Error(String(e))))
 				.finally(() => {
 					this.pendingCommands.delete(cacheKey);
