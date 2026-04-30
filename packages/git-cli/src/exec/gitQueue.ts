@@ -1,7 +1,7 @@
 import type { GitCommandPriority } from './exec.types.js';
 
 interface QueuedCommand {
-	execute: () => Promise<unknown>;
+	run: () => Promise<unknown>;
 	resolve: (value: unknown) => void;
 	reject: (reason: unknown) => void;
 	queuedAt: number;
@@ -98,7 +98,7 @@ export class GitQueue {
 	}
 
 	/** Check if a command at the given priority can execute immediately */
-	private canExecuteNow(priority: GitCommandPriority): boolean {
+	private canRunNow(priority: GitCommandPriority): boolean {
 		// Must yield to higher priority waiting
 		if (this.hasHigherPriorityWaiting(priority)) return false;
 
@@ -133,7 +133,7 @@ export class GitQueue {
 	 * - If aborted while running, the in-flight spawn must honor the same signal separately
 	 *   (callers pass it via `runOpts.cancellation`); the queue does not interrupt running work.
 	 */
-	execute<T>(priority: GitCommandPriority, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+	run<T>(priority: GitCommandPriority, fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		if (this._disposed) {
 			return Promise.reject(new Error('GitQueue disposed'));
 		}
@@ -142,14 +142,14 @@ export class GitQueue {
 			return Promise.reject(abortReason(signal));
 		}
 
-		if (!this.canExecuteNow(priority)) {
+		if (!this.canRunNow(priority)) {
 			return this.enqueue(fn, priority, signal);
 		}
 
-		return this.run(fn);
+		return this.runcore(fn);
 	}
 
-	private async run<T>(fn: () => Promise<T>): Promise<T> {
+	private async runcore<T>(fn: () => Promise<T>): Promise<T> {
 		this._activeCount++;
 		try {
 			return await fn();
@@ -168,7 +168,7 @@ export class GitQueue {
 
 		return new Promise<T>((resolve, reject) => {
 			const cmd: QueuedCommand = {
-				execute: fn,
+				run: fn,
 				resolve: resolve as (value: unknown) => void,
 				reject: reject,
 				queuedAt: Date.now(),
@@ -233,7 +233,7 @@ export class GitQueue {
 
 		this._activeCount++;
 		try {
-			cmd.execute()
+			cmd.run()
 				.then(cmd.resolve, cmd.reject)
 				.finally(() => {
 					this._activeCount--;

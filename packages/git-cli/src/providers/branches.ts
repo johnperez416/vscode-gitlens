@@ -99,7 +99,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 					? this.provider.pausedOps?.getPausedOperationStatus(repoPath, cancellation)
 					: undefined,
 				this.git
-					.exec(
+					.run(
 						{
 							cwd: repoPath,
 							cancellation: cancellation,
@@ -172,7 +172,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				const parser = getBranchParser(supported);
 
 				const [gitResult, defaultWorktreePathResult, metadataMapResult] = await Promise.allSettled([
-					this.git.exec(
+					this.git.run(
 						{ cwd: commonPath, cancellation: signal },
 						'for-each-ref',
 						...parser.arguments,
@@ -548,7 +548,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			params.push(options.name);
 		}
 
-		return this.git.exec(
+		return this.git.run(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -591,7 +591,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				let data: [string, string | undefined] | undefined;
 				let result;
 				try {
-					result = await this.git.exec(
+					result = await this.git.run(
 						{ cwd: repoPath, cancellation: signal, errors: 'throw' },
 						'rev-parse',
 						'--abbrev-ref',
@@ -610,7 +610,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 							data = [ex.stdout, undefined];
 						} else {
 							try {
-								result = await this.git.exec(
+								result = await this.git.run(
 									{ cwd: repoPath, cancellation: signal },
 									'symbolic-ref',
 									'--short',
@@ -657,7 +657,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 							}
 						}
 					} else if (GitWarnings.headNotABranch.test(msg)) {
-						result = await this.git.exec(
+						result = await this.git.run(
 							{
 								cwd: repoPath,
 								cancellation: signal,
@@ -715,7 +715,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			let retried = false;
 			while (true) {
 				try {
-					const result = await this.git.exec(
+					const result = await this.git.run(
 						{ cwd: commonPath, cancellation: cancellation },
 						'symbolic-ref',
 						'--short',
@@ -727,7 +727,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 						try {
 							if (!retried) {
 								retried = true;
-								await this.git.exec(
+								await this.git.run(
 									{ cwd: commonPath, cancellation: cancellation },
 									'remote',
 									'set-head',
@@ -737,7 +737,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 								continue;
 							}
 
-							const result = await this.git.exec(
+							const result = await this.git.run(
 								{ cwd: commonPath, cancellation: cancellation },
 								'ls-remote',
 								'--symref',
@@ -769,7 +769,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			args.push('--no-track');
 		}
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['heads']);
 		} catch (ex) {
@@ -795,7 +795,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		const branches = ensureArray(names);
 		const args = ['branch', options?.force ? '-D' : '-d', ...branches];
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['heads']);
 		} catch (ex) {
@@ -823,7 +823,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		const branches = ensureArray(names);
 		const args = ['push', '-d', remote, ...branches];
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['remotes']);
 		} catch (ex) {
@@ -917,7 +917,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		try {
 			// Check if branch is direct ancestor (handles FF merges)
 			try {
-				await this.git.exec(
+				await this.git.run(
 					{ cwd: repoPath, cancellation: cancellation, errors: 'throw' },
 					'merge-base',
 					'--is-ancestor',
@@ -930,7 +930,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			}
 
 			// Cherry-pick detection (handles cherry-picks, rebases, etc)
-			let result = await this.git.exec(
+			let result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation },
 				'cherry',
 				'--abbrev',
@@ -957,7 +957,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				undefined,
 				cancellation,
 			);
-			result = await this.git.exec({ cwd: repoPath, cancellation: cancellation }, 'diff', mergeBase, branch.name);
+			result = await this.git.run({ cwd: repoPath, cancellation: cancellation }, 'diff', mergeBase, branch.name);
 			if (result.stdout) {
 				// Create a temporary index file
 				await using disposableIndex = await this.provider.staging.createTemporaryIndex(
@@ -967,7 +967,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				);
 				const { env } = disposableIndex;
 
-				result = await this.git.exec(
+				result = await this.git.run(
 					{
 						cwd: repoPath,
 						cancellation: cancellation,
@@ -1030,7 +1030,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				const parentRefs = shas.map(c => `${c}^`);
 				let parentShas: string[];
 				try {
-					const result = await this.git.exec(
+					const result = await this.git.run(
 						{ cwd: repoPath, cancellation: signal, errors: 'throw' },
 						'rev-parse',
 						...parentRefs,
@@ -1075,7 +1075,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 
 				let data;
 				try {
-					const result = await this.git.exec(
+					const result = await this.git.run(
 						{ cwd: repoPath, cancellation: signal, errors: 'throw' },
 						'merge-tree',
 						'-z',
@@ -1148,7 +1148,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		let currentTreeOid: string;
 		try {
 			// Get the initial target branch tree OID
-			const treeResult = await this.git.exec(
+			const treeResult = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation, errors: 'throw' },
 				'rev-parse',
 				`${targetBranch}^{tree}`,
@@ -1174,7 +1174,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				//   - base = commit.parent (where the commit started)
 				//   - ours = currentTreeOid (current state of the target)
 				//   - theirs = commit.sha (what we're cherry-picking)
-				const result = await this.git.exec(
+				const result = await this.git.run(
 					{ cwd: repoPath, cancellation: cancellation, errors: 'throw' },
 					'merge-tree',
 					'--write-tree',
@@ -1309,7 +1309,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		cancellation?: AbortSignal,
 	): Promise<string | undefined> {
 		try {
-			let result = await this.git.exec(
+			let result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation },
 				'reflog',
 				ref,
@@ -1335,7 +1335,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			}
 
 			// Check if branch was created from HEAD
-			result = await this.git.exec(
+			result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation },
 				'reflog',
 				'HEAD',
@@ -1421,7 +1421,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	async renameBranch(repoPath: string, oldName: string, newName: string): Promise<void> {
 		const args = ['branch', '-m', oldName, newName];
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['heads']);
 		} catch (ex) {
@@ -1447,7 +1447,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		const args =
 			upstream == null ? ['branch', '--unset-upstream', name] : ['branch', '--set-upstream-to', upstream, name];
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['heads']);
 		} catch (ex) {

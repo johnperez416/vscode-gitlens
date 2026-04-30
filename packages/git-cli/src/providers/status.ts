@@ -142,7 +142,7 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 			);
 		}
 
-		return this.git.exec(
+		return this.git.run(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -168,7 +168,7 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 			const staged = options?.staged ?? true;
 			const unstaged = options?.unstaged ?? true;
 			if (staged || unstaged) {
-				const result = await this.git.exec(
+				const result = await this.git.run(
 					{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 					'diff',
 					'--quiet',
@@ -218,14 +218,14 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 		try {
 			const [stagedResult, unstagedResult, untrackedResult] = await Promise.allSettled([
 				// Check for staged changes
-				this.git.exec(
+				this.git.run(
 					{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 					'diff',
 					'--quiet',
 					'--staged',
 				),
 				// Check for unstaged changes
-				this.git.exec({ cwd: repoPath, cancellation: cancellation, errors: 'ignore' }, 'diff', '--quiet'),
+				this.git.run({ cwd: repoPath, cancellation: cancellation, errors: 'ignore' }, 'diff', '--quiet'),
 				// Check for untracked files
 				this.hasUntrackedFiles(repoPath, cancellation),
 			]);
@@ -279,7 +279,7 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 		const scope = getScopedLogger();
 
 		try {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 				'ls-files',
 				'-z',
@@ -337,7 +337,7 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 		const scope = getScopedLogger();
 
 		try {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 				'ls-files',
 				'-z',

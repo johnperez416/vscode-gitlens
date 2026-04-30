@@ -631,15 +631,15 @@ export class Git {
 		);
 	}
 
-	async exec(
+	async run(
 		options: ExitCodeOnlyGitCommandOptions,
 		...args: readonly (string | undefined)[]
 	): Promise<GitResult<unknown>>;
-	async exec<T extends string | Buffer = string>(
+	async run<T extends string | Buffer = string>(
 		options: GitExecOptions,
 		...args: readonly (string | undefined)[]
 	): Promise<GitResult<T>>;
-	async exec<T extends string | Buffer = string>(
+	async run<T extends string | Buffer = string>(
 		options: GitExecOptions,
 		...args: readonly (string | undefined)[]
 	): Promise<GitResult<T | unknown>> {
@@ -654,7 +654,7 @@ export class Git {
 				options.caching.commonPath ?? options.cwd!,
 				gitCommand,
 				async cacheable => {
-					const result = await this.execCore<T>({ ...options, caching: undefined }, runArgs, gitCommand);
+					const result = await this.runCore<T>({ ...options, caching: undefined }, runArgs, gitCommand);
 					if (result.exitCode !== 0) {
 						cacheable.invalidate();
 					}
@@ -664,10 +664,10 @@ export class Git {
 			);
 		}
 
-		return this.execCore<T>(options, runArgs, gitCommand);
+		return this.runCore<T>(options, runArgs, gitCommand);
 	}
 
-	private async execCore<T extends string | Buffer>(
+	private async runCore<T extends string | Buffer>(
 		options: GitExecOptions,
 		args: string[],
 		gitCommand: string,
@@ -731,7 +731,7 @@ export class Git {
 			// Execute through the queue (interactive/normal run immediately, background is throttled)
 			const gitPath = await this.path();
 			void this._queue
-				.execute(priority, () => runSpawn<T>(gitPath, args, encoding ?? 'utf8', runOpts), cancellation)
+				.run(priority, () => runSpawn<T>(gitPath, args, encoding ?? 'utf8', runOpts), cancellation)
 				.then(deferred.fulfill, (e: unknown) => deferred.cancel(e instanceof Error ? e : new Error(String(e))))
 				.finally(() => {
 					this.pendingCommands.delete(cacheKey);
@@ -966,7 +966,7 @@ export class Git {
 	}
 
 	async rev_parse__git_dir(cwd: string): Promise<{ path: string; commonPath?: string } | undefined> {
-		const result = await this.exec({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--git-dir', '--git-common-dir');
+		const result = await this.run({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--git-dir', '--git-common-dir');
 		if (!result.stdout) return undefined;
 
 		// Keep trailing spaces which are part of the directory name
@@ -998,7 +998,7 @@ export class Git {
 			// Check if the folder is a bare clone: if it has a file named HEAD && `rev-parse --show-cdup` is empty
 			if (await fsExists(joinPaths(cwd, 'HEAD'))) {
 				try {
-					result = await this.exec(
+					result = await this.run(
 						{ cwd: cwd, errors: 'throw', configs: ['-C', cwd] },
 						'rev-parse',
 						'--show-cdup',
@@ -1014,7 +1014,7 @@ export class Git {
 		}
 
 		try {
-			result = await this.exec({ cwd: cwd, errors: 'throw' }, 'rev-parse', '--show-toplevel');
+			result = await this.run({ cwd: cwd, errors: 'throw' }, 'rev-parse', '--show-toplevel');
 			// Make sure to normalize: https://github.com/git-for-windows/git/issues/2478
 			// Keep trailing spaces which are part of the directory name
 			return !result.stdout
@@ -1037,7 +1037,7 @@ export class Git {
 			const inDotGit = GitWarnings.mustRunInWorkTree.test(ex.stderr ?? '');
 			// Check if we are in a bare clone
 			if (inDotGit && this.options.isTrusted?.() !== false) {
-				result = await this.exec({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--is-bare-repository');
+				result = await this.run({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--is-bare-repository');
 				if (result.stdout.trim() === 'true') {
 					const result = await this.rev_parse__git_dir(cwd);
 					const repoPath = result?.commonPath ?? result?.path;

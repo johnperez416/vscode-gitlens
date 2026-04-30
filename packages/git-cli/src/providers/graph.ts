@@ -91,7 +91,7 @@ export class GraphGitSubProvider implements GitGraphSubProvider {
 		const [shaResult, stashResult, branchesResult, remotesResult, currentUserResult, worktreesResult] =
 			await Promise.allSettled([
 				!isUncommitted(rev, true)
-					? this.git.exec(
+					? this.git.run(
 							{ cwd: repoPath, configs: gitConfigsLog },
 							'log',
 							...shaParser.arguments,
@@ -463,7 +463,7 @@ export class GraphGitSubProvider implements GitGraphSubProvider {
 							}
 							args.push(`--${ordering}-order`, '--all');
 
-							const statsResult = await this.git.exec(
+							const statsResult = await this.git.run(
 								{ cwd: repoPath, configs: gitConfigsLog, stdin: stdin },
 								'log',
 								stdin ? '--stdin' : undefined,

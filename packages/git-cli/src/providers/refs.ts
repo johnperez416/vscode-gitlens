@@ -26,7 +26,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 	@debug()
 	async checkIfCouldBeValidBranchOrTagName(repoPath: string, ref: string): Promise<boolean> {
 		try {
-			const result = await this.git.exec({ cwd: repoPath, errors: 'throw' }, 'check-ref-format', '--branch', ref);
+			const result = await this.git.run({ cwd: repoPath, errors: 'throw' }, 'check-ref-format', '--branch', ref);
 			return Boolean(result.stdout.trim());
 		} catch {
 			return false;
@@ -44,7 +44,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		const scope = getScopedLogger();
 
 		try {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{
 					cwd: repoPath,
 					cancellation: cancellation,
@@ -108,7 +108,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 	): Promise<string | undefined> {
 		const supportsEndOfOptions = await this.git.supports('git:rev-parse:end-of-options');
 
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -180,7 +180,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		// validation); rely on gitResults being cleared on 'head'/'heads'/'remotes' events, with 60s
 		// TTL as the failsafe for watcher latency / web.
 		const stable = relativePath == null && isSha(ref);
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -203,7 +203,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		const scope = getScopedLogger();
 
 		try {
-			await this.git.exec({ cwd: repoPath, cancellation: cancellation }, 'update-ref', ref, newRef);
+			await this.git.run({ cwd: repoPath, cancellation: cancellation }, 'update-ref', ref, newRef);
 		} catch (ex) {
 			scope?.error(ex);
 			if (isCancellationError(ex)) throw ex;

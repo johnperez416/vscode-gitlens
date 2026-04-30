@@ -78,7 +78,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		}
 
 		try {
-			await this.git.exec({ cwd: repoPath }, ...params);
+			await this.git.run({ cwd: repoPath }, ...params);
 		} catch (ex) {
 			throw getGitCommandError(
 				'checkout',
@@ -112,7 +112,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		if (revs.length > 1) {
 			// Sort commits in topological order (oldest ancestor first) so cherry-pick applies them correctly
 			const revsSet = new Set(revs);
-			const result = await this.git.exec({ cwd: repoPath }, 'rev-list', '--topo-order', '--reverse', ...revs);
+			const result = await this.git.run({ cwd: repoPath }, 'rev-list', '--topo-order', '--reverse', ...revs);
 
 			const ordered: string[] = [];
 			for (const sha of result.stdout.trim().split('\n')) {
@@ -131,7 +131,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		args.push(...revs);
 
 		try {
-			await this.git.exec({ cwd: repoPath, errors: 'throw' }, ...args);
+			await this.git.run({ cwd: repoPath, errors: 'throw' }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'status');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['head', 'heads', 'index']);
 			return { conflicted: false };
@@ -194,7 +194,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		params.push('-F', '-');
 
 		try {
-			await this.git.exec({ cwd: repoPath, stdin: message, stdinEncoding: 'utf8', errors: 'throw' }, ...params);
+			await this.git.run({ cwd: repoPath, stdin: message, stdinEncoding: 'utf8', errors: 'throw' }, ...params);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'branches', 'status');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['head', 'heads', 'index']);
 		} catch (ex) {
@@ -276,7 +276,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		}
 
 		try {
-			await this.git.exec({ cwd: repoPath }, ...params);
+			await this.git.run({ cwd: repoPath }, ...params);
 		} catch (ex) {
 			throw getGitCommandError(
 				'fetch',
@@ -323,7 +323,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		args.push(ref);
 
 		try {
-			await this.git.exec(
+			await this.git.run(
 				// Avoid a timeout since merges can take a long time (set to 0 to disable)
 				{ cwd: repoPath, errors: 'throw', timeout: 0 },
 				...args,
@@ -412,7 +412,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		}
 
 		try {
-			await this.git.exec({ cwd: repoPath, configs: gitConfigsPull }, ...params);
+			await this.git.run({ cwd: repoPath, configs: gitConfigsPull }, ...params);
 		} catch (ex) {
 			await this.throwIfSigningError(repoPath, params, ex, options.source);
 			throw getGitCommandError(
@@ -497,7 +497,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 
 			// Since Git can't setup upstream tracking when publishing a new branch to a specific commit, do it now
 			if (setUpstream != null) {
-				await this.git.exec(
+				await this.git.run(
 					{ cwd: repoPath },
 					'branch',
 					'--set-upstream-to',
@@ -555,7 +555,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		}
 
 		try {
-			await this.git.exec({ cwd: repoPath }, ...params);
+			await this.git.run({ cwd: repoPath }, ...params);
 		} catch (ex) {
 			const error = getGitCommandError(
 				'push',
@@ -662,7 +662,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		}
 
 		try {
-			await this.git.exec(
+			await this.git.run(
 				// Avoid a timeout since rebases can take a long time (set to 0 to disable)
 				{ cwd: repoPath, errors: 'throw', configs: configs, timeout: 0 },
 				...args,
@@ -723,7 +723,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		params.push(rev, '--');
 
 		try {
-			await this.git.exec({ cwd: repoPath }, ...params);
+			await this.git.run({ cwd: repoPath }, ...params);
 		} catch (ex) {
 			throw getGitCommandError(
 				'reset',
@@ -754,7 +754,7 @@ export class OperationsGitSubProvider implements GitOperationsSubProvider {
 		args.push(...refs);
 
 		try {
-			await this.git.exec(
+			await this.git.run(
 				// Avoid a timeout since reverts can take a long time (set to 0 to disable)
 				{ cwd: repoPath, errors: 'throw', timeout: 0 },
 				...args,

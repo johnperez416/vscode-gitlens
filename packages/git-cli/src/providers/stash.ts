@@ -56,7 +56,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 		conflictCommand: 'stash-apply' | 'stash-pop',
 	): Promise<StashApplyResult> {
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'stashes');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['stash']);
 			return { conflicted: false };
@@ -93,7 +93,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 			args.push(message);
 		}
 
-		const result = await this.git.exec({ cwd: repoPath }, ...args);
+		const result = await this.git.run({ cwd: repoPath }, ...args);
 		return result.stdout.trim() || undefined;
 	}
 
@@ -135,7 +135,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 					args.push(`-M${similarityThreshold == null ? '' : `${similarityThreshold}%`}`);
 				}
 
-				const result = await this.git.exec({ cwd: repoPath, cancellation: signal }, 'stash', 'list', ...args);
+				const result = await this.git.run({ cwd: repoPath, cancellation: signal }, 'stash', 'list', ...args);
 
 				const currentUser = await this.provider.config.getCurrentUser(repoPath);
 
@@ -233,7 +233,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 		}
 
 		const parser = getStashFilesOnlyLogParser();
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{ cwd: repoPath, cancellation: cancellation },
 			'stash',
 			'show',
@@ -288,7 +288,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 
 		let result;
 		if (sha) {
-			result = await this.git.exec(
+			result = await this.git.run(
 				{ cwd: repoPath, errors: 'ignore' },
 				'show',
 				'--format=%H',
@@ -300,7 +300,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 			}
 		}
 
-		result = await this.git.exec({ cwd: repoPath }, 'stash', 'drop', stashName);
+		result = await this.git.run({ cwd: repoPath }, 'stash', 'drop', stashName);
 		return result.stdout;
 	}
 
@@ -313,7 +313,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 		stashOnRef?: string,
 	): Promise<void> {
 		await this.deleteStashCore(repoPath, stashName, sha);
-		await this.git.exec(
+		await this.git.run(
 			{ cwd: repoPath },
 			'stash',
 			'store',
@@ -423,7 +423,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 		}
 
 		try {
-			const result = await this.git.exec({ cwd: repoPath, stdin: stdin }, ...params);
+			const result = await this.git.run({ cwd: repoPath, stdin: stdin }, ...params);
 			if (GitErrors.stashNothingToSave.test(result.stdout)) {
 				throw new StashPushError({
 					reason: 'nothingToSave',
@@ -447,7 +447,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 
 	@debug()
 	async saveSnapshot(repoPath: string, message?: string): Promise<void> {
-		const result = await this.git.exec({ cwd: repoPath }, 'stash', 'create');
+		const result = await this.git.run({ cwd: repoPath }, 'stash', 'create');
 		const id = result.stdout.trim() || undefined;
 		if (id == null) return;
 
@@ -455,7 +455,7 @@ export class StashGitSubProvider implements GitStashSubProvider {
 		if (message) {
 			args.push('-m', message);
 		}
-		await this.git.exec({ cwd: repoPath }, 'stash', 'store', ...args, id);
+		await this.git.run({ cwd: repoPath }, 'stash', 'store', ...args, id);
 
 		this.context.hooks?.repository?.onChanged?.(repoPath, ['stash']);
 		this.context.hooks?.cache?.onReset?.(repoPath, 'stashes');

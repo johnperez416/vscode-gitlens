@@ -80,7 +80,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		message: string,
 		cancellation?: AbortSignal,
 	): Promise<string> {
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{ cwd: repoPath, cancellation: cancellation, errors: 'throw' },
 			'commit-tree',
 			tree,
@@ -111,7 +111,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 
 	@debug({ exit: true })
 	async getCommitCount(repoPath: string, rev: string, cancellation?: AbortSignal): Promise<number | undefined> {
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 			'rev-list',
 			'--count',
@@ -136,7 +136,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		cancellation?: AbortSignal,
 	): Promise<{ authorDate: Date; committerDate: Date } | undefined> {
 		const parser = getShaAndDatesLogParser();
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -171,7 +171,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 	@debug()
 	async getCommitFiles(repoPath: string, rev: string, cancellation?: AbortSignal): Promise<GitFileChange[]> {
 		const parser = getShaAndFilesAndStatsLogParser();
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			// Single-commit log is cheap and almost always serves a user-initiated read; override
 			// the inferred 'background' priority so it doesn't queue behind heavier graph/log work.
 			{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog, priority: 'normal' },
@@ -251,7 +251,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		const getCore = async (cacheable?: CacheController) => {
 			try {
 				// Use for-each-ref with %(HEAD) to mark current branch with *
-				const result = await this.git.exec(
+				const result = await this.git.run(
 					{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 					'for-each-ref',
 					'--contains',
@@ -353,7 +353,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		}
 
 		try {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog },
 				'log',
 				...args,
@@ -411,7 +411,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		// Initial commit SHA is shared across all worktrees
 		return this.cache.getInitialCommitSha(repoPath, async commonPath => {
 			try {
-				const result = await this.git.exec(
+				const result = await this.git.run(
 					{ cwd: commonPath, cancellation: cancellation, errors: 'ignore' },
 					'rev-list',
 					`--max-parents=0`,
@@ -443,7 +443,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 			: [];
 
 		const run = async (): Promise<LeftRightCommitCountResult | undefined> => {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 				'rev-list',
 				'--left-right',
@@ -641,7 +641,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 			};
 			let { commits, count, countStashChildCommits } = await parseCommits(
 				parser,
-				isSingleCommit ? this.git.exec(cmdOpts, ...args) : this.git.stream(cmdOpts, ...args),
+				isSingleCommit ? this.git.run(cmdOpts, ...args) : this.git.stream(cmdOpts, ...args),
 				repoPath,
 				pathspec,
 				limit,
@@ -669,7 +669,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 
 					({ commits, count, countStashChildCommits } = await parseCommits(
 						parser,
-						isSingleCommit ? this.git.exec(cmdOpts, ...args) : this.git.stream(cmdOpts, ...args),
+						isSingleCommit ? this.git.run(cmdOpts, ...args) : this.git.stream(cmdOpts, ...args),
 						repoPath,
 						pathspec,
 						limit,
@@ -1111,7 +1111,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 					args.push(pathspec);
 				}
 
-				const result = await this.git.exec(
+				const result = await this.git.run(
 					{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog },
 					'log',
 					...args,
@@ -1153,7 +1153,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 
 			const parser = getShaLogParser();
 
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog },
 				'log',
 				...parser.arguments,
@@ -1184,7 +1184,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 	async isAncestorOf(repoPath: string, rev1: string, rev2: string, cancellation?: AbortSignal): Promise<boolean> {
 		if (repoPath == null) return false;
 
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{ cwd: repoPath, cancellation: cancellation, errors: 'ignore' },
 			'merge-base',
 			'--is-ancestor',
@@ -1363,7 +1363,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		const scope = getScopedLogger();
 
 		try {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{
 					cwd: repoPath,
 					errors: 'ignore',
@@ -1390,7 +1390,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		const scope = getScopedLogger();
 
 		try {
-			const result = await this.git.exec(
+			const result = await this.git.run(
 				{
 					cwd: repoPath,
 					errors: 'ignore',

@@ -56,7 +56,7 @@ export class TagsGitSubProvider implements GitTagsSubProvider {
 				try {
 					const parser = getTagParser();
 
-					const result = await this.git.exec(
+					const result = await this.git.run(
 						{ cwd: repoPath, cancellation: signal },
 						'for-each-ref',
 						...parser.arguments,
@@ -130,7 +130,7 @@ export class TagsGitSubProvider implements GitTagsSubProvider {
 		const params: string[] = ['tag', '--format=%(refname:short)'];
 		params.push(options?.mode === 'pointsAt' ? `--points-at=${sha}` : `--contains=${sha}`);
 
-		return this.git.exec(
+		return this.git.run(
 			{
 				cwd: repoPath,
 				cancellation: cancellation,
@@ -149,7 +149,7 @@ export class TagsGitSubProvider implements GitTagsSubProvider {
 		}
 
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'tags');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['tags']);
 		} catch (ex) {
@@ -170,7 +170,7 @@ export class TagsGitSubProvider implements GitTagsSubProvider {
 		const args = ['tag', '-d', name];
 
 		try {
-			await this.git.exec({ cwd: repoPath }, ...args);
+			await this.git.run({ cwd: repoPath }, ...args);
 			this.context.hooks?.cache?.onReset?.(repoPath, 'tags');
 			this.context.hooks?.repository?.onChanged?.(repoPath, ['tags']);
 		} catch (ex) {

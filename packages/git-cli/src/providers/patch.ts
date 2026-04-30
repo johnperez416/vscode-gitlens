@@ -27,7 +27,7 @@ export class PatchGitSubProvider implements GitPatchSubProvider {
 		if (options?.threeWay) {
 			args.push('--3way');
 		}
-		await this.git.exec({ cwd: repoPath, stdin: patch }, ...args);
+		await this.git.run({ cwd: repoPath, stdin: patch }, ...args);
 	}
 
 	@debug()
@@ -209,7 +209,7 @@ export class PatchGitSubProvider implements GitPatchSubProvider {
 			const [signingConfigResult, applyResult] = await Promise.allSettled([
 				this.provider.config.getSigningConfig?.(repoPath),
 				// Apply the patch to our temp index, without touching the working directory
-				this.git.exec(
+				this.git.run(
 					{ cwd: repoPath, configs: gitConfigsLog, env: env, stdin: patch },
 					'apply',
 					'--cached',
@@ -224,7 +224,7 @@ export class PatchGitSubProvider implements GitPatchSubProvider {
 			_signingFormat = signingConfig?.format ?? 'gpg';
 
 			// Create a new tree from our patched index
-			let result = await this.git.exec({ cwd: repoPath, env: env }, 'write-tree');
+			let result = await this.git.run({ cwd: repoPath, env: env }, 'write-tree');
 			const tree = result.stdout.trim();
 
 			// Set the author if provided
@@ -247,7 +247,7 @@ export class PatchGitSubProvider implements GitPatchSubProvider {
 			args.push('-m', message);
 
 			// Create new commit from the tree
-			result = await this.git.exec({ cwd: repoPath, env: finalEnv }, ...args);
+			result = await this.git.run({ cwd: repoPath, env: finalEnv }, ...args);
 			const sha = result.stdout.trim();
 
 			if (shouldSign) {
@@ -274,19 +274,19 @@ export class PatchGitSubProvider implements GitPatchSubProvider {
 	}
 
 	async createEmptyInitialCommit(repoPath: string): Promise<string> {
-		const emptyTree = await this.git.exec({ cwd: repoPath, stdin: '' }, 'hash-object', '-t', 'tree', '--stdin');
-		const result = await this.git.exec({ cwd: repoPath }, 'commit-tree', emptyTree.stdout.trim(), '-m', 'temp');
+		const emptyTree = await this.git.run({ cwd: repoPath, stdin: '' }, 'hash-object', '-t', 'tree', '--stdin');
+		const result = await this.git.run({ cwd: repoPath }, 'commit-tree', emptyTree.stdout.trim(), '-m', 'temp');
 		// create refs/heads/main and point to it
-		await this.git.exec({ cwd: repoPath }, 'update-ref', 'refs/heads/main', result.stdout.trim());
+		await this.git.run({ cwd: repoPath }, 'update-ref', 'refs/heads/main', result.stdout.trim());
 		// point HEAD to the branch
-		await this.git.exec({ cwd: repoPath }, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+		await this.git.run({ cwd: repoPath }, 'symbolic-ref', 'HEAD', 'refs/heads/main');
 		return result.stdout.trim();
 	}
 
 	@debug({ args: repoPath => ({ repoPath: repoPath }) })
 	async validatePatch(repoPath: string | undefined, contents: string): Promise<boolean> {
 		try {
-			await this.git.exec({ cwd: repoPath, configs: gitConfigsLog, stdin: contents }, 'apply', '--check', '-');
+			await this.git.run({ cwd: repoPath, configs: gitConfigsLog, stdin: contents }, 'apply', '--check', '-');
 			return true;
 		} catch (ex) {
 			if (ex instanceof RunError || ex instanceof GitError) {

@@ -26,11 +26,11 @@ export class VslsGit extends Git {
 		this.localGit = new Git(locator, { isTrusted: () => workspace.isTrusted });
 	}
 
-	override async exec<T extends string | Buffer>(options: GitExecOptions, ...args: any[]): Promise<GitResult<T>> {
+	override async run<T extends string | Buffer>(options: GitExecOptions, ...args: any[]): Promise<GitResult<T>> {
 		if (options.runLocally) {
 			// Since we will have a live share path here, just blank it out
 			options.cwd = '';
-			return this.localGit.exec<T>(options, ...args);
+			return this.localGit.run<T>(options, ...args);
 		}
 
 		const guest = await Container.instance.vsls.guest();

@@ -99,7 +99,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		}
 		args.push(key);
 
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{ cwd: repoPath ?? '', errors: 'ignore', runLocally: options?.runGitLocally },
 			...args,
 		);
@@ -131,7 +131,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		}
 		args.push(pattern);
 
-		const result = await this.git.exec(
+		const result = await this.git.run(
 			{ cwd: repoPath ?? '', errors: 'ignore', runLocally: options?.runGitLocally },
 			...args,
 		);
@@ -169,7 +169,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 			args.push(key, value);
 		}
 
-		await this.git.exec({ cwd: repoPath ?? '', runLocally: true }, ...args);
+		await this.git.run({ cwd: repoPath ?? '', runLocally: true }, ...args);
 
 		// Only invalidate cache when not using a custom file (custom files aren't cached)
 		if (!options?.file) {
@@ -218,7 +218,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 
 			const author = `${user.name} <${user.email}>`;
 			// Check if there is a mailmap for the current user
-			const result = await this.git.exec({ cwd: repoPath, errors: 'ignore' }, 'check-mailmap', author);
+			const result = await this.git.run({ cwd: repoPath, errors: 'ignore' }, 'check-mailmap', author);
 
 			if (result.stdout && result.stdout !== author) {
 				const match = mappedAuthorRegex.exec(result.stdout);
@@ -475,7 +475,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		if (this.context.workspace?.isTrusted === false) {
 			try {
 				await fs.stat(joinPaths(cwd, 'HEAD'));
-				result = await this.git.exec(
+				result = await this.git.run(
 					{ cwd: cwd, errors: 'throw', configs: ['-C', cwd] },
 					'rev-parse',
 					'--show-cdup',
@@ -490,7 +490,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		}
 
 		try {
-			result = await this.git.exec(
+			result = await this.git.run(
 				{ cwd: cwd, errors: 'throw' },
 				'rev-parse',
 				'--show-toplevel',
@@ -551,7 +551,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 
 			const inDotGit = /this operation must be run in a work tree/.test(ex.stderr);
 			if (inDotGit && this.context.workspace?.isTrusted !== false) {
-				result = await this.git.exec({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--is-bare-repository');
+				result = await this.git.run({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--is-bare-repository');
 				if (result.stdout.trim() === 'true') {
 					const result = await this.revParseGitDir(cwd);
 					const repoPath = result?.commonPath ?? result?.path;
@@ -578,12 +578,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 	}
 
 	private async revParseGitDir(cwd: string): Promise<{ path: string; commonPath?: string } | undefined> {
-		const result = await this.git.exec(
-			{ cwd: cwd, errors: 'ignore' },
-			'rev-parse',
-			'--git-dir',
-			'--git-common-dir',
-		);
+		const result = await this.git.run({ cwd: cwd, errors: 'ignore' }, 'rev-parse', '--git-dir', '--git-common-dir');
 		if (!result.stdout) return undefined;
 
 		let [dotGitPath, commonDotGitPath] = result.stdout.split('\n').map(r => r.trimStart());
@@ -704,7 +699,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		// Remove legacy keys from regular git config (use --unset-all defensively)
 		for (const [key] of migrateConfig) {
 			try {
-				await this.git.exec(
+				await this.git.run(
 					{ cwd: repoPath, errors: 'ignore', runLocally: true },
 					'config',
 					'--local',

@@ -260,7 +260,7 @@ export class ContributorsGitSubProvider implements GitContributorsSubProvider {
 				}
 
 				const currentUserPromise = this.provider.config.getCurrentUser(repoPath).catch(() => undefined);
-				const result = await this.git.exec({ cwd: repoPath, cancellation: signal }, ...args);
+				const result = await this.git.run({ cwd: repoPath, cancellation: signal }, ...args);
 				if (!result.stdout) return [];
 
 				const shortlog = parseShortlog(result.stdout, commonPath, await currentUserPromise);
@@ -316,10 +316,7 @@ export class ContributorsGitSubProvider implements GitContributorsSubProvider {
 					args.push(`--since=${options.since}`);
 				}
 
-				const result = await this.git.exec(
-					{ cwd: commonPath, cancellation: signal, timeout: timeout },
-					...args,
-				);
+				const result = await this.git.run({ cwd: commonPath, cancellation: signal, timeout: timeout }, ...args);
 				if (!result.stdout) return undefined;
 
 				const contributions = result.stdout

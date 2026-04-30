@@ -48,7 +48,7 @@ export function git(
 	options: GitExecOptions,
 	...args: any[]
 ): Promise<GitResult<string | Buffer>> {
-	return ensureVslsGit().exec(options, ...args);
+	return ensureVslsGit().run(options, ...args);
 }
 
 export async function getSupportedGitProviders(

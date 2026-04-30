@@ -62,17 +62,17 @@ suite('BranchesGitSubProvider Test Suite', () => {
 		gitStub.supports.withArgs('git:merge-tree:write-tree').resolves(true);
 
 		// rev-parse to resolve all parent refs in a single call
-		gitStub.exec
+		gitStub.run
 			.withArgs(sinon.match.has('cwd', repoPath), 'rev-parse', 'commit1^', 'commit2^')
 			.resolves(createGitResult('parent1\nparent2'));
 
 		// rev-parse target^{tree} (initial tree)
-		gitStub.exec
+		gitStub.run
 			.withArgs(sinon.match.has('cwd', repoPath), 'rev-parse', `${target}^{tree}`)
 			.resolves(createGitResult('tree_0'));
 
 		// Step 1: commit1 - merge-tree --write-tree --merge-base (clean)
-		gitStub.exec
+		gitStub.run
 			.withArgs(
 				sinon.match.has('cwd', repoPath),
 				'merge-tree',
@@ -87,7 +87,7 @@ suite('BranchesGitSubProvider Test Suite', () => {
 			.resolves(createGitResult('tree_1\0'));
 
 		// Step 2: commit2 - merge-tree --write-tree --merge-base (CONFLICT)
-		gitStub.exec
+		gitStub.run
 			.withArgs(
 				sinon.match.has('cwd', repoPath),
 				'merge-tree',
@@ -119,17 +119,17 @@ suite('BranchesGitSubProvider Test Suite', () => {
 		gitStub.supports.withArgs('git:merge-tree:write-tree').resolves(true);
 
 		// rev-parse to resolve all parent refs in a single call
-		gitStub.exec
+		gitStub.run
 			.withArgs(sinon.match.has('cwd', repoPath), 'rev-parse', 'commit1^', 'commit2^', 'commit3^')
 			.resolves(createGitResult('parent1\nparent2\nparent3'));
 
 		// rev-parse target^{tree} (initial tree)
-		gitStub.exec
+		gitStub.run
 			.withArgs(sinon.match.has('cwd', repoPath), 'rev-parse', `${target}^{tree}`)
 			.resolves(createGitResult('tree_0'));
 
 		// Step 1: commit1 - CONFLICT on file1.txt
-		gitStub.exec
+		gitStub.run
 			.withArgs(
 				sinon.match.has('cwd', repoPath),
 				'merge-tree',
@@ -144,7 +144,7 @@ suite('BranchesGitSubProvider Test Suite', () => {
 			.resolves(createGitResult('tree_1\0file1.txt\0'));
 
 		// Step 2: commit2 - clean merge
-		gitStub.exec
+		gitStub.run
 			.withArgs(
 				sinon.match.has('cwd', repoPath),
 				'merge-tree',
@@ -159,7 +159,7 @@ suite('BranchesGitSubProvider Test Suite', () => {
 			.resolves(createGitResult('tree_2\0'));
 
 		// Step 3: commit3 - CONFLICT on file2.txt
-		gitStub.exec
+		gitStub.run
 			.withArgs(
 				sinon.match.has('cwd', repoPath),
 				'merge-tree',
@@ -200,7 +200,7 @@ suite('BranchesGitSubProvider Test Suite', () => {
 		const commits = ['root_commit'];
 
 		// rev-parse fails for root commit (no parent)
-		gitStub.exec
+		gitStub.run
 			.withArgs(sinon.match.has('cwd', repoPath), 'rev-parse', 'root_commit^')
 			.rejects(new Error('unknown revision'));
 
