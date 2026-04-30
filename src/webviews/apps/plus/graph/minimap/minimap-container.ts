@@ -44,17 +44,25 @@ export class GlGraphMinimapContainer extends GlElement {
 		:host {
 			display: block;
 			position: relative;
+			container-type: size;
 		}
 
 		.minimap-settings-wrapper {
 			position: absolute;
-			top: 8px;
-			right: 2px;
+			top: 0.5rem;
+			right: 0.125rem;
 			z-index: 2;
 			display: flex;
 			flex-direction: column;
 			align-items: flex-end;
-			gap: 6px;
+			gap: 0.125rem;
+		}
+
+		@container (max-height: 4rem) {
+			.minimap-settings-wrapper {
+				flex-direction: row-reverse;
+				align-items: center;
+			}
 		}
 
 		:host([collapsed]) .minimap-settings-wrapper {
@@ -67,8 +75,8 @@ export class GlGraphMinimapContainer extends GlElement {
 			border: none;
 			color: var(--color-foreground--75);
 			cursor: pointer;
-			padding: 2px;
-			border-radius: 3px;
+			padding: 0.125rem;
+			border-radius: 0.1875rem;
 			line-height: 1;
 		}
 
@@ -80,12 +88,12 @@ export class GlGraphMinimapContainer extends GlElement {
 		.minimap-datatype__label {
 			display: inline-flex;
 			align-items: center;
-			gap: 6px;
+			gap: 0.375rem;
 		}
 
 		.minimap-datatype__info {
 			color: var(--color-foreground--50);
-			font-size: 12px;
+			font-size: 0.75rem;
 		}
 
 		.minimap-datatype__info:hover {
@@ -96,7 +104,7 @@ export class GlGraphMinimapContainer extends GlElement {
 			display: inline-block;
 			width: 1rem;
 			height: 1rem;
-			border-radius: 2px;
+			border-radius: 0.125rem;
 			transform: scale(1.6);
 			margin-left: 0.3rem;
 			margin-right: 1rem;
