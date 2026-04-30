@@ -6,6 +6,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
 import { pluralize } from '@gitlens/utils/string.js';
+import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type { GlWebviewCommandsOrCommandsWithSuffix } from '../../../../../constants.commands.js';
 import {
 	launchpadCategoryToGroupMap,
@@ -26,6 +27,7 @@ import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
 import '../../../shared/components/branch-icon.js';
 import '../../../shared/components/card/card.js';
+import '../../../shared/components/pills/agent-status-pill.js';
 import '../../../shared/components/pills/tracking.js';
 import '../../../shared/components/commit/commit-stats.js';
 import '../../../shared/components/avatar/avatar-list.js';
@@ -260,6 +262,19 @@ export class GlGraphOverviewCard extends LitElement {
 			color: var(--vscode-descriptionForeground);
 		}
 
+		.branch-item__agents {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: 0.4rem;
+			flex-wrap: wrap;
+			font-size: 0.9em;
+		}
+
+		.branch-item__agents code-icon {
+			color: var(--vscode-descriptionForeground);
+		}
+
 		.branch-item__date {
 			margin-inline-end: auto;
 		}
@@ -420,6 +435,9 @@ export class GlGraphOverviewCard extends LitElement {
 	@property({ type: Object })
 	enrichment?: OverviewBranchEnrichment;
 
+	@property({ type: Array })
+	agentSessions?: AgentSessionState[];
+
 	@property({ type: Boolean, reflect: true })
 	scoped = false;
 
@@ -479,7 +497,7 @@ export class GlGraphOverviewCard extends LitElement {
 							<span class="branch-item__icon">${this.renderBranchIcon()}</span>
 							<span class="branch-item__name">${this.branch.name}</span>
 						</p>
-						${this.renderChanges()} ${this.renderPillsRow()}
+						${this.renderChanges()} ${this.renderAgentRow()} ${this.renderPillsRow()}
 					</div>
 					${this.renderInlineActions()}
 				</gl-card>
@@ -588,6 +606,16 @@ export class GlGraphOverviewCard extends LitElement {
 					: nothing}
 				${[...issues, ...autolinks].map(item => this.renderItemChip(item))}
 			</gl-chip-overflow>
+		</div>`;
+	}
+
+	private renderAgentRow() {
+		const sessions = this.agentSessions;
+		if (sessions == null || sessions.length === 0) return nothing;
+
+		return html`<div class="branch-item__agents">
+			<code-icon icon="hubot"></code-icon>
+			${sessions.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
 		</div>`;
 	}
 

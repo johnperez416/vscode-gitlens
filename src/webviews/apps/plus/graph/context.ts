@@ -1,4 +1,5 @@
 import { createContext } from '@lit/context';
+import type { AgentSessionState } from '../../../../agents/models/agentSessionState.js';
 import type {
 	GetOverviewWipResponse,
 	GraphScope,
@@ -13,6 +14,7 @@ export interface AppState extends State {
 	state: State;
 	activeDay: number | undefined;
 	activeRow: string | undefined;
+	agentSessions: AgentSessionState[];
 	isBusy: boolean;
 	loading: boolean;
 	mcpBannerCollapsed?: boolean | undefined;

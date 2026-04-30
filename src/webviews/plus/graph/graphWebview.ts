@@ -59,6 +59,7 @@ import {
 	pauseOnCancelOrTimeoutMapTuplePromise,
 } from '@gitlens/utils/promise.js';
 import { Stopwatch } from '@gitlens/utils/stopwatch.js';
+import type { AgentSessionState } from '../../../agents/models/agentSessionState.js';
 import type { CreatePullRequestActionContext, OpenPullRequestActionContext } from '../../../api/gitlens.d.js';
 import { getAvatarUri } from '../../../avatars.js';
 import { parseCommandContext } from '../../../commands/commandContext.utils.js';
@@ -279,6 +280,7 @@ import {
 	ChooseFileRequest,
 	ChooseRefRequest,
 	ChooseRepositoryCommand,
+	DidChangeAgentSessionsNotification,
 	DidChangeAvatarsNotification,
 	DidChangeBranchStateNotification,
 	DidChangeCanInstallClaudeHook,
@@ -305,6 +307,7 @@ import {
 	DidStartFeaturePreviewNotification,
 	DoubleClickedCommand,
 	EnsureRowRequest,
+	GetAgentSessionsRequest,
 	GetCountsRequest,
 	GetMissingAvatarsCommand,
 	GetMissingRefsMetadataCommand,
@@ -550,6 +553,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				},
 			},
 			this.container.integrations.onDidChangeConnectionState(this.onIntegrationConnectionChanged, this),
+			this.container.agentStatus?.onDidChangeSerializedSessions(this.onAgentSessionsChanged, this) ?? {
+				dispose: () => {},
+			},
 		);
 	}
 
@@ -1943,6 +1949,15 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			resolveLaunchpad: true,
 			getBranchOverview: (branch, associatedPullRequest) => this.getBranchOverview(branch, associatedPullRequest),
 		});
+	}
+
+	@ipcRequest(GetAgentSessionsRequest)
+	private onGetAgentSessions(): AgentSessionState[] {
+		return this.container.agentStatus?.getSerializedSessions() ?? [];
+	}
+
+	private onAgentSessionsChanged(sessions: AgentSessionState[]): void {
+		void this.host.notify(DidChangeAgentSessionsNotification, { sessions: sessions });
 	}
 
 	@ipcRequest(GetWipStatsRequest)

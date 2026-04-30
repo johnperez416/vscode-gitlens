@@ -39,6 +39,7 @@ import type { ProviderReference } from '@gitlens/git/models/remoteProvider.js';
 import type { SearchQuery } from '@gitlens/git/models/search.js';
 import type { RepositoryVisibility } from '@gitlens/git/providers/types.js';
 import type { DateTimeFormat } from '@gitlens/utils/date.js';
+import type { AgentSessionState } from '../../../agents/models/agentSessionState.js';
 import type { Config, DateStyle, GraphBranchesVisibility, GraphMultiSelectionMode } from '../../../config.js';
 import type { FeaturePreview } from '../../../features.js';
 import type { RepositoryShape } from '../../../git/models/repositoryShape.js';
@@ -562,6 +563,8 @@ export const GetOverviewEnrichmentRequest = new IpcRequest<GetOverviewEnrichment
 	'overview/enrichment/get',
 );
 
+export const GetAgentSessionsRequest = new IpcRequest<void, AgentSessionState[]>(scope, 'agentSessions/get');
+
 export interface GetWipStatsParams {
 	shas: string[];
 	/**
@@ -717,6 +720,14 @@ export interface DidChangeOverviewWipParams {
 export const DidChangeOverviewWipNotification = new IpcNotification<DidChangeOverviewWipParams>(
 	scope,
 	'overview/wip/didChange',
+);
+
+export interface DidChangeAgentSessionsParams {
+	sessions: AgentSessionState[];
+}
+export const DidChangeAgentSessionsNotification = new IpcNotification<DidChangeAgentSessionsParams>(
+	scope,
+	'agentSessions/didChange',
 );
 
 export interface DidChangeRepoConnectionParams {

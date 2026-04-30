@@ -4,6 +4,7 @@ import { css, html, LitElement, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { when } from 'lit/directives/when.js';
+import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type {
 	GetOverviewEnrichmentResponse,
 	GetOverviewWipResponse,
@@ -14,6 +15,7 @@ import {
 	GetOverviewRequest,
 	GetOverviewWipRequest,
 } from '../../../../plus/graph/protocol.js';
+import type { OverviewBranch } from '../../../../shared/overviewBranches.js';
 import { scrollableBase } from '../../../shared/components/styles/lit/base.css.js';
 import { ipcContext } from '../../../shared/contexts/ipc.js';
 import type { HostIpc } from '../../../shared/ipc.js';
@@ -240,6 +242,8 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	private renderCards(branches: GraphOverviewData['active']) {
 		if (!branches.length) return nothing;
 
+		const allSessions = this._state.agentSessions;
+
 		return html`
 			<div class="cards">
 				${repeat(
@@ -250,12 +254,34 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 							.branch=${b}
 							.wip=${this._wipData[b.id]}
 							.enrichment=${this._enrichmentData[b.id]}
+							.agentSessions=${matchAgentSessionsForBranch(allSessions, b)}
 						></gl-graph-overview-card>
 					`,
 				)}
 			</div>
 		`;
 	}
+}
+
+function matchAgentSessionsForBranch(
+	sessions: AgentSessionState[] | undefined,
+	branch: OverviewBranch,
+): AgentSessionState[] | undefined {
+	if (sessions == null || sessions.length === 0) return undefined;
+
+	const matches = sessions.filter(session => {
+		if (session.branch !== branch.name) return false;
+		if (session.workspacePath !== branch.repoPath) return false;
+		// Cross-check worktree info when both sides have it — guards against two same-named branches
+		// in different worktrees colliding.
+		if (session.worktreeName != null && branch.worktree != null) {
+			const worktreeBasename = branch.worktree.uri.split('/').pop() ?? '';
+			if (session.worktreeName !== worktreeBasename) return false;
+		}
+		return true;
+	});
+
+	return matches.length > 0 ? matches : undefined;
 }
 
 function filterToKeys<T>(record: Record<string, T>, keep: Set<string>): Record<string, T> {

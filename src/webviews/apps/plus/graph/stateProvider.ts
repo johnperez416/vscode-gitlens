@@ -10,6 +10,7 @@ import type {
 	State,
 } from '../../../plus/graph/protocol.js';
 import {
+	DidChangeAgentSessionsNotification,
 	DidChangeAvatarsNotification,
 	DidChangeBranchStateNotification,
 	DidChangeCanInstallClaudeHook,
@@ -34,6 +35,7 @@ import {
 	DidRequestOpenCompareModeNotification,
 	DidSearchNotification,
 	DidStartFeaturePreviewNotification,
+	GetAgentSessionsRequest,
 	GetOverviewEnrichmentRequest,
 	ResolveGraphScopeRequest,
 } from '../../../plus/graph/protocol.js';
@@ -266,6 +268,9 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	@signalState()
 	accessor overview: State['overview'];
 
+	@signalState<AppState['agentSessions']>([])
+	accessor agentSessions: AppState['agentSessions'] = [];
+
 	@signalState()
 	accessor overviewWip: AppState['overviewWip'];
 
@@ -321,6 +326,10 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 		// Enrichment is fetched lazily when a consumer needs it (the overview sidebar mounting,
 		// the scope popover opening, or per-branch on-demand via `ensureEnrichmentForBranch`)
 		// rather than eagerly at bootstrap, where it competes with the graph render itself.
+
+		void this.ipc.sendRequest(GetAgentSessionsRequest, undefined).then(sessions => {
+			this.agentSessions = sessions;
+		});
 	}
 
 	ensureOverviewEnrichmentFetched(overview: State['overview']): void {
@@ -641,6 +650,10 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 
 			case DidChangeOverviewWipNotification.is(msg):
 				this.overviewWip = msg.params.wip;
+				break;
+
+			case DidChangeAgentSessionsNotification.is(msg):
+				this.agentSessions = msg.params.sessions;
 				break;
 
 			case DidChangeMcpBanner.is(msg):
