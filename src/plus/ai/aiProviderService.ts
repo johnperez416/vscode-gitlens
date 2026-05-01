@@ -1000,6 +1000,10 @@ export class AIProviderService implements AIService, Disposable {
 					source,
 				);
 
+				if (result != null && supportedAIProviders.get(model.provider.id)?.requiresUserKey) {
+					void this.reportBYOKUsage(action, result);
+				}
+
 				if (!isGkModel) {
 					void this.showAiAllAccessNotificationIfNeeded();
 				}
@@ -1183,6 +1187,30 @@ export class AIProviderService implements AIService, Disposable {
 		})();
 
 		return { model: model, promise: promise };
+	}
+
+	private async reportBYOKUsage(action: AIActionType, response: AIProviderResponse<void>): Promise<void> {
+		const model = response.model;
+		const promptTokens = response.usage?.promptTokens;
+		const completionTokens = response.usage?.completionTokens;
+		const totalTokens = response.usage?.totalTokens ?? (promptTokens ?? 0) + (completionTokens ?? 0);
+
+		// API requires total_tokens >= 1
+		if (totalTokens < 1) return;
+
+		try {
+			await this.connection.fetchGkApi('v1/ai-tasks/usage/reports', {
+				method: 'POST',
+				body: JSON.stringify({
+					provider: model.provider.id,
+					model: model.id,
+					task_type: 'message-prompt',
+					action: action,
+					total_tokens: totalTokens,
+					...(promptTokens != null && { input_tokens: promptTokens }),
+				}),
+			});
+		} catch {}
 	}
 
 	/**
