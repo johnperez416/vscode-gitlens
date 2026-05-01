@@ -10,7 +10,7 @@ import {
 	isDirectiveQuickPickItem,
 } from '../../../../quickpicks/items/directive.js';
 import type { McpAgent } from './mcpAgents.js';
-import { getSelectableAgents } from './mcpAgents.js';
+import { getDetectedAgents } from './mcpAgents.js';
 
 type McpAgentQuickPickItem = QuickPickItemOfT<McpAgent>;
 type McpAgentPickItem = McpAgentQuickPickItem | DirectiveQuickPickItem;
@@ -19,9 +19,10 @@ export async function showMcpAgentPicker(
 	cliPath?: string,
 	options?: { showEmptyState?: boolean },
 ): Promise<McpAgent[] | undefined> {
-	const agents = await getSelectableAgents(cliPath);
+	const detected = await getDetectedAgents(cliPath);
+	const selectable = detected.filter(a => !a.installed);
 
-	if (agents.length === 0 && !options?.showEmptyState) return undefined;
+	if (selectable.length === 0 && !options?.showEmptyState) return undefined;
 
 	const deferred = defer<McpAgent[] | undefined>();
 	const disposables: Disposable[] = [];
@@ -45,13 +46,16 @@ export async function showMcpAgentPicker(
 		quickpick.title = 'Connect GitKraken MCP to Agents';
 		quickpick.matchOnDescription = true;
 
-		if (agents.length === 0) {
-			quickpick.placeholder = 'No additional MCP agents were detected on your machine';
+		if (selectable.length === 0) {
+			quickpick.placeholder =
+				detected.length === 0
+					? 'No additional MCP agents were detected on your machine'
+					: 'All detected agents have the GitKraken MCP installed';
 			quickpick.items = [createDirectiveQuickPickItem(Directive.Cancel)];
 		} else {
 			quickpick.placeholder = 'Select agents to install the GitKraken MCP server for';
 			quickpick.canSelectMany = true;
-			quickpick.items = agents
+			quickpick.items = selectable
 				.map(agent => ({
 					label: agent.displayName,
 					iconPath: new ThemeIcon('terminal'),

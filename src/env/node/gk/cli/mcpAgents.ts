@@ -9,6 +9,7 @@ export interface McpAgent {
 	readonly name: string;
 	readonly displayName: string;
 	readonly detected: boolean;
+	readonly installed: boolean;
 }
 
 /** Known IDE agent IDs to exclude from the MCP agent picker */
@@ -25,7 +26,7 @@ const ideAgentIds = new Set([
 ]);
 
 /** Queries the CLI for the list of detected MCP agents, excluding IDE agents */
-export async function getSelectableAgents(cliPath?: string): Promise<McpAgent[]> {
+export async function getDetectedAgents(cliPath?: string): Promise<McpAgent[]> {
 	try {
 		const output = await runCLICommand(
 			['mcp', 'install', '--list', '--json'],
@@ -46,7 +47,7 @@ export async function getSelectableAgents(cliPath?: string): Promise<McpAgent[]>
 		for (const item of parsed as unknown[]) {
 			if (item == null || typeof item !== 'object') continue;
 
-			const agent = item as McpAgent;
+			const agent = item as Partial<McpAgent>;
 			if (
 				typeof agent.name === 'string' &&
 				typeof agent.displayName === 'string' &&
@@ -54,7 +55,12 @@ export async function getSelectableAgents(cliPath?: string): Promise<McpAgent[]>
 				agent.detected &&
 				!ideAgentIds.has(agent.name)
 			) {
-				agents.push(agent);
+				agents.push({
+					name: agent.name,
+					displayName: agent.displayName,
+					detected: agent.detected,
+					installed: agent.installed === true,
+				});
 			}
 		}
 		return agents;
