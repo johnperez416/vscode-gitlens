@@ -40,8 +40,6 @@ import '../../../shared/components/overlays/tooltip.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/actions/action-item.js';
 import '../../../shared/components/actions/action-nav.js';
-import '../../../shared/components/chips/autolink-chip.js';
-import '../../../shared/components/chips/chip-overflow.js';
 
 function getBranchCardIndicator(
 	branch: OverviewBranch,
@@ -220,6 +218,7 @@ export class GlGraphOverviewCard extends LitElement {
 		}
 
 		.branch-item__grouping {
+			position: relative;
 			display: inline-flex;
 			align-items: center;
 			gap: 0.6rem;
@@ -255,7 +254,7 @@ export class GlGraphOverviewCard extends LitElement {
 			text-decoration: none;
 		}
 
-		.branch-item__changes {
+		.branch-item__meta {
 			display: flex;
 			align-items: center;
 			gap: 0.8rem;
@@ -264,16 +263,34 @@ export class GlGraphOverviewCard extends LitElement {
 			color: var(--vscode-descriptionForeground);
 		}
 
-		.branch-item__agents {
-			display: flex;
-			flex-direction: row;
+		.branch-item__meta-left {
+			display: inline-flex;
 			align-items: center;
-			gap: 0.4rem;
-			flex-wrap: wrap;
-			font-size: 0.9em;
+			gap: 0.8rem;
+			min-width: 0;
 		}
 
-		.branch-item__agents code-icon {
+		.branch-item__meta-right {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.6rem;
+			margin-inline-start: auto;
+		}
+
+		.branch-item__wip {
+			display: inline-flex;
+			align-items: center;
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.branch-item__count {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.3rem;
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.branch-item__count code-icon {
 			color: var(--vscode-descriptionForeground);
 		}
 
@@ -281,16 +298,19 @@ export class GlGraphOverviewCard extends LitElement {
 			margin-inline-end: auto;
 		}
 
-		.branch-item__pills {
-			margin-block-start: 0.1rem;
-		}
-
 		.branch-item__inline-actions {
+			/* Anchored to row 1 (grouping is position: relative). Absolute so it floats over the
+			   branch name on hover without pushing layout. Spans grouping height and centers
+			   content via flex — using transform here would create a containing block for the
+			   action-item hoisted (fixed-positioned) tooltip and clip it. */
 			position: absolute;
 			z-index: 2;
-			right: 0.4rem;
-			bottom: 0.3rem;
-			padding: 0.2rem 0.4rem;
+			top: 0;
+			bottom: 0;
+			right: 0;
+			display: inline-flex;
+			align-items: center;
+			padding: 0 0.4rem;
 			background-color: var(--gl-card-hover-background);
 			font-size: 0.9em;
 		}
@@ -421,9 +441,23 @@ export class GlGraphOverviewCard extends LitElement {
 		}
 
 		.hover__avatars {
+			flex: none;
+			margin-inline-start: auto;
+		}
+
+		.hover__status-group {
 			display: flex;
 			align-items: center;
 			gap: 0.6rem;
+			flex-wrap: wrap;
+		}
+
+		.hover__agents {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			gap: 0.4rem;
+			flex-wrap: wrap;
 		}
 
 		.hover__actions {
@@ -518,10 +552,10 @@ export class GlGraphOverviewCard extends LitElement {
 						<p class="branch-item__grouping">
 							<span class="branch-item__icon">${this.renderBranchIcon()}</span>
 							<span class="branch-item__name">${this.branch.name}</span>
+							${this.renderInlineActions()}
 						</p>
-						${this.renderChanges()} ${this.renderAgentRow()} ${this.renderPillsRow()}
+						${this.renderMeta()}
 					</div>
-					${this.renderInlineActions()}
 				</gl-card>
 				<div slot="content" class="hover">${when(this._hoverShown, () => this.renderHoverContent())}</div>
 			</gl-popover>
@@ -577,12 +611,27 @@ export class GlGraphOverviewCard extends LitElement {
 		></gl-branch-icon>`;
 	}
 
-	private renderChanges() {
-		const wip = this.renderWip();
+	private renderMeta() {
 		const tracking = this.renderTracking();
-		if (wip === nothing && tracking === nothing) return nothing;
+		const wip = this.renderWipBasic();
+		const issuesIndicator = this.renderIssuesIndicator();
+		const prIndicator = this.renderPrIndicator();
+		const agentsIndicator = this.renderAgentsIndicator();
 
-		return html`<p class="branch-item__changes">${wip}${tracking}</p>`;
+		const hasLeft = tracking !== nothing || wip !== nothing;
+		const hasRight = issuesIndicator !== nothing || prIndicator !== nothing || agentsIndicator !== nothing;
+		if (!hasLeft && !hasRight) return nothing;
+
+		return html`<p class="branch-item__meta">
+			${when(hasLeft, () => html`<span class="branch-item__meta-left">${tracking}${wip}</span>`)}
+			${when(
+				hasRight,
+				() =>
+					html`<span class="branch-item__meta-right">
+						${issuesIndicator}${prIndicator}${agentsIndicator}
+					</span>`,
+			)}
+		</p>`;
 	}
 
 	private describeTracking(): TemplateResult | undefined {
@@ -624,7 +673,20 @@ export class GlGraphOverviewCard extends LitElement {
 		>`;
 	}
 
-	private renderWip() {
+	private renderWipBasic() {
+		// Card-level wip is presence-only — a single icon when the working tree is dirty. The
+		// full added/changed/deleted breakdown surfaces in the rich hover (#5170).
+		if (!this.hasWip) return nothing;
+
+		return html`<gl-tooltip class="wip__pill" placement="bottom"
+			><span class="branch-item__wip"><code-icon icon="git-commit"></code-icon></span>
+			<span class="wip__tooltip" slot="content">
+				<p>Working tree has changes</p>
+			</span></gl-tooltip
+		>`;
+	}
+
+	private renderWipFull() {
 		const workingTreeState = this.wip?.workingTreeState;
 		if (workingTreeState == null) return nothing;
 
@@ -646,66 +708,45 @@ export class GlGraphOverviewCard extends LitElement {
 		>`;
 	}
 
-	private renderPillsRow() {
-		const pr = this.enrichment?.pr;
+	private renderIssuesIndicator() {
 		const issues = this.enrichment?.issues ?? [];
-		const autolinks = this.enrichment?.autolinks ?? [];
-		if (pr == null && issues.length === 0 && autolinks.length === 0) return nothing;
+		if (issues.length === 0) return nothing;
 
-		return html`<div class="branch-item__pills">
-			<gl-chip-overflow max-rows="1">
-				${pr != null
-					? html`<gl-autolink-chip
-							type="pr"
-							name=${pr.title}
-							url=${pr.url}
-							identifier="#${pr.id}"
-							status=${pr.state}
-							?isDraft=${pr.draft ?? false}
-						></gl-autolink-chip>`
-					: nothing}
-				${[...issues, ...autolinks].map(item => this.renderItemChip(item))}
-			</gl-chip-overflow>
-		</div>`;
+		// `<issue-icon>` has its own `<gl-tooltip>` when state is set — wrap-only via
+		// `branch-item__count` to keep icon + count visually paired without nesting tooltips.
+		const openCount = issues.filter(i => i.state === 'opened').length;
+		const state = openCount > 0 ? 'opened' : 'closed';
+
+		return html`<span class="branch-item__count"
+			><issue-icon state=${state}></issue-icon>${when(
+				issues.length > 1,
+				() => html`<span>${issues.length}</span>`,
+			)}</span
+		>`;
 	}
 
-	private renderAgentRow() {
+	private renderPrIndicator() {
+		const pr = this.enrichment?.pr;
+		if (pr == null) return nothing;
+
+		// `<pr-icon>` has its own `<gl-tooltip>` when state is set — render directly without
+		// wrapping to avoid nested tooltips.
+		return html`<pr-icon ?draft=${pr.draft ?? false} state=${pr.state} pr-id=${pr.id}></pr-icon>`;
+	}
+
+	private renderAgentsIndicator() {
 		const sessions = this.agentSessions;
 		if (sessions == null || sessions.length === 0) return nothing;
 
-		return html`<div class="branch-item__agents">
-			<code-icon icon="hubot"></code-icon>
-			${sessions.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
-		</div>`;
-	}
-
-	private renderItemChip(item: OverviewBranchIssue) {
-		switch (item.type) {
-			case 'pullrequest':
-				return html`<gl-autolink-chip
-					type="pr"
-					name=${item.title}
-					url=${item.url}
-					identifier=${formatIssueIdentifier(item.id)}
-					status=${item.state}
-					?isDraft=${item.draft ?? false}
-				></gl-autolink-chip>`;
-			case 'issue':
-				return html`<gl-autolink-chip
-					type="issue"
-					name=${item.title}
-					url=${item.url}
-					identifier=${formatIssueIdentifier(item.id)}
-					status=${item.state === 'closed' ? 'closed' : 'opened'}
-				></gl-autolink-chip>`;
-			default:
-				return html`<gl-autolink-chip
-					type="autolink"
-					name=${item.title}
-					url=${item.url}
-					identifier=${formatIssueIdentifier(item.id)}
-				></gl-autolink-chip>`;
-		}
+		return html`<gl-tooltip placement="bottom"
+			><span class="branch-item__count"
+				><code-icon icon="hubot"></code-icon>${when(
+					sessions.length > 1,
+					() => html`<span>${sessions.length}</span>`,
+				)}</span
+			>
+			<span slot="content">${pluralize('agent session', sessions.length)}</span></gl-tooltip
+		>`;
 	}
 
 	private renderInlineActions() {
@@ -791,14 +832,23 @@ export class GlGraphOverviewCard extends LitElement {
 		const contributors = this.enrichment?.contributors ?? [];
 
 		const hasItems = pr != null || issues.length > 0 || autolinks.length > 0;
-		const hasTracking = this.describeTracking() != null;
-		const hasAvatars = contributors.length > 0;
 
 		return html`
-			${this.renderHoverHeader()} ${when(hasItems, () => this.renderHoverItems(pr, issues, autolinks))}
-			${when(hasTracking || hasAvatars, () => this.renderHoverStatus(contributors))}
+			${this.renderHoverHeader(contributors)}
+			${when(hasItems, () => this.renderHoverItems(pr, issues, autolinks))} ${this.renderHoverAgents()}
 			${this.renderHoverActions(pr != null)}
 		`;
+	}
+
+	private renderHoverAgents() {
+		const sessions = this.agentSessions;
+		if (sessions == null || sessions.length === 0) return nothing;
+
+		return html`<div class="hover__section">
+			<div class="hover__agents">
+				${sessions.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
+			</div>
+		</div>`;
 	}
 
 	private renderHoverMergeTarget(): TemplateResult | typeof nothing {
@@ -812,7 +862,7 @@ export class GlGraphOverviewCard extends LitElement {
 		return html`<gl-merge-target-status .branch=${this.branch} .targetPromise=${promise}></gl-merge-target-status>`;
 	}
 
-	private renderHoverHeader() {
+	private renderHoverHeader(contributors: NonNullable<OverviewBranchEnrichment['contributors']>) {
 		const worktreeName = this.branch.worktree?.name;
 		const showWorktreeName = worktreeName != null && worktreeName !== this.branch.name;
 		const timestamp = this.branch.timestamp;
@@ -823,6 +873,15 @@ export class GlGraphOverviewCard extends LitElement {
 				<span class="hover__icon">${this.renderBranchIcon()}</span>
 				<span class="hover__name hover__name--bold">${this.branch.name}</span>
 				${when(showWorktreeName, () => html`<span class="hover__identifier">${worktreeName}</span>`)}
+				${when(
+					contributors.length > 0,
+					() =>
+						html`<gl-avatar-list
+							class="hover__avatars"
+							.avatars=${contributors.map(a => ({ name: a.name, src: a.avatarUrl }))}
+							max="8"
+						></gl-avatar-list>`,
+				)}
 			</div>
 			${when(timestamp != null, () => {
 				const date = new Date(timestamp!);
@@ -902,125 +961,58 @@ export class GlGraphOverviewCard extends LitElement {
 		}
 	}
 
-	private renderHoverStatus(contributors: NonNullable<OverviewBranchEnrichment['contributors']>) {
-		const description = this.describeTracking();
-
-		return html`<div class="hover__section">
-			${when(description != null, () => html`<p class="hover__text">${description}</p>`)}
-			${when(
-				contributors.length > 0,
-				() =>
-					html`<div class="hover__avatars">
-						<gl-avatar-list
-							.avatars=${contributors.map(a => ({ name: a.name, src: a.avatarUrl }))}
-							max="8"
-						></gl-avatar-list>
-					</div>`,
-			)}
-		</div>`;
-	}
-
 	private renderHoverActions(hasPr: boolean) {
-		// Per-state action curation (#5170):
-		// - Opened (current/active) branches: state-aware sync (Push/Pull/Fetch) + Compare with
-		//   Working Tree + Open in Branches View. NEVER Switch or Open Worktree — already on it.
-		// - Non-opened worktree branches: state-aware sync + Open Worktree toggle (default new
-		//   window, alt same window) + Compare with HEAD + Open in Worktrees View. NEVER Switch.
-		// - Non-opened main-repo branches: state-aware sync + Switch to Branch + Compare with
-		//   HEAD + Open in Branches View. NEVER Open Worktree.
+		// Curated set per #5170 — sync and "Open in View" live elsewhere (inline overlay /
+		// scope popover), so the rich hover focuses on diff/compare/checkout flows. Order is:
+		// 1. Open All Changes — PR multi-diff when there's a PR, otherwise the branch-vs-merge-
+		//    base multi-diff. Skipped for the opened branch without a PR (lhs == rhs => empty).
+		// 2. combined compares — default = Compare PR (if PR) / Compare with HEAD (else); alt
+		//    flips to Compare with Working Tree. Opened branches collapse to just Working Tree
+		//    since the branch IS HEAD.
+		// 3. Open Worktree in New Window (worktrees only, alt opens in current window)
+		// 4. Switch to Branch (non-worktree, non-opened)
 		const opened = this.branch.opened;
-		const upstream = this.branch.upstream;
-		const tracking = upstream?.state;
-		const hasUpstream = upstream != null && !upstream.missing;
-		const branchActions: TemplateResult[] = [];
+		const actions: TemplateResult[] = [];
 
-		// Sync actions (state-aware, only when there's a usable upstream).
-		if (hasUpstream) {
-			if ((tracking?.behind ?? 0) > 0 && (tracking?.ahead ?? 0) > 0) {
-				branchActions.push(
-					html`<action-item
-						label="Pull"
-						icon="repo-pull"
-						href=${this.createCommandLink('gitlens.graph.pull')}
-					></action-item>`,
-					html`<action-item
-						label="Push"
-						icon="repo-push"
-						href=${this.createCommandLink('gitlens.graph.push')}
-					></action-item>`,
-				);
-			} else if ((tracking?.behind ?? 0) > 0) {
-				branchActions.push(
-					html`<action-item
-						label="Pull"
-						icon="repo-pull"
-						href=${this.createCommandLink('gitlens.graph.pull')}
-					></action-item>`,
-				);
-			} else if ((tracking?.ahead ?? 0) > 0) {
-				branchActions.push(
-					html`<action-item
-						label="Push"
-						icon="repo-push"
-						href=${this.createCommandLink('gitlens.graph.push')}
-					></action-item>`,
-				);
-			}
-			branchActions.push(
+		if (hasPr) {
+			actions.push(
 				html`<action-item
-					label="Fetch"
-					icon="repo-fetch"
-					href=${this.createCommandLink('gitlens.fetch:')}
+					label="Open All Changes"
+					icon="diff-multiple"
+					href=${this.createCommandLink('gitlens.openPullRequestChanges:')}
 				></action-item>`,
 			);
-		} else if (opened) {
-			branchActions.push(
+		} else if (!opened) {
+			actions.push(
 				html`<action-item
-					label="Publish Branch"
-					icon="cloud-upload"
-					href=${this.createCommandLink('gitlens.publishBranch:')}
+					label="Open All Changes"
+					icon="diff-multiple"
+					href=${this.createCommandLink('gitlens.graph.openChangedFileDiffsWithMergeBase')}
 				></action-item>`,
 			);
 		}
 
-		// Branch-state actions: Switch / Open Worktree / Compare with HEAD or Working Tree.
 		if (opened) {
-			branchActions.push(
+			actions.push(
 				html`<action-item
 					label="Compare with Working Tree"
 					icon="gl-compare-ref-working"
 					href=${this.createCommandLink('gitlens.graph.compareWithWorking')}
 				></action-item>`,
 			);
-		} else if (this.isWorktree) {
-			// Single toggle item — matches the inline overlay pattern: default opens in a new
-			// window (less disruptive to the current session); alt-modifier flips to opening
-			// in the current window.
-			branchActions.push(
+		} else if (hasPr) {
+			actions.push(
 				html`<action-item
-					label="Open Worktree in New Window"
-					alt-label="Open Worktree"
-					icon="empty-window"
-					alt-icon="browser"
-					href=${this.createCommandLink('gitlens.openWorktreeInNewWindow:')}
-					alt-href=${this.createCommandLink('gitlens.openWorktree:')}
-				></action-item>`,
-				html`<action-item
-					label="Compare with HEAD"
-					icon="compare-changes"
-					href=${this.createCommandLink('gitlens.graph.compareBranchWithHead')}
+					label="Compare Pull Request"
+					icon="git-compare"
+					href=${this.createCommandLink('gitlens.openPullRequestComparison:')}
 					alt-label="Compare with Working Tree"
 					alt-icon="gl-compare-ref-working"
 					alt-href=${this.createCommandLink('gitlens.graph.compareWithWorking')}
 				></action-item>`,
 			);
 		} else {
-			branchActions.push(
-				html`<action-item
-					label="Switch to Branch..."
-					icon="gl-switch"
-					href=${this.createCommandLink('gitlens.switchToBranch:')}
-				></action-item>`,
+			actions.push(
 				html`<action-item
 					label="Compare with HEAD"
 					icon="compare-changes"
@@ -1032,40 +1024,35 @@ export class GlGraphOverviewCard extends LitElement {
 			);
 		}
 
-		// Open in {Branches,Worktrees} View — last because it's a navigation, not a mutation.
-		branchActions.push(
-			html`<action-item
-				label=${this.isWorktree ? 'Open in Worktrees View' : 'Open in Branches View'}
-				icon="arrow-right"
-				href=${this.createCommandLink('gitlens.openInView.branch:')}
-			></action-item>`,
-		);
-
-		const prActions = hasPr
-			? html`<action-nav>
-					<action-item
-						label="Open Pull Request Changes"
-						icon="request-changes"
-						href=${this.createCommandLink('gitlens.openPullRequestChanges:')}
-					></action-item>
-					<action-item
-						label="Compare Pull Request"
-						icon="git-compare"
-						href=${this.createCommandLink('gitlens.openPullRequestComparison:')}
-					></action-item>
-					<action-item
-						label="Open Pull Request Details"
-						icon="eye"
-						href=${this.createCommandLink('gitlens.openPullRequestDetails:')}
-					></action-item>
-				</action-nav>`
-			: nothing;
+		if (!opened) {
+			if (this.isWorktree) {
+				actions.push(
+					html`<action-item
+						label="Open Worktree in New Window"
+						alt-label="Open Worktree"
+						icon="empty-window"
+						alt-icon="browser"
+						href=${this.createCommandLink('gitlens.openWorktreeInNewWindow:')}
+						alt-href=${this.createCommandLink('gitlens.openWorktree:')}
+					></action-item>`,
+				);
+			} else {
+				actions.push(
+					html`<action-item
+						label="Switch to Branch..."
+						icon="gl-switch"
+						href=${this.createCommandLink('gitlens.switchToBranch:')}
+					></action-item>`,
+				);
+			}
+		}
 
 		return html`<div class="hover__section hover__section--inline">
-			${this.renderHoverMergeTarget()}
+			<div class="hover__status-group">
+				${this.renderTracking()}${this.renderWipFull()}${this.renderHoverMergeTarget()}
+			</div>
 			<div class="hover__actions">
-				<action-nav>${branchActions}</action-nav>
-				${prActions}
+				<action-nav>${actions}</action-nav>
 			</div>
 		</div>`;
 	}

@@ -19520,6 +19520,24 @@
             },
             {
               "kind": "method",
+              "name": "getOverviewBranchSelectionSha",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "string | undefined"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "branchId",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "getRowHoverPromise",
               "privacy": "private",
               "parameters": [
@@ -24939,6 +24957,31 @@
           "members": [
             {
               "kind": "field",
+              "name": "_hoverShown",
+              "type": {
+                "text": "boolean"
+              },
+              "privacy": "private",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "_mergeTargetPromise",
+              "type": {
+                "text": "Promise<OverviewBranchMergeTarget | undefined> | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_mergeTargetPromiseFor",
+              "type": {
+                "text": "OverviewBranchMergeTarget | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
               "name": "_webview",
               "type": {
                 "text": "WebviewContext"
@@ -24946,9 +24989,12 @@
               "privacy": "private"
             },
             {
-              "kind": "method",
-              "name": "attachFocusListener",
-              "privacy": "private"
+              "kind": "field",
+              "name": "agentSessions",
+              "type": {
+                "text": "AgentSessionState[] | undefined"
+              },
+              "attribute": "agentSessions"
             },
             {
               "kind": "field",
@@ -24992,6 +25038,16 @@
               ]
             },
             {
+              "kind": "method",
+              "name": "describeTracking",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "TemplateResult | undefined"
+                }
+              }
+            },
+            {
               "kind": "field",
               "name": "enrichment",
               "type": {
@@ -25000,32 +25056,14 @@
               "attribute": "enrichment"
             },
             {
-              "kind": "field",
-              "name": "eventController",
-              "type": {
-                "text": "AbortController | undefined"
-              },
-              "privacy": "private"
-            },
-            {
-              "kind": "field",
-              "name": "expandable",
-              "type": {
-                "text": "boolean"
-              },
-              "default": "false",
-              "attribute": "expandable",
-              "reflects": true
-            },
-            {
-              "kind": "field",
-              "name": "expanded",
-              "type": {
-                "text": "boolean"
-              },
-              "default": "false",
-              "attribute": "expanded",
-              "reflects": true
+              "kind": "method",
+              "name": "getMergeTargetPromise",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "Promise<OverviewBranchMergeTarget | undefined> | undefined"
+                }
+              }
             },
             {
               "kind": "field",
@@ -25045,9 +25083,27 @@
               "readonly": true
             },
             {
+              "kind": "field",
+              "name": "launchpadGrouping",
+              "privacy": "private",
+              "readonly": true
+            },
+            {
               "kind": "method",
               "name": "onCardClick",
               "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "onCardFocusIn",
+              "privacy": "private",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "onCardFocusOut",
+              "privacy": "private",
+              "readonly": true
             },
             {
               "kind": "method",
@@ -25063,12 +25119,6 @@
               ]
             },
             {
-              "kind": "field",
-              "name": "onFocus",
-              "privacy": "private",
-              "readonly": true
-            },
-            {
               "kind": "method",
               "name": "onLinkClick",
               "privacy": "private",
@@ -25082,13 +25132,14 @@
               ]
             },
             {
-              "kind": "method",
-              "name": "renderAvatars",
-              "privacy": "private"
+              "kind": "field",
+              "name": "onPopoverShow",
+              "privacy": "private",
+              "readonly": true
             },
             {
               "kind": "method",
-              "name": "renderBranchActions",
+              "name": "renderAgentsIndicator",
               "privacy": "private"
             },
             {
@@ -25098,45 +25149,106 @@
             },
             {
               "kind": "method",
-              "name": "renderBranchItem",
-              "privacy": "private"
-            },
-            {
-              "kind": "method",
-              "name": "renderCollapsedActions",
-              "privacy": "private"
-            },
-            {
-              "kind": "method",
-              "name": "renderIssuesItem",
-              "privacy": "private"
-            },
-            {
-              "kind": "method",
-              "name": "renderLaunchpadItem",
+              "name": "renderHoverActions",
               "privacy": "private",
               "parameters": [
                 {
-                  "name": "launchpadItem",
+                  "name": "hasPr",
                   "type": {
-                    "text": "OverviewBranchLaunchpadItem | undefined"
+                    "text": "boolean"
                   }
                 }
               ]
             },
             {
               "kind": "method",
-              "name": "renderPrActions",
+              "name": "renderHoverAgents",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderPrItem",
+              "name": "renderHoverContent",
               "privacy": "private"
             },
             {
               "kind": "method",
-              "name": "renderTimestamp",
+              "name": "renderHoverHeader",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "contributors",
+                  "type": {
+                    "text": "NonNullable<OverviewBranchEnrichment['contributors']>"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "renderHoverItemRow",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "item",
+                  "type": {
+                    "text": "OverviewBranchIssue"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "renderHoverItems",
+              "privacy": "private",
+              "parameters": [
+                {
+                  "name": "pr",
+                  "type": {
+                    "text": "OverviewBranchEnrichment['pr'] | undefined"
+                  }
+                },
+                {
+                  "name": "issues",
+                  "type": {
+                    "text": "NonNullable<OverviewBranchEnrichment['issues']>"
+                  }
+                },
+                {
+                  "name": "autolinks",
+                  "type": {
+                    "text": "NonNullable<OverviewBranchEnrichment['autolinks']>"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "renderHoverMergeTarget",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "TemplateResult | typeof nothing"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "renderInlineActions",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderIssuesIndicator",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderMeta",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderPrIndicator",
               "privacy": "private"
             },
             {
@@ -25146,7 +25258,12 @@
             },
             {
               "kind": "method",
-              "name": "renderWip",
+              "name": "renderWipBasic",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderWipFull",
               "privacy": "private"
             },
             {
@@ -25158,21 +25275,6 @@
               "default": "false",
               "attribute": "scoped",
               "reflects": true
-            },
-            {
-              "kind": "method",
-              "name": "toggleExpanded",
-              "return": {
-                "type": {
-                  "text": "void"
-                }
-              },
-              "parameters": [
-                {
-                  "name": "expanded",
-                  "default": "!this.expanded"
-                }
-              ]
             },
             {
               "kind": "field",
@@ -25189,15 +25291,16 @@
               "type": {
                 "text": "CustomEvent"
               }
-            },
-            {
-              "name": "gl-graph-overview-card-expand-toggled",
-              "type": {
-                "text": "CustomEvent"
-              }
             }
           ],
           "attributes": [
+            {
+              "name": "agentSessions",
+              "type": {
+                "text": "AgentSessionState[] | undefined"
+              },
+              "fieldName": "agentSessions"
+            },
             {
               "name": "branch",
               "type": {
@@ -25211,22 +25314,6 @@
                 "text": "OverviewBranchEnrichment | undefined"
               },
               "fieldName": "enrichment"
-            },
-            {
-              "name": "expandable",
-              "type": {
-                "text": "boolean"
-              },
-              "default": "false",
-              "fieldName": "expandable"
-            },
-            {
-              "name": "expanded",
-              "type": {
-                "text": "boolean"
-              },
-              "default": "false",
-              "fieldName": "expanded"
             },
             {
               "name": "scoped",
@@ -25288,14 +25375,6 @@
               },
               "privacy": "private",
               "default": "{}"
-            },
-            {
-              "kind": "field",
-              "name": "_expandedCardId",
-              "type": {
-                "text": "string | undefined"
-              },
-              "privacy": "private"
             },
             {
               "kind": "field",
@@ -25392,25 +25471,6 @@
                   "name": "overview",
                   "type": {
                     "text": "GraphOverviewData"
-                  }
-                }
-              ]
-            },
-            {
-              "kind": "method",
-              "name": "onCardExpandToggled",
-              "privacy": "private",
-              "parameters": [
-                {
-                  "name": "branchId",
-                  "type": {
-                    "text": "string"
-                  }
-                },
-                {
-                  "name": "expanded",
-                  "type": {
-                    "text": "boolean"
                   }
                 }
               ]
@@ -26201,6 +26261,14 @@
               "type": {
                 "text": "AppState['activeSidebarPanel']"
               }
+            },
+            {
+              "kind": "field",
+              "name": "agentSessions",
+              "type": {
+                "text": "AppState['agentSessions']"
+              },
+              "default": "[]"
             },
             {
               "kind": "field",
@@ -55600,7 +55668,7 @@
         {
           "kind": "variable",
           "name": "prIconStyles",
-          "default": "css` .pr-icon--opened { color: var(--vscode-gitlens-openPullRequestIconColor); } .pr-icon--closed { color: var(--vscode-gitlens-closedPullRequestIconColor); } .pr-icon--merged { color: var(--vscode-gitlens-mergedPullRequestIconColor); } `"
+          "default": "css` .pr-icon--opened { color: var(--vscode-gitlens-openPullRequestIconColor); } .pr-icon--closed { color: var(--vscode-gitlens-closedPullRequestIconColor); } .pr-icon--merged { color: var(--vscode-gitlens-mergedPullRequestIconColor); } .pr-icon--draft { color: var(--vscode-descriptionForeground); } `"
         }
       ],
       "exports": [
@@ -55631,14 +55699,21 @@
               "name": "type",
               "default": "'autolink'",
               "type": {
-                "text": "'autolink' | 'issue' | 'pr'"
+                "text": "AutolinkIconType"
               }
             },
             {
               "name": "status",
               "default": "'merged'",
               "type": {
-                "text": "'opened' | 'closed' | 'merged'"
+                "text": "AutolinkIconStatus"
+              }
+            },
+            {
+              "name": "isDraft",
+              "default": "false",
+              "type": {
+                "text": "boolean"
               }
             }
           ]

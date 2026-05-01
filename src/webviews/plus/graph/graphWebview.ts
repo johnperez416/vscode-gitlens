@@ -6003,13 +6003,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.publishBranch:graph')
 	@debug()
-	private publishBranch(item?: GraphItemContext) {
-		if (isGraphItemRefContext(item, 'branch')) {
-			const { ref } = item.webviewItemValue;
-			return RepoActions.push(ref.repoPath, undefined, ref);
-		}
+	private async publishBranch(item?: GraphItemContext | BranchRef) {
+		const ref = await this.resolveBranchRef(item);
+		if (ref == null) return;
 
-		return Promise.resolve();
+		await RepoActions.push(ref.repoPath, undefined, ref);
 	}
 
 	@command('gitlens.graph.rebaseOntoBranch')
@@ -6367,11 +6365,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	@command('gitlens.graph.switchToCommit')
 	@command('gitlens.graph.switchToTag')
 	@debug()
-	private switchTo(item?: GraphItemContext) {
-		const ref = this.getGraphItemRef(item);
-		if (ref == null) return Promise.resolve();
+	private async switchTo(item?: GraphItemContext | BranchRef) {
+		const ref = item != null && 'branchId' in item ? await this.resolveBranchRef(item) : this.getGraphItemRef(item);
+		if (ref == null) return;
 
-		return RepoActions.switchTo(ref.repoPath, ref);
+		await RepoActions.switchTo(ref.repoPath, ref);
 	}
 
 	@command('gitlens.graph.resetToTag')
@@ -6598,12 +6596,31 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.openPullRequestChanges:')
 	@debug()
-	private openPullRequestChanges(item?: GraphItemContext) {
+	private async openPullRequestChanges(item?: GraphItemContext | BranchRef) {
+		// Webview action-link path (graph overview card): look the PR up from the BranchRef.
+		if (item != null && 'branchId' in item) {
+			const branch = await this.container.git
+				.getRepositoryService(item.repoPath)
+				.branches.getBranch(item.branchName);
+			if (branch == null) return;
+
+			const pr = await getBranchAssociatedPullRequest(this.container, branch);
+			if (pr?.refs?.base == null || pr.refs.head == null) return;
+
+			const refs = getComparisonRefsForPullRequest(item.repoPath, pr.refs);
+			await openComparisonChanges(
+				this.container,
+				{ repoPath: refs.repoPath, lhs: refs.base.ref, rhs: refs.head.ref },
+				{ title: `Changes in Pull Request #${pr.id}` },
+			);
+			return;
+		}
+
 		if (isGraphItemTypedContext(item, 'pullrequest')) {
 			const pr = item.webviewItemValue;
 			if (pr.refs?.base != null && pr.refs.head != null) {
 				const refs = getComparisonRefsForPullRequest(pr.repoPath, pr.refs);
-				return openComparisonChanges(
+				await openComparisonChanges(
 					this.container,
 					{
 						repoPath: refs.repoPath,
@@ -6614,22 +6631,33 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				);
 			}
 		}
-
-		return Promise.resolve();
 	}
 
 	@command('gitlens.openPullRequestComparison:')
 	@debug()
-	private openPullRequestComparison(item?: GraphItemContext) {
+	private async openPullRequestComparison(item?: GraphItemContext | BranchRef) {
+		// Webview action-link path (graph overview card): look the PR up from the BranchRef.
+		if (item != null && 'branchId' in item) {
+			const branch = await this.container.git
+				.getRepositoryService(item.repoPath)
+				.branches.getBranch(item.branchName);
+			if (branch == null) return;
+
+			const pr = await getBranchAssociatedPullRequest(this.container, branch);
+			if (pr?.refs?.base == null || pr.refs.head == null) return;
+
+			const refs = getComparisonRefsForPullRequest(item.repoPath, pr.refs);
+			await this.container.views.searchAndCompare.compare(refs.repoPath, refs.head, refs.base);
+			return;
+		}
+
 		if (isGraphItemTypedContext(item, 'pullrequest')) {
 			const pr = item.webviewItemValue;
 			if (pr.refs?.base != null && pr.refs.head != null) {
 				const refs = getComparisonRefsForPullRequest(pr.repoPath, pr.refs);
-				return this.container.views.searchAndCompare.compare(refs.repoPath, refs.head, refs.base);
+				await this.container.views.searchAndCompare.compare(refs.repoPath, refs.head, refs.base);
 			}
 		}
-
-		return Promise.resolve();
 	}
 
 	@command('gitlens.openPullRequestOnRemote:')
@@ -6710,19 +6738,19 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.graph.compareBranchWithHead')
 	@debug()
-	private async compareBranchWithHead(item?: GraphItemContext) {
-		const ref = this.getGraphItemRef(item);
-		if (ref == null) return Promise.resolve();
+	private async compareBranchWithHead(item?: GraphItemContext | BranchRef) {
+		const ref = await this.resolveBranchRef(item);
+		if (ref == null) return;
 
 		// Resolve HEAD to the user's current worktree's branch — passing `'HEAD'` as a string would
 		// resolve against the IPC `repoPath` on the host, which may be a different worktree.
 		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
 		const currentBranch = await this.container.git.getRepositoryService(currentRepoPath).branches.getBranch();
 
-		return this.notifyOpenCompareMode({
+		await this.notifyOpenCompareMode({
 			repoPath: currentRepoPath,
 			leftRef: ref.ref,
-			leftRefType: this.graphCompareRefType(ref.refType),
+			leftRefType: 'branch',
 			rightRef: currentBranch?.ref ?? 'HEAD',
 			rightRefType: 'branch',
 		});
@@ -6757,25 +6785,45 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.graph.openChangedFileDiffsWithMergeBase')
 	@debug()
-	private async openChangedFileDiffsWithMergeBase(item?: GraphItemContext) {
-		const ref = this.getGraphItemRef(item);
-		if (ref == null) return Promise.resolve();
+	private async openChangedFileDiffsWithMergeBase(item?: GraphItemContext | BranchRef) {
+		// Webview action-link path (graph overview card) passes a BranchRef rather than the
+		// graph item context; resolve the target branch from the named ref.
+		let repoPath: string;
+		let targetRef: string;
+		let targetName: string;
+		if (item != null && 'branchId' in item) {
+			repoPath = item.repoPath;
+			const targetBranch = await this.container.git
+				.getRepositoryService(repoPath)
+				.branches.getBranch(item.branchName);
+			if (targetBranch == null) return undefined;
 
-		const branch = await this.container.git.getRepositoryService(ref.repoPath).branches.getBranch();
-		if (branch == null) return undefined;
+			targetRef = targetBranch.ref;
+			targetName = targetBranch.name;
+		} else {
+			const ref = this.getGraphItemRef(item, 'branch');
+			if (ref == null) return undefined;
+
+			repoPath = ref.repoPath;
+			targetRef = ref.ref;
+			targetName = ref.name;
+		}
+
+		const currentBranch = await this.container.git.getRepositoryService(repoPath).branches.getBranch();
+		if (currentBranch == null) return undefined;
 
 		const commonAncestor = await this.container.git
-			.getRepositoryService(ref.repoPath)
-			.refs.getMergeBase(branch.ref, ref.ref);
+			.getRepositoryService(repoPath)
+			.refs.getMergeBase(currentBranch.ref, targetRef);
 		if (commonAncestor == null) return undefined;
 
 		return openComparisonChanges(
 			this.container,
-			{ repoPath: ref.repoPath, lhs: commonAncestor, rhs: ref.ref },
+			{ repoPath: repoPath, lhs: commonAncestor, rhs: targetRef },
 			{
-				title: `Changes between ${branch.ref} (${shortenRevision(commonAncestor)}) ${
+				title: `Changes between ${targetName} (${shortenRevision(commonAncestor)}) ${
 					GlyphChars.ArrowLeftRightLong
-				} ${shortenRevision(ref.ref, { strings: { working: 'Working Tree' } })}`,
+				} ${shortenRevision(targetRef, { strings: { working: 'Working Tree' } })}`,
 			},
 		);
 	}
@@ -6810,9 +6858,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.graph.compareWithWorking')
 	@debug()
-	private async compareWorkingWith(item?: GraphItemContext) {
-		const ref = this.getGraphItemRef(item);
-		if (ref == null) return Promise.resolve();
+	private async compareWorkingWith(item?: GraphItemContext | BranchRef) {
+		const ref = await this.resolveBranchRef(item);
+		if (ref == null) return;
 
 		// Anchor against the user's *current* worktree — `getBranch()` and the host's WT-files
 		// fetch (`getBranchComparisonWorkingTreeFiles`) both run against this repoPath, so passing
@@ -6822,12 +6870,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
 		const currentBranch = await this.container.git.getRepositoryService(currentRepoPath).branches.getBranch();
 
-		return this.notifyOpenCompareMode({
+		await this.notifyOpenCompareMode({
 			repoPath: currentRepoPath,
 			leftRef: currentBranch?.ref ?? 'HEAD',
 			leftRefType: 'branch',
 			rightRef: ref.ref,
-			rightRefType: this.graphCompareRefType(ref.refType),
+			rightRefType: 'branch',
 			includeWorkingTree: true,
 		});
 	}
@@ -7364,7 +7412,27 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.openWorktree:')
 	@debug()
-	private async openWorktree(item?: GraphItemContext, options?: { location?: OpenWorkspaceLocation }) {
+	private async openWorktree(item?: GraphItemContext | BranchRef, options?: { location?: OpenWorkspaceLocation }) {
+		// Webview action-link path (graph overview card): branch identity arrives as a BranchRef.
+		if (item != null && 'branchId' in item) {
+			const repoPath = item.repoPath;
+			let worktreesByBranch;
+			if (repoPath === this._graph?.repoPath) {
+				worktreesByBranch = this._graph?.worktreesByBranch;
+			} else {
+				const repo = this.container.git.getRepository(repoPath);
+				if (repo == null) return;
+
+				worktreesByBranch = await getWorktreesByBranch(repo);
+			}
+
+			const worktree = worktreesByBranch?.get(item.branchId);
+			if (worktree == null) return;
+
+			openWorkspace(worktree.uri, options);
+			return;
+		}
+
 		if (isGraphItemRefContext(item, 'branch')) {
 			const { ref } = item.webviewItemValue;
 			if (ref.id == null) return;
@@ -7394,7 +7462,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	@command('gitlens.openWorktreeInNewWindow:')
-	private openWorktreeInNewWindow(item?: GraphItemContext) {
+	private openWorktreeInNewWindow(item?: GraphItemContext | BranchRef) {
 		return this.openWorktree(item, { location: 'newWindow' });
 	}
 
@@ -7662,6 +7730,24 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private notifyOpenCompareMode(params: DidRequestOpenCompareModeParams): Promise<void> {
 		void this.host.notify(DidRequestOpenCompareModeNotification, params);
 		return Promise.resolve();
+	}
+
+	/**
+	 * Resolves a branch ref from either a {@link GraphItemContext} (graph row context-menu / inline
+	 * action path) or a {@link BranchRef} (webview action-link path used by the graph overview
+	 * card and other panels). The latter only carries identity (repoPath / branchName), so we
+	 * rehydrate the full {@link GitBranchReference} via the repository service.
+	 */
+	private async resolveBranchRef(
+		item: GraphItemContext | BranchRef | undefined,
+	): Promise<GitBranchReference | undefined> {
+		if (item != null && 'branchId' in item) {
+			const branch = await this.container.git
+				.getRepositoryService(item.repoPath)
+				.branches.getBranch(item.branchName);
+			return branch != null ? getReferenceFromBranch(branch) : undefined;
+		}
+		return this.getGraphItemRef(item, 'branch');
 	}
 
 	private getGraphItemRef(item?: GraphItemContext | unknown | undefined): GitReference | undefined;
