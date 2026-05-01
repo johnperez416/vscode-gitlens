@@ -724,6 +724,31 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 
 			const remoteIcon =
 				r.providerIcon != null && r.providerIcon !== 'remote' ? `gl-provider-${r.providerIcon}` : 'cloud';
+
+			const actions: TreeItemAction[] = [];
+			if (r.connected === false) {
+				actions.push({
+					icon: 'plug',
+					label: 'Connect Remote Integration',
+					action: 'gitlens.connectRemoteProvider:graph',
+				});
+			} else if (r.connected === true) {
+				actions.push({
+					icon: 'gl-unplug',
+					label: 'Disconnect Remote Integration',
+					action: 'gitlens.disconnectRemoteProvider:graph',
+				});
+			}
+			actions.push({ icon: 'repo-fetch', label: 'Fetch', action: 'gitlens.fetchRemote:graph' });
+			actions.push({
+				icon: 'globe',
+				label: 'Open on Remote',
+				action: 'gitlens.openRepoOnRemote:graph',
+				altIcon: 'copy',
+				altLabel: 'Copy Remote URL',
+				altAction: 'gitlens.copyRemoteRepositoryUrl:graph',
+			});
+
 			return {
 				branch: true,
 				expanded: i === 0,
@@ -738,7 +763,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				contextData: r.menuContext,
 				children: children,
 				decorations: r.isDefault ? [{ type: 'text' as const, label: 'default' }] : undefined,
-				actions: [{ icon: 'repo-fetch', label: 'Fetch', action: 'gitlens.fetchRemote:graph' }],
+				actions: actions,
 			};
 		});
 	}
