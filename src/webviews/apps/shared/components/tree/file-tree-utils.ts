@@ -279,11 +279,16 @@ export function getStatusDecoration(
 ): { letter: string; tooltip: string; color: string } | undefined {
 	switch (status) {
 		case 'A':
-		case '?':
 			return {
 				letter: 'A',
 				tooltip: 'Added',
 				color: 'var(--vscode-gitDecoration-addedResourceForeground)',
+			};
+		case '?':
+			return {
+				letter: 'U',
+				tooltip: 'Untracked',
+				color: 'var(--vscode-gitDecoration-untrackedResourceForeground)',
 			};
 		case 'M':
 			return {
@@ -324,7 +329,7 @@ export function getStatusDecoration(
 		case 'UD':
 		case 'UU':
 			return {
-				letter: 'U',
+				letter: '!',
 				tooltip: 'Conflict',
 				color: 'var(--vscode-gitDecoration-conflictingResourceForeground)',
 			};
