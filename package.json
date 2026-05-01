@@ -25653,17 +25653,6 @@
 			],
 			"webview/context": [
 				{
-					"command": "gitlens.graph.compareBranchWithHead",
-					"when": "webviewItem =~ /gitlens:branch\\b(?!.*?\\b\\+current\\b)/ && !gitlens:hasVirtualFolders",
-					"group": "inline@97",
-					"alt": "gitlens.graph.compareWithWorking"
-				},
-				{
-					"command": "gitlens.graph.compareBranchWithHead",
-					"when": "webviewItem =~ /gitlens:branch\\b(?!.*?\\b\\+current\\b)/ && gitlens:hasVirtualFolders",
-					"group": "inline@97"
-				},
-				{
 					"command": "gitlens.openWorktree:graph",
 					"when": "webviewItem =~ /gitlens:branch\\b(?=.*?\\b\\+worktree\\b)/ && !gitlens:hasVirtualFolders",
 					"group": "1_gitlens_action@1"
@@ -26309,16 +26298,6 @@
 					"group": "4_gitlens_compare@1"
 				},
 				{
-					"command": "gitlens.connectRemoteProvider:graph",
-					"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+disconnected\\b)/ && config.gitlens.integrations.enabled",
-					"group": "inline@98"
-				},
-				{
-					"command": "gitlens.disconnectRemoteProvider:graph",
-					"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+connected\\b)/ && config.gitlens.integrations.enabled",
-					"group": "inline@98"
-				},
-				{
 					"command": "gitlens.fetchRemote:graph",
 					"when": "webviewItem =~ /gitlens:remote\\b/ && !gitlens:readonly && !gitlens:untrusted && !gitlens:hasVirtualFolders",
 					"group": "1_gitlens_actions@1"
@@ -26374,17 +26353,6 @@
 					"command": "gitlens.disconnectRemoteProvider:graph",
 					"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+connected\\b)/ && config.gitlens.integrations.enabled",
 					"group": "9_gitlens_integrations@2"
-				},
-				{
-					"command": "gitlens.graph.compareWithHead",
-					"when": "webviewItem =~ /gitlens:(stash|tag)\\b/ && !gitlens:hasVirtualFolders",
-					"group": "inline@97",
-					"alt": "gitlens.graph.compareWithWorking"
-				},
-				{
-					"command": "gitlens.graph.compareWithHead",
-					"when": "webviewItem =~ /gitlens:(stash|tag)\\b/ && gitlens:hasVirtualFolders",
-					"group": "inline@97"
 				},
 				{
 					"command": "gitlens.stashApply:graph",

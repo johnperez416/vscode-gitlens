@@ -680,11 +680,6 @@
 				"webview/context": [
 					{
 						"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+disconnected\\b)/ && config.gitlens.integrations.enabled",
-						"group": "inline",
-						"order": 98
-					},
-					{
-						"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+disconnected\\b)/ && config.gitlens.integrations.enabled",
 						"group": "9_gitlens_integrations",
 						"order": 1
 					}
@@ -2086,11 +2081,6 @@
 				"webview/context": [
 					{
 						"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+connected\\b)/ && config.gitlens.integrations.enabled",
-						"group": "inline",
-						"order": 98
-					},
-					{
-						"when": "webviewItem =~ /gitlens:remote\\b(?=.*?\\b\\+connected\\b)/ && config.gitlens.integrations.enabled",
 						"group": "9_gitlens_integrations",
 						"order": 2
 					}
@@ -2788,17 +2778,6 @@
 			"menus": {
 				"webview/context": [
 					{
-						"when": "webviewItem =~ /gitlens:branch\\b(?!.*?\\b\\+current\\b)/ && !gitlens:hasVirtualFolders",
-						"group": "inline",
-						"order": 97,
-						"alt": "gitlens.graph.compareWithWorking"
-					},
-					{
-						"when": "webviewItem =~ /gitlens:branch\\b(?!.*?\\b\\+current\\b)/ && gitlens:hasVirtualFolders",
-						"group": "inline",
-						"order": 97
-					},
-					{
 						"when": "webviewItem =~ /gitlens:branch\\b(?!.*?\\b\\+current\\b)/ && !listMultiSelection",
 						"group": "4_gitlens_compare",
 						"order": 2
@@ -2828,17 +2807,6 @@
 						"when": "webviewItem =~ /gitlens:(commit|stash|tag)\\b/ && !listMultiSelection",
 						"group": "4_gitlens_compare",
 						"order": 2
-					},
-					{
-						"when": "webviewItem =~ /gitlens:(stash|tag)\\b/ && !gitlens:hasVirtualFolders",
-						"group": "inline",
-						"order": 97,
-						"alt": "gitlens.graph.compareWithWorking"
-					},
-					{
-						"when": "webviewItem =~ /gitlens:(stash|tag)\\b/ && gitlens:hasVirtualFolders",
-						"group": "inline",
-						"order": 97
 					}
 				]
 			}
