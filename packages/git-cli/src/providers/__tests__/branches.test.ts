@@ -31,7 +31,7 @@ suite('BranchesGitSubProvider Test Suite', () => {
 			supports(_feature: string) {
 				return Promise.resolve(true);
 			}
-			exec(..._args: any[]) {
+			run(..._args: any[]) {
 				return Promise.resolve(createGitResult(''));
 			}
 		}
