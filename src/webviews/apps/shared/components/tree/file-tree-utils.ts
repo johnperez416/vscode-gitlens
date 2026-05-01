@@ -4,6 +4,7 @@ import type { GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
 import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
+import { joinPaths } from '@gitlens/utils/path.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
 import type { TreeItemAction, TreeItemBase, TreeModel } from './base.js';
 
@@ -121,16 +122,31 @@ export function folderToTreeModel(name: string, relativePath: string, options?: 
 		checked: false,
 		icon: 'folder',
 		label: name,
+		tooltip: relativePath,
 		...options,
 		// Folders should never be checkable — only individual files
 		checkable: false,
 	};
 }
 
+export function buildFileTooltip(file: GitFileChangeShape): string {
+	const status = getStatusDecoration(file.status)?.tooltip;
+	const fullPath = file.repoPath ? joinPaths(file.repoPath, file.path) : file.path;
+	const lines = [`${fullPath}${file.submodule != null ? ' (submodule)' : ''}`];
+	if (status) {
+		lines.push(status);
+	}
+	if (file.status === 'R' && file.originalPath) {
+		lines.push(`← ${file.originalPath}`);
+	}
+	return lines.join('\n');
+}
+
 export function walkFileTree<T extends GitFileChangeShape>(
 	item: HierarchicalItem<T>,
 	fileToModel: (file: T, options: Partial<TreeItemBase>, flat: boolean) => TreeModel,
 	options: Partial<TreeItemBase> = { level: 1 },
+	repoPath?: string,
 ): TreeModel {
 	if (options.level === undefined) {
 		options.level = 1;
@@ -139,6 +155,9 @@ export function walkFileTree<T extends GitFileChangeShape>(
 	let model: TreeModel;
 	if (item.value == null) {
 		model = folderToTreeModel(item.name, item.relativePath, options);
+		if (repoPath) {
+			model.tooltip = joinPaths(repoPath, item.relativePath);
+		}
 	} else {
 		model = fileToModel(item.value, options, false);
 	}
@@ -146,7 +165,7 @@ export function walkFileTree<T extends GitFileChangeShape>(
 	if (item.children != null) {
 		const children = [];
 		for (const child of item.children.values()) {
-			const childModel = walkFileTree(child, fileToModel, { ...options, level: options.level + 1 });
+			const childModel = walkFileTree(child, fileToModel, { ...options, level: options.level + 1 }, repoPath);
 			children.push(childModel);
 		}
 
@@ -187,6 +206,7 @@ export function buildFileTree<T extends GitFileChangeShape>(
 
 	if (!filteredFiles.length) return [];
 
+	const repoPath = filteredFiles[0]?.repoPath;
 	const children: TreeModel[] = [];
 	if (isTree) {
 		const fileTree = makeHierarchical(
@@ -197,7 +217,7 @@ export function buildFileTree<T extends GitFileChangeShape>(
 		);
 		if (fileTree.children != null) {
 			for (const child of fileTree.children.values()) {
-				const childModel = walkFileTree(child, fileToModel, options);
+				const childModel = walkFileTree(child, fileToModel, options, repoPath);
 				children.push(childModel);
 			}
 		}

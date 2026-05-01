@@ -12,7 +12,6 @@ import type {
 	GraphSidebarBranch,
 	GraphSidebarPanel,
 	GraphSidebarRemote,
-	GraphSidebarStash,
 	GraphSidebarTag,
 	GraphSidebarWorktree,
 } from '../../../../plus/graph/protocol.js';
@@ -31,6 +30,7 @@ import type {
 	TreeModel,
 	TreeModelFlat,
 } from '../../../shared/components/tree/base.js';
+import { ContextMenuProxyController } from '../../../shared/controllers/context-menu-proxy.js';
 import { sidebarActionsContext } from './sidebarContext.js';
 import type { SidebarActions } from './sidebarState.js';
 import '../overview/graph-overview.js';
@@ -307,31 +307,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	 *  the tree model is rebuilt for an unchanged `data` reference. Reset on key change. */
 	private _treeModelCache?: { data: DidGetSidebarDataParams; model: TreeModel<SidebarItemContext>[] };
 
-	override connectedCallback(): void {
-		super.connectedCallback?.();
-		this.addEventListener('contextmenu', this.handleContextMenuProxy);
-	}
-
-	override disconnectedCallback(): void {
-		super.disconnectedCallback?.();
-		this.removeEventListener('contextmenu', this.handleContextMenuProxy);
-	}
-
-	private handleContextMenuProxy = (e: MouseEvent) => {
-		// The event has already crossed the shadow DOM boundary (composed: true)
-		// Check if the originating tree-view set data-vscode-context
-		const path = e.composedPath();
-		const source = path.find(
-			el => el instanceof HTMLElement && el.tagName === 'GL-TREE-VIEW' && el.dataset.vscodeContext,
-		) as HTMLElement | undefined;
-		if (!source) return;
-
-		// Copy context to this host element (which is in light DOM)
-		this.dataset.vscodeContext = source.dataset.vscodeContext;
-		setTimeout(() => {
-			delete this.dataset.vscodeContext;
-		}, 100);
-	};
+	private readonly _contextMenuProxy = new ContextMenuProxyController(this);
 
 	private _pendingFocus = false;
 
@@ -501,16 +477,16 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		switch (data.panel) {
 			case 'branches':
 				return this.buildItemTree(
-					data.items as GraphSidebarBranch[],
+					data.items,
 					useTree,
 					compact,
 					b => (b.current || b.worktreeOpened || b.disposition != null ? [b.name] : b.name.split('/')),
 					(b, isTree) => this.toBranchLeaf(b, isTree),
 				);
 			case 'remotes':
-				return this.buildRemoteTree(data.items as GraphSidebarRemote[], useTree, compact);
+				return this.buildRemoteTree(data.items, useTree, compact);
 			case 'stashes':
-				return (data.items as GraphSidebarStash[]).map(s => {
+				return data.items.map(s => {
 					const parts: string[] = [];
 					if (s.stashOnRef) {
 						parts.push(s.stashOnRef);
@@ -538,7 +514,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				});
 			case 'tags':
 				return this.buildItemTree(
-					data.items as GraphSidebarTag[],
+					data.items,
 					useTree,
 					compact,
 					t => t.name.split('/'),
@@ -546,7 +522,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				);
 			case 'worktrees':
 				return this.buildItemTree(
-					data.items as GraphSidebarWorktree[],
+					data.items,
 					useTree,
 					compact,
 					w => (w.isDefault || w.opened || !w.branch ? [w.name] : w.branch.split('/')),
@@ -725,7 +701,9 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			const remoteIcon =
 				r.providerIcon != null && r.providerIcon !== 'remote' ? `gl-provider-${r.providerIcon}` : 'cloud';
 
-			const actions: TreeItemAction[] = [];
+			const actions: TreeItemAction[] = [
+				{ icon: 'repo-fetch', label: 'Fetch', action: 'gitlens.fetchRemote:graph' },
+			];
 			if (r.connected === false) {
 				actions.push({
 					icon: 'plug',
@@ -739,7 +717,6 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					action: 'gitlens.disconnectRemoteProvider:graph',
 				});
 			}
-			actions.push({ icon: 'repo-fetch', label: 'Fetch', action: 'gitlens.fetchRemote:graph' });
 			actions.push({
 				icon: 'globe',
 				label: 'Open on Remote',
@@ -759,7 +736,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				icon: remoteIcon,
 				description: r.url,
 				checkable: false,
-				context: [undefined] as SidebarItemContext,
+				context: [undefined],
 				contextData: r.menuContext,
 				children: children,
 				decorations: r.isDefault ? [{ type: 'text' as const, label: 'default' }] : undefined,
@@ -818,7 +795,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 						label: child.name,
 						icon: 'folder',
 						checkable: false,
-						context: [undefined] as SidebarItemContext,
+						context: [undefined],
 						children: childModels,
 					});
 				}

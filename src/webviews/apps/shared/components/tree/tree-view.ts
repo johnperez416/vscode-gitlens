@@ -21,7 +21,6 @@ import type { GlTreeItem } from './tree-item.js';
 import '@lit-labs/virtualizer';
 import '../actions/action-item.js';
 import '../branch-icon.js';
-import '../markdown/markdown.js';
 import '../overlays/popover.js';
 import '../pills/tracking.js';
 import '../file-icon/file-icon.js';
@@ -160,11 +159,25 @@ export class GlTreeView extends GlElement {
 				text-align: center;
 			}
 
+			.hover-popover {
+				pointer-events: none;
+			}
+			/* gl-popover's body uses auto-size="horizontal", which shrinks to the space left of
+			   the anchor — on a narrow webview that produces a cramped tooltip that wraps mid-path.
+			   The min-width also gives Floating UI's flip middleware a reason to prefer the
+			   opposite side when crowded. */
+			.hover-popover::part(body) {
+				min-width: 20rem;
+				max-width: min(50rem, 92vw);
+			}
+
 			.hover-content {
 				font-size: 1.2rem;
 				line-height: 1.5;
-				max-width: min(92vw, 35rem);
-				--code-icon-size: 1em;
+				white-space: pre-line;
+				/* anywhere wraps at any character when forced — avoids the default behavior of
+				   breaking paths at hyphens (the worst possible split point). */
+				overflow-wrap: anywhere;
 			}
 
 			.conflict-count {
@@ -609,7 +622,7 @@ export class GlTreeView extends GlElement {
 			@gl-tree-item-select=${() => this.onBeforeTreeItemSelected(model)}
 			@gl-tree-item-selected=${(e: CustomEvent<TreeItemSelectionDetail>) => this.onTreeItemSelected(e, model)}
 			@gl-tree-item-checked=${(e: CustomEvent<TreeItemCheckedDetail>) => this.onTreeItemChecked(e, model)}
-			@mouseenter=${(e: MouseEvent) => this.onTreeItemHover(e.currentTarget as HTMLElement, model)}
+			@mouseenter=${(e: MouseEvent) => this.onTreeItemHover(e, model)}
 			@mouseleave=${() => this.onTreeItemUnhover()}
 		>
 			${this.renderIcon(model.icon)}
@@ -702,18 +715,15 @@ export class GlTreeView extends GlElement {
 					: html`<div class="no-results">${this.emptyText}</div>`}
 			${this._hoverOpen && this._hoveredTooltip
 				? html`<gl-popover
+						class="hover-popover"
 						?open=${this._hoverOpen}
 						.anchor=${this._hoveredAnchor}
-						.placement=${this.tooltipAnchorRight ? 'right-start' : 'bottom'}
+						placement="right-start"
 						trigger="manual"
 						hoist
-						.distance=${4}
-						@mouseenter=${() => clearTimeout(this._unhoverTimer)}
-						@mouseleave=${() => this.onTreeItemUnhover()}
+						.distance=${12}
 					>
-						<div slot="content" class="hover-content">
-							<gl-markdown density="compact" .markdown=${this._hoveredTooltip ?? ''}></gl-markdown>
-						</div>
+						<div slot="content" class="hover-content">${this._hoveredTooltip ?? ''}</div>
 					</gl-popover>`
 				: nothing}
 		`;
@@ -812,33 +822,33 @@ export class GlTreeView extends GlElement {
 		});
 	}
 
-	private onTreeItemHover(element: HTMLElement, model: TreeModelFlat) {
+	private onTreeItemHover(event: MouseEvent, model: TreeModelFlat) {
 		if (!model.tooltip) {
 			this.onTreeItemUnhover();
 			return;
 		}
 
+		const element = event.currentTarget as HTMLElement;
 		clearTimeout(this._hoverTimer);
 		clearTimeout(this._unhoverTimer);
 
-		if (this.tooltipAnchorRight) {
-			const hostRect = this.getBoundingClientRect();
-			const itemRect = element.getBoundingClientRect();
-			this._hoveredAnchor = {
-				getBoundingClientRect: () => ({
-					x: hostRect.right,
-					y: itemRect.top,
-					top: itemRect.top,
-					bottom: itemRect.bottom,
-					left: hostRect.right,
-					right: hostRect.right,
-					width: 0,
-					height: itemRect.height,
-				}),
-			};
-		} else {
-			this._hoveredAnchor = element;
-		}
+		const itemRect = element.getBoundingClientRect();
+		// Anchor at the cursor's X (or the host's right edge in `tooltipAnchorRight` mode), aligned
+		// vertically with the row so the tooltip floats just to the side and never sits in the
+		// vertical path the cursor takes when moving between rows.
+		const x = this.tooltipAnchorRight ? this.getBoundingClientRect().right : event.clientX;
+		this._hoveredAnchor = {
+			getBoundingClientRect: () => ({
+				x: x,
+				y: itemRect.top,
+				top: itemRect.top,
+				bottom: itemRect.bottom,
+				left: x,
+				right: x,
+				width: 0,
+				height: itemRect.height,
+			}),
+		};
 		this._hoveredTooltip = model.tooltip;
 
 		if (this._hoverOpen) {

@@ -5,6 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import { pluralize } from '@gitlens/utils/string.js';
+import type { StashApplyCommandArgs } from '../../../commands/stashApply.js';
 import type { ViewFilesLayout } from '../../../config.js';
 import type { InspectWebviewTelemetryContext } from '../../../constants.telemetry.js';
 import type { CommitDetailsServices } from '../../commitDetails/commitDetailsService.js';
@@ -578,6 +579,8 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 								.reachabilityState=${reachState}
 								.branchName=${commit?.stashOnRef ?? this.getCommitBranchName(reach)}
 								.aiEnabled=${org?.ai !== false}
+								@gl-stash-apply=${(e: CustomEvent<StashApplyCommandArgs>) =>
+									actions?.executeCommand('gitlens.stashesApply', e.detail)}
 								@explain-commit=${(e: CustomEvent<{ prompt?: string }>) =>
 									void actions?.explainCommit(e.detail?.prompt)}
 								@load-reachability=${() => void actions?.loadReachability()}

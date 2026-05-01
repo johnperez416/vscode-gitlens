@@ -211,20 +211,6 @@ export class GlInspectNav extends LitElement {
 						@click=${this.handleAction}
 						><code-icon icon="gl-graph"></code-icon></a
 				></gl-tooltip>
-				${when(
-					!this.uncommitted,
-					() => html`
-						<gl-tooltip hoist content="Show Commit Actions"
-							><a
-								class="commit-action"
-								href="#"
-								data-action="commit-actions"
-								data-action-type="more"
-								@click=${this.handleAction}
-								><code-icon icon="kebab-vertical"></code-icon></a
-						></gl-tooltip>
-					`,
-				)}
 			</div>
 		`;
 	}

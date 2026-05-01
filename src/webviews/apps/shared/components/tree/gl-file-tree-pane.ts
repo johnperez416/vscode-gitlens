@@ -18,6 +18,7 @@ import type {
 } from './base.js';
 import type { FileGroup } from './file-tree-utils.js';
 import {
+	buildFileTooltip,
 	buildGroupedTree,
 	getStatusDecoration,
 	isTreeLayout,
@@ -535,6 +536,7 @@ export class GlFileTreePane extends LitElement {
 			icon: this.showFileIcons ? { type: 'file-icon' as const, filename: fileName } : undefined,
 			label: fileName,
 			description: `${flat === true ? filePath : ''}${file.status === 'R' ? ` ← ${file.originalPath}` : ''}`,
+			tooltip: buildFileTooltip(file),
 			context: [file],
 			actions: actions,
 			decorations: decorations.length > 0 ? decorations : undefined,

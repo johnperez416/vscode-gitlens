@@ -1,10 +1,12 @@
 import { html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
+import { getAltKeySymbol } from '@env/platform.js';
 import type { IssueOrPullRequest } from '@gitlens/git/models/issueOrPullRequest.js';
 import type { PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import { formatIdentityDisplayName } from '@gitlens/git/utils/commit.utils.js';
+import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import type { Autolink } from '../../../../autolinks/models/autolinks.js';
 import type { IpcSerialized } from '../../../../system/ipcSerialize.js';
 import { serializeWebviewItemContext } from '../../../../system/webview.js';
@@ -15,8 +17,15 @@ import type {
 	DetailsItemTypedContext,
 } from '../../../commitDetails/protocol.js';
 import { messageHeadlineSplitterToken } from '../../../commitDetails/protocol.js';
+import type {
+	GraphCommitContextValue,
+	GraphItemRefContext,
+	GraphStashContextValue,
+} from '../../../plus/graph/protocol.js';
 import { renderLearnAboutAutolinks } from '../../shared/components/chips/learn-about-autolinks.js';
 import type { TreeItemAction, TreeItemBase } from '../../shared/components/tree/base.js';
+import { ContextMenuProxyController } from '../../shared/controllers/context-menu-proxy.js';
+import { ModifierKeysController } from '../../shared/controllers/modifier-keys.js';
 import { detailsBaseStyles } from './gl-details-base.css.js';
 import type { File } from './gl-details-base.js';
 import { GlDetailsBase } from './gl-details-base.js';
@@ -122,6 +131,13 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 
 	@state()
 	private _reachabilityExpanded = false;
+
+	private readonly _modifiers = new ModifierKeysController(this);
+	private readonly _contextMenuProxy = new ContextMenuProxyController(this);
+
+	private get isPopMode(): boolean {
+		return this._modifiers.altKey || this._modifiers.shiftKey;
+	}
 
 	private _messagePanelHeight?: number;
 	private _scrollbarObserver?: ResizeObserver;
@@ -380,6 +396,8 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 						.sha=${isStash ? `#${commit.stashNumber}` : commit.sha}
 						.icon=${isStash ? 'gl-stashes-view' : 'git-commit'}
 					></gl-commit-sha-copy>
+					${this.isUncommitted ? nothing : this.renderMoreActionsButton()}
+					${isStash ? this.renderStashApplyButton() : nothing}
 					${isStash
 						? this.branchName
 							? html`<gl-tooltip hoist content="Stashed on ${this.branchName}">
@@ -398,6 +416,123 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 				<div class="metadata-bar__right">${this.renderCommitStats(commit.stats)}</div>
 			</div>
 			${this._reachabilityExpanded ? html`<div class="reachability">${this.renderReachability()}</div>` : nothing}`;
+	}
+
+	private renderMoreActionsButton() {
+		const isStash = this.isStash;
+		const context = this.getCommitOrStashContext();
+		if (context == null) return nothing;
+
+		return html`<gl-tooltip
+			class="metadata-bar__more-tooltip"
+			hoist
+			content="Show ${isStash ? 'Stash' : 'Commit'} Actions"
+		>
+			<button
+				class="metadata-bar__action metadata-bar__action--more"
+				type="button"
+				aria-label="Show ${isStash ? 'Stash' : 'Commit'} Actions"
+				data-vscode-context=${context}
+				@click=${this.onMoreActionsClick}
+			>
+				<code-icon icon="kebab-vertical"></code-icon>
+			</button>
+		</gl-tooltip>`;
+	}
+
+	private renderStashApplyButton() {
+		if (this.commit?.stashNumber == null) return nothing;
+
+		const isPop = this.isPopMode;
+		return html`<gl-tooltip hoist>
+			<button
+				class="metadata-bar__action metadata-bar__action--apply"
+				type="button"
+				aria-label="${isPop ? 'Pop Stash' : 'Apply Stash'}"
+				@click=${this.onStashApplyClick}
+			>
+				<code-icon icon="${isPop ? 'git-stash-pop' : 'git-stash-apply'}"></code-icon>
+			</button>
+			<span slot="content"
+				>${isPop ? html`Pop Stash` : html`Apply Stash<br />[${getAltKeySymbol()}] Pop Stash`}</span
+			>
+		</gl-tooltip>`;
+	}
+
+	private onMoreActionsClick = (e: MouseEvent): void => {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const target = e.currentTarget as HTMLElement | null;
+		if (target == null) return;
+
+		const rect = target.getBoundingClientRect();
+		target.dispatchEvent(
+			new MouseEvent('contextmenu', {
+				bubbles: true,
+				composed: true,
+				cancelable: true,
+				clientX: rect.left,
+				clientY: rect.bottom,
+				button: 2,
+			}),
+		);
+	};
+
+	private onStashApplyClick = (e: MouseEvent): void => {
+		const commit = this.commit;
+		if (commit?.stashNumber == null) return;
+
+		this.dispatchEvent(
+			new CustomEvent('gl-stash-apply', {
+				detail: {
+					repoPath: commit.repoPath,
+					stashItem: {
+						refType: 'stash' as const,
+						sha: commit.sha,
+						ref: commit.sha,
+						repoPath: commit.repoPath,
+						name: `stash@{${commit.stashNumber}}`,
+						stashNumber: commit.stashNumber,
+						message: commit.message,
+					},
+					deleteAfter: e.altKey || e.shiftKey,
+				},
+				bubbles: true,
+				composed: true,
+			}),
+		);
+	};
+
+	private getCommitOrStashContext(): string | undefined {
+		const commit = this.commit;
+		if (commit == null) return undefined;
+
+		if (this.isStash) {
+			const number = commit.stashNumber;
+			if (number == null) return undefined;
+
+			const ref = createReference(commit.sha, commit.repoPath, {
+				refType: 'stash',
+				name: `stash@{${number}}`,
+				number: number,
+				message: commit.message,
+				stashOnRef: commit.stashOnRef,
+			});
+			return serializeWebviewItemContext<GraphItemRefContext<GraphStashContextValue>>({
+				webviewItem: 'gitlens:stash',
+				webviewItemValue: { type: 'stash', ref: ref },
+			});
+		}
+
+		const ref = createReference(commit.sha, commit.repoPath, {
+			refType: 'revision',
+			message: commit.message,
+		});
+		return serializeWebviewItemContext<GraphItemRefContext<GraphCommitContextValue>>({
+			webviewItem: 'gitlens:commit',
+			webviewItemValue: { type: 'commit', ref: ref },
+		});
 	}
 
 	private renderBranchIndicator() {

@@ -80,6 +80,10 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 		return this.uri.repoPath!;
 	}
 
+	get branch(): GitBranch | undefined {
+		return this.worktree.branch;
+	}
+
 	compacted: boolean = false;
 
 	private get avoidCompacting(): boolean {
@@ -336,9 +340,46 @@ export class WorktreeNode extends CacheableChildrenViewNode<'worktree', ViewsWit
 		const item = new TreeItem(label, TreeItemCollapsibleState.Collapsed);
 		item.id = this.id;
 		item.description = description;
-		item.contextValue = `${ContextValues.Worktree}${this.worktree.isDefault ? '+default' : ''}${
-			this.worktree.opened ? '+active' : ''
-		}${hasChanges ? '+working' : ''}${this.worktree.branch?.starred ? '+starred' : ''}`;
+
+		let contextValue: string = ContextValues.Worktree;
+		if (this.worktree.isDefault) {
+			contextValue += '+default';
+		}
+		if (this.worktree.opened) {
+			contextValue += '+active';
+		}
+		if (hasChanges) {
+			contextValue += '+working';
+		}
+
+		const wtBranch = this.worktree.branch;
+		if (wtBranch != null) {
+			contextValue += '+branch';
+			if (wtBranch.starred) {
+				contextValue += '+starred';
+			}
+			if (wtBranch.upstream != null && !wtBranch.upstream.missing) {
+				contextValue += '+tracking';
+			}
+			switch (wtBranch.status) {
+				case 'ahead':
+					contextValue += '+ahead';
+					break;
+				case 'behind':
+					contextValue += '+behind';
+					break;
+				case 'diverged':
+					contextValue += '+ahead+behind';
+					break;
+			}
+			if (wtBranch.rebasing) {
+				contextValue += '+rebasing';
+			}
+		} else if (this.worktree.type === 'detached') {
+			contextValue += '+detached';
+		}
+
+		item.contextValue = contextValue;
 		item.iconPath =
 			pendingPullRequest != null
 				? new ThemeIcon('loading~spin')

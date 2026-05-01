@@ -656,20 +656,15 @@ export interface GraphSidebarWorktree {
 	menuContext?: string;
 }
 
-export type GraphSidebarItems =
-	| GraphSidebarBranch[]
-	| GraphSidebarRemote[]
-	| GraphSidebarStash[]
-	| GraphSidebarTag[]
-	| GraphSidebarWorktree[];
-
 export type GetSidebarDataParams = { panel: GraphSidebarPanel };
-export type DidGetSidebarDataParams = {
-	panel: GraphSidebarPanel;
-	items: GraphSidebarItems;
-	layout?: 'list' | 'tree';
-	compact?: boolean;
-};
+export type DidGetSidebarDataParams = { layout?: 'list' | 'tree'; compact?: boolean } & (
+	| { panel: 'branches'; items: GraphSidebarBranch[] }
+	| { panel: 'remotes'; items: GraphSidebarRemote[] }
+	| { panel: 'stashes'; items: GraphSidebarStash[] }
+	| { panel: 'tags'; items: GraphSidebarTag[] }
+	| { panel: 'worktrees'; items: GraphSidebarWorktree[] }
+	| { panel: 'overview'; items: never[] }
+);
 export type GetRowHoverParams = {
 	type: GitGraphRowType;
 	id: string;

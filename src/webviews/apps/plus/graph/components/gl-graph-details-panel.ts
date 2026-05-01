@@ -5,11 +5,13 @@ import { html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
+import type { StashApplyCommandArgs } from '../../../../../commands/stashApply.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
 import type { CommitDetails } from '../../../../commitDetails/protocol.js';
 import type { GraphServices, VirtualRefShape } from '../../../../plus/graph/graphService.js';
 import type { FileChangeListItemDetail } from '../../../commitDetails/components/gl-details-base.js';
 import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
+import { ContextMenuProxyController } from '../../../shared/controllers/context-menu-proxy.js';
 import { graphServicesContext, graphStateContext } from '../context.js';
 import type { DetailsActions } from './detailsActions.js';
 import { scopeSelectionEqual } from './detailsActions.js';
@@ -208,7 +210,6 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	override connectedCallback(): void {
 		super.connectedCallback?.();
-		this.addEventListener('contextmenu', this.handleContextMenuProxy);
 		this.addEventListener('switch-model', this.handleSwitchModel);
 	}
 
@@ -216,22 +217,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		this._actions?.switchAIModel();
 	};
 
-	private handleContextMenuProxy = (e: MouseEvent) => {
-		// The contextmenu event has crossed shadow DOM boundaries (composed: true) from the
-		// originating tree-view inside one of the embedded details/review/compose panels.
-		// Find the gl-tree-view that set data-vscode-context and copy it onto this host
-		// element (which is in light DOM) so VS Code's injected library can read it.
-		const path = e.composedPath();
-		const source = path.find(
-			el => el instanceof HTMLElement && el.tagName === 'GL-TREE-VIEW' && el.dataset.vscodeContext,
-		) as HTMLElement | undefined;
-		if (!source) return;
-
-		this.dataset.vscodeContext = source.dataset.vscodeContext;
-		setTimeout(() => {
-			delete this.dataset.vscodeContext;
-		}, 100);
-	};
+	private readonly _contextMenuProxy = new ContextMenuProxyController(this);
 
 	private suppressContentOverflow(): void {
 		const el = this.querySelector<HTMLElement>('.details-content');
@@ -244,7 +230,6 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	override disconnectedCallback(): void {
 		super.disconnectedCallback?.();
-		this.removeEventListener('contextmenu', this.handleContextMenuProxy);
 		this.removeEventListener('switch-model', this.handleSwitchModel);
 		// Repo-change subscription teardown is handled by DetailsWorkflowController via its
 		// `hostDisconnected` hook — no manual cleanup needed here.
@@ -835,6 +820,8 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			@refresh-reachability=${() => this._actions.refreshReachability()}
 			@open-on-remote=${(e: CustomEvent<{ sha: string }>) =>
 				this._actions.openOnRemote(commit.repoPath ?? this.repoPath, e.detail.sha)}
+			@gl-stash-apply=${(e: CustomEvent<StashApplyCommandArgs>) =>
+				void this._actions.services.commands.execute('gitlens.stashesApply', e.detail)}
 			@change-files-layout=${this.handleChangeFilesLayout}
 			@toggle-mode=${this.handleToggleMode}
 			@open-multiple-changes=${this.handleOpenMultipleChanges}

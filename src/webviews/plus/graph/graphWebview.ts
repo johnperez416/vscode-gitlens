@@ -235,6 +235,7 @@ import {
 } from './graphWebview.utils.js';
 import type {
 	BranchState,
+	DidGetSidebarDataParams,
 	DidRequestOpenCompareModeParams,
 	GetWipStatsResponse,
 	GraphBranchContextValue,
@@ -1979,7 +1980,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		return response;
 	}
 
-	private async onGetSidebarData(params: { panel: GraphSidebarPanel }, signal?: AbortSignal) {
+	private async onGetSidebarData(
+		params: { panel: GraphSidebarPanel },
+		signal?: AbortSignal,
+	): Promise<DidGetSidebarDataParams> {
 		const graph = this._graph ?? (await this._graphLoading?.catch(() => undefined));
 		signal?.throwIfAborted();
 		if (graph == null) return { panel: params.panel, items: [] };
@@ -1996,7 +2000,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			case 'worktrees':
 				return this.getSidebarWorktrees(graph);
 			default:
-				return { panel: params.panel as GraphSidebarPanel, items: [] };
+				return { panel: params.panel, items: [] };
 		}
 	}
 
@@ -6633,20 +6637,20 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
-		const branch = await this.container.git.getRepositoryService(ref.repoPath).branches.getBranch();
-		if (branch == null) return undefined;
+		// Anchor on the user's current worktree — both the merge-base computation and the WT-files
+		// fetch resolve relative to this. Avoids the multi-worktree degenerate case where
+		// `getBranch(ref.repoPath)` returns the same ref as `ref.ref`.
+		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
+		const svc = this.container.git.getRepositoryService(currentRepoPath);
+		const currentBranch = await svc.branches.getBranch();
+		if (currentBranch == null) return undefined;
 
-		const commonAncestor = await this.container.git
-			.getRepositoryService(ref.repoPath)
-			.refs.getMergeBase(branch.ref, ref.ref);
+		const commonAncestor = await svc.refs.getMergeBase(currentBranch.ref, ref.ref);
 		if (commonAncestor == null) return undefined;
 
-		// WT-side comparison: graph compare-mode panel models WT as a flag layered on top of a
-		// ref-to-ref comparison. Anchor the WT side at HEAD so the current branch tip is the
-		// implicit "from" for WT changes.
 		return this.notifyOpenCompareMode({
-			repoPath: ref.repoPath,
-			leftRef: 'HEAD',
+			repoPath: currentRepoPath,
+			leftRef: currentBranch.ref,
 			leftRefType: 'branch',
 			rightRef: commonAncestor,
 			rightRefType: 'commit',
@@ -6660,10 +6664,16 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
-		const [ref1, ref2] = await getOrderedComparisonRefs(this.container, ref.repoPath, 'HEAD', ref.ref);
-		const ref1IsHead = ref1 === 'HEAD';
+		// Resolve HEAD against the user's current worktree before ordering — `'HEAD'` as an opaque
+		// string would otherwise resolve against `ref.repoPath`, which may be a different worktree.
+		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
+		const currentBranch = await this.container.git.getRepositoryService(currentRepoPath).branches.getBranch();
+		const headRef = currentBranch?.ref ?? 'HEAD';
+
+		const [ref1, ref2] = await getOrderedComparisonRefs(this.container, currentRepoPath, headRef, ref.ref);
+		const ref1IsHead = ref1 === headRef;
 		return this.notifyOpenCompareMode({
-			repoPath: ref.repoPath,
+			repoPath: currentRepoPath,
 			leftRef: ref1,
 			leftRefType: ref1IsHead ? 'branch' : this.graphCompareRefType(ref.refType),
 			rightRef: ref2,
@@ -6673,15 +6683,20 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.graph.compareBranchWithHead')
 	@debug()
-	private compareBranchWithHead(item?: GraphItemContext) {
+	private async compareBranchWithHead(item?: GraphItemContext) {
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
+		// Resolve HEAD to the user's current worktree's branch — passing `'HEAD'` as a string would
+		// resolve against the IPC `repoPath` on the host, which may be a different worktree.
+		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
+		const currentBranch = await this.container.git.getRepositoryService(currentRepoPath).branches.getBranch();
+
 		return this.notifyOpenCompareMode({
-			repoPath: ref.repoPath,
+			repoPath: currentRepoPath,
 			leftRef: ref.ref,
 			leftRefType: this.graphCompareRefType(ref.refType),
-			rightRef: 'HEAD',
+			rightRef: currentBranch?.ref ?? 'HEAD',
 			rightRefType: 'branch',
 		});
 	}
@@ -6692,16 +6707,20 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
-		const branch = await this.container.git.getRepositoryService(ref.repoPath).branches.getBranch();
-		if (branch == null) return undefined;
+		// "Compare with Common Base" is conceptually "where this branch diverged from where I'm
+		// working." Anchor the merge-base on the user's current worktree's branch, not the clicked
+		// ref's worktree's branch — otherwise in multi-worktree the merge-base degenerates to the
+		// ref itself when `getBranch(ref.repoPath)` returns `ref.ref`.
+		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
+		const svc = this.container.git.getRepositoryService(currentRepoPath);
+		const currentBranch = await svc.branches.getBranch();
+		if (currentBranch == null) return undefined;
 
-		const commonAncestor = await this.container.git
-			.getRepositoryService(ref.repoPath)
-			.refs.getMergeBase(branch.ref, ref.ref);
+		const commonAncestor = await svc.refs.getMergeBase(currentBranch.ref, ref.ref);
 		if (commonAncestor == null) return undefined;
 
 		return this.notifyOpenCompareMode({
-			repoPath: ref.repoPath,
+			repoPath: currentRepoPath,
 			leftRef: ref.ref,
 			leftRefType: this.graphCompareRefType(ref.refType),
 			rightRef: commonAncestor,
@@ -6764,15 +6783,21 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.graph.compareWithWorking')
 	@debug()
-	private compareWorkingWith(item?: GraphItemContext) {
+	private async compareWorkingWith(item?: GraphItemContext) {
 		const ref = this.getGraphItemRef(item);
 		if (ref == null) return Promise.resolve();
 
-		// WT-side comparison: anchor at HEAD with includeWorkingTree on top so the panel renders
-		// the WT delta against the chosen ref.
+		// Anchor against the user's *current* worktree — `getBranch()` and the host's WT-files
+		// fetch (`getBranchComparisonWorkingTreeFiles`) both run against this repoPath, so passing
+		// the current worktree's path makes the WT and the resolved branch ref both belong to
+		// where the user is actually working — not to whichever worktree the clicked ref happens
+		// to live in.
+		const currentRepoPath = this.getCurrentRepoPath(ref.repoPath);
+		const currentBranch = await this.container.git.getRepositoryService(currentRepoPath).branches.getBranch();
+
 		return this.notifyOpenCompareMode({
-			repoPath: ref.repoPath,
-			leftRef: 'HEAD',
+			repoPath: currentRepoPath,
+			leftRef: currentBranch?.ref ?? 'HEAD',
 			leftRefType: 'branch',
 			rightRef: ref.ref,
 			rightRefType: this.graphCompareRefType(ref.refType),
@@ -6805,10 +6830,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			return;
 		}
 
-		// `selectedRef` is a `StoredNamedRef` (no `refType`) — default to `commit`. The active ref
-		// carries its own `refType` from the graph item context.
+		// Anchor on the selected ref's repoPath — the user deliberately chose that side via
+		// "Select for Compare", so it's their canonical anchor for this comparison. `selectedRef`
+		// is a `StoredNamedRef` (no `refType`) — default to `commit`. The active ref carries its
+		// own `refType` from the graph item context.
 		void this.notifyOpenCompareMode({
-			repoPath: ref.repoPath,
+			repoPath: selectedRef.repoPath,
 			leftRef: selectedRef.ref,
 			leftRefType: 'commit',
 			rightRef: ref.ref,
@@ -7576,6 +7603,15 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (ref != null) return this.container.git.getRepositoryService(ref.repoPath).commits.getCommit(ref.ref);
 
 		return Promise.resolve(undefined);
+	}
+
+	/** The user's current/active worktree path — anchors compare actions whose intent is "from
+	 *  where I'm working" (compare-with-HEAD/Working/MergeBase). The graph's `this.repository`
+	 *  follows the user's selected repo in the graph header; its `.path` is the worktree the
+	 *  user is currently focused on. Falls back to the clicked ref's repoPath if `this.repository`
+	 *  is unset (rare — preserves prior behavior rather than dropping the action). */
+	private getCurrentRepoPath(refRepoPath: string): string {
+		return this.repository?.path ?? refRepoPath;
 	}
 
 	/** Maps a {@link GitReference}'s `refType` to the narrower compare-mode triple the graph
