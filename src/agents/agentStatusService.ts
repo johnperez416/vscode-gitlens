@@ -3,11 +3,23 @@ import { commands, EventEmitter, Uri, window, workspace } from 'vscode';
 import type { Container } from '../container.js';
 import { createQuickPickSeparator } from '../quickpicks/items/common.js';
 import { registerCommand } from '../system/-webview/command.js';
+import type { AgentSessionState } from './models/agentSessionState.js';
+import { serializeAgentSession } from './models/agentSessionState.js';
 import type { AgentSession, AgentSessionProvider, PermissionDecision, PermissionSuggestion } from './provider.js';
 
 export class AgentStatusService implements Disposable {
 	private readonly _onDidChange = new EventEmitter<void>();
 	readonly onDidChange = this._onDidChange.event;
+
+	private readonly _onDidChangeSerializedSessions = new EventEmitter<AgentSessionState[]>();
+	/**
+	 * Fires only when the serialized session snapshot has actually changed (deep equality on the
+	 * wire-shape). Lets multiple webviews subscribe without each re-implementing dedup against
+	 * the noisier `onDidChange` event.
+	 */
+	readonly onDidChangeSerializedSessions = this._onDidChangeSerializedSessions.event;
+
+	private _lastSerialized: string = '';
 
 	private readonly _disposables: Disposable[] = [];
 	private readonly _providers: AgentSessionProvider[];
@@ -19,7 +31,12 @@ export class AgentStatusService implements Disposable {
 		this._providers = providers;
 
 		for (const provider of this._providers) {
-			this._disposables.push(provider.onDidChangeSessions(() => this._onDidChange.fire()));
+			this._disposables.push(
+				provider.onDidChangeSessions(() => {
+					this._onDidChange.fire();
+					this.maybeFireSerializedChange();
+				}),
+			);
 		}
 
 		this._disposables.push(
@@ -46,10 +63,23 @@ export class AgentStatusService implements Disposable {
 			d.dispose();
 		}
 		this._onDidChange.dispose();
+		this._onDidChangeSerializedSessions.dispose();
 	}
 
 	get sessions(): readonly AgentSession[] {
 		return this._providers.flatMap(p => p.sessions);
+	}
+
+	getSerializedSessions(): AgentSessionState[] {
+		return this.sessions.map(serializeAgentSession);
+	}
+
+	private maybeFireSerializedChange(): void {
+		const serialized = this.getSerializedSessions();
+		const stringified = JSON.stringify(serialized);
+		if (stringified === this._lastSerialized) return;
+		this._lastSerialized = stringified;
+		this._onDidChangeSerializedSessions.fire(serialized);
 	}
 
 	resolvePermission(

@@ -12,6 +12,7 @@ import { filterMap } from '@gitlens/utils/iterable.js';
 import { hasKeys } from '@gitlens/utils/object.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
 import { SubscriptionManager } from '@gitlens/utils/subscriptionManager.js';
+import type { AgentSessionState } from '../../agents/models/agentSessionState.js';
 import { ActionRunnerType } from '../../api/actionRunners.js';
 import type { CreatePullRequestActionContext } from '../../api/gitlens.d.js';
 import { getAvatarUriFromGravatarEmail } from '../../avatars.js';
@@ -85,7 +86,6 @@ import type { WebviewHost, WebviewProvider, WebviewShowingArgs } from '../webvie
 import type { WebviewShowOptions } from '../webviewsController.js';
 import type { HomeServices, HomeViewService, WalkthroughProgressState } from './homeService.js';
 import type {
-	AgentSessionState,
 	BranchAndTargetRefs,
 	BranchRef,
 	CreatePullRequestCommandArgs,
@@ -212,33 +212,26 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 			onFocusAccount: this._focusAccountEvent.subscribe(buffer, tracker),
 
 			// --- Agent Sessions ---
-			getAgentSessions: () => Promise.resolve(this.getAgentSessionsState()),
+			getAgentSessions: () => Promise.resolve(this.container.agentStatus?.getSerializedSessions() ?? []),
 			onAgentSessionsChanged: createRpcEventSubscription<AgentSessionState[]>(
 				buffer,
 				'agentSessions',
 				'save-last',
 				buffered => {
-					let lastSerialized = '';
 					let serviceSubscription: Disposable | undefined;
-
-					const notify = () => {
-						const state = this.getAgentSessionsState();
-						const serialized = JSON.stringify(state);
-						if (serialized === lastSerialized) return;
-						lastSerialized = serialized;
-						buffered(state);
-					};
 
 					const wire = () => {
 						serviceSubscription?.dispose();
-						serviceSubscription = this.container.agentStatus?.onDidChange(notify);
+						serviceSubscription = this.container.agentStatus?.onDidChangeSerializedSessions(state =>
+							buffered(state),
+						);
 					};
 
 					wire();
 					const containerSubscription = this.container.onDidChangeAgentStatus(() => {
 						wire();
 						// Push a fresh snapshot so subscribers see the new (or empty) sessions
-						notify();
+						buffered(this.container.agentStatus?.getSerializedSessions() ?? []);
 					});
 
 					return Disposable.from(containerSubscription, {
@@ -1061,39 +1054,6 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 			progress: this.container.walkthrough.progress,
 			state: state,
 		};
-	}
-
-	private getAgentSessionsState(): AgentSessionState[] {
-		const service = this.container.agentStatus;
-		if (service == null) return [];
-
-		return service.sessions.map(s => ({
-			id: s.id,
-			name: s.name,
-			status: s.status,
-			phase: s.phase,
-			statusDetail: s.statusDetail,
-			branch: s.branch,
-			worktreeName: s.worktreeName,
-			isInWorkspace: s.isInWorkspace,
-			hasPermissionRequest: s.pendingPermission != null,
-			subagentCount: s.subagents?.length ?? 0,
-			workspacePath: s.workspacePath,
-			cwd: s.cwd,
-			lastActivityTimestamp: s.lastActivity.getTime(),
-			phaseSinceTimestamp: s.phaseSince.getTime(),
-			pendingPermissionDetail:
-				s.pendingPermission != null
-					? {
-							toolName: s.pendingPermission.toolName,
-							toolDescription: s.pendingPermission.toolDescription,
-							toolInputDescription: s.pendingPermission.toolInputDescription,
-							hasSuggestions:
-								s.pendingPermission.suggestions != null && s.pendingPermission.suggestions.length > 0,
-						}
-					: undefined,
-			lastPrompt: s.lastPrompt,
-		}));
 	}
 
 	private _lastBadgeWaiting = -1;
