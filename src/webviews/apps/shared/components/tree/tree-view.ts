@@ -289,6 +289,7 @@ export class GlTreeView extends GlElement {
 		this.addEventListener('keydown', this.handleKeydown, { capture: true });
 		this.addEventListener('focusin', this.handleFocusIn, { capture: true });
 		this.addEventListener('focusout', this.handleFocusOut, { capture: true });
+		this.addEventListener('mousedown', this.dismissRowTooltip, { capture: true });
 
 		// Listen for contextmenu events from tree items and re-dispatch them
 		// so they can cross the shadow DOM boundary with the context data
@@ -314,6 +315,7 @@ export class GlTreeView extends GlElement {
 		this.removeEventListener('keydown', this.handleKeydown, { capture: true });
 		this.removeEventListener('focusin', this.handleFocusIn, { capture: true });
 		this.removeEventListener('focusout', this.handleFocusOut, { capture: true });
+		this.removeEventListener('mousedown', this.dismissRowTooltip, { capture: true });
 		this.removeEventListener('contextmenu', this.handleContextMenu);
 
 		// Clean up timers and reset state
@@ -878,6 +880,14 @@ export class GlTreeView extends GlElement {
 		this._hoverOpen = false;
 		// Keep _hoveredTooltip and _hoveredAnchor so we can resume
 	}
+
+	private readonly dismissRowTooltip = (): void => {
+		clearTimeout(this._hoverTimer);
+		clearTimeout(this._unhoverTimer);
+		this._hoverOpen = false;
+		this._hoveredTooltip = undefined;
+		this._hoveredAnchor = undefined;
+	};
 
 	private onResumeRowTooltip() {
 		if (this._hoveredTooltip != null && this._hoveredAnchor != null) {
