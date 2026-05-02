@@ -133,11 +133,13 @@ export const detailsBaseStyles = [
 		}
 
 		/* Inline autolinks loading state — replaces "No autolinks found" while the commit
-		   identity (sha) is changing. */
+		   identity (sha) is changing. min-height matches gl-action-chip's intrinsic 2rem so
+		   the strip doesn't jump between the spinner and the chip-based states. */
 		.autolinks-loading {
 			display: inline-flex;
 			align-items: center;
 			gap: 0.4rem;
+			min-height: 2rem;
 			color: var(--vscode-descriptionForeground);
 		}
 

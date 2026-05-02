@@ -175,11 +175,13 @@ export const multiCommitPanelStyles = css`
 	}
 
 	/* Inline autolinks loading state — replaces "No autolinks found" while the comparison
-	   identity (commits) is changing. */
+	   identity (commits) is changing. min-height matches gl-action-chip's intrinsic 2rem so
+	   the strip doesn't jump between the spinner and the chip-based states. */
 	.compare-enrichment__loading {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
+		min-height: 2rem;
 		color: var(--vscode-descriptionForeground);
 	}
 

@@ -666,11 +666,14 @@ export const compareModePanelStyles = css`
 	}
 
 	/* Inline autolinks loading state — slots into the chip-overflow as a single non-chip
-	   pseudo-row, replacing the "No autolinks found" affordance during a comparison change. */
+	   pseudo-row, replacing the "No autolinks found" affordance during a comparison change.
+	   min-height matches gl-action-chip's intrinsic 2rem so the strip doesn't jump between
+	   the spinner and the chip-based states. */
 	.wip-compare-enrichment__loading {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
+		min-height: 2rem;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--gl-font-sm);
 	}
