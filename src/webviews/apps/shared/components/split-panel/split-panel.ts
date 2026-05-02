@@ -109,6 +109,16 @@ export class GlSplitPanel extends LitElement {
 	@property({ reflect: true })
 	primary: 'start' | 'end' | undefined;
 
+	/**
+	 * Layout mode. `split` (default) lays the panels out side-by-side via CSS grid; resizing
+	 * one redistributes space. `overlay` keeps the same drag/snap/percentage math but stacks
+	 * the start panel on top of the end panel via absolute positioning, so the end panel always
+	 * occupies the full container — useful when the start panel should float over the end
+	 * (e.g. an auto-collapsing drawer).
+	 */
+	@property({ reflect: true })
+	mode: 'split' | 'overlay' = 'split';
+
 	/** Whether resizing is disabled. */
 	@property({ type: Boolean, reflect: true })
 	disabled = false;

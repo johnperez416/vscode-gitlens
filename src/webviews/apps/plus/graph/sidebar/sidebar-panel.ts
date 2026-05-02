@@ -183,24 +183,27 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 
 			/* Play enter animations only when the parent signals the user-visible moment —
 			   the element is always mounted (inside the split-panel's start slot) so an
-			   unconditional :host animation would fire at 0 width where the user can't see it.
+			   unconditional animation would fire at 0 width where the user can't see it.
 			     [opening]   — sidebar went from hidden to visible (slide in from -8px X)
 			     [switching] — active panel changed while visible (slide in from 4px Y, matches
-			                   the sub-panel-enter used by review/compose/compare panes) */
-			:host([opening]) {
+			                   the sub-panel-enter used by review/compose/compare panes)
+			   The animation runs on the inner .panel — NOT the :host — so the host's solid
+			   background-color stays put and blocks the graph behind it during the animation
+			   (in overlay mode the host floats over the graph; an opacity/translate on the host
+			   would expose the graph through fade or at the gap left by the translate). */
+			:host([opening]) .panel {
 				animation: panel-enter 0.2s ease-out;
 			}
-			:host([switching]) {
+			:host([switching]) .panel {
 				animation: sub-panel-enter 0.2s ease-out;
 			}
 
 			@media (prefers-reduced-motion: reduce) {
 				/* Near-zero duration, NOT animation:none, so the animationend event still
-				   fires — the graph-app updated() hook depends on it to remove the opening
-				   / switching attribute and detach the once-listener. animation:none
-				   dispatches no event, so the listener would leak per toggle. */
-				:host([opening]),
-				:host([switching]) {
+				   fires — the internal handler depends on it to remove the opening / switching
+				   attribute. animation:none dispatches no event, so the attribute would stick. */
+				:host([opening]) .panel,
+				:host([switching]) .panel {
 					animation-duration: 0.01ms;
 				}
 			}
@@ -339,6 +342,21 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		const ready = treeView.updateComplete ?? Promise.resolve();
 		void Promise.resolve(ready).then(() => treeView.focus());
 	}
+
+	override firstUpdated(_changedProperties: Map<PropertyKey, unknown>): void {
+		// Animation runs on the inner .panel (so the host's solid bg can mask the graph behind
+		// in overlay mode). animationend doesn't bubble out of the shadow root, so we listen
+		// here and clear the [opening]/[switching] attribute the parent set on the host.
+		this.shadowRoot?.addEventListener('animationend', this._handlePanelAnimationEnd);
+	}
+
+	private readonly _handlePanelAnimationEnd = (e: Event): void => {
+		const name = (e as AnimationEvent).animationName;
+		if (name === 'panel-enter' || name === 'sub-panel-enter') {
+			this.removeAttribute('opening');
+			this.removeAttribute('switching');
+		}
+	};
 
 	override willUpdate(changedProperties: Map<PropertyKey, unknown>): void {
 		if (changedProperties.has('activePanel') && this._actions != null) {

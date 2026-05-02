@@ -306,6 +306,7 @@ export interface GraphComponentConfig {
 	showRemoteNamesOnRefs?: boolean;
 	showWorktreeWipStats?: boolean;
 	sidebar: boolean;
+	sidebarPinned?: boolean;
 	stickyTimeline?: boolean;
 }
 

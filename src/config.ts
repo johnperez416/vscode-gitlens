@@ -468,6 +468,7 @@ export interface GraphConfig {
 	readonly showWorktreeWipStats: boolean;
 	readonly sidebar: {
 		readonly enabled: boolean;
+		readonly pinned: boolean;
 	};
 	readonly statusBar: {
 		readonly enabled: boolean;

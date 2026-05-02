@@ -175,6 +175,71 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private _detailsShownAt: number | undefined;
 	private _detailsTelemetryFirstRender = true;
 
+	override connectedCallback(): void {
+		super.connectedCallback?.();
+		// Overlay mode auto-collapse — listeners gate themselves on mode + visibility, so they
+		// stay attached for the lifetime of the component and become inert in split mode.
+		document.addEventListener('focusout', this._handleSidebarOverlayFocusOut, true);
+		document.addEventListener('pointerdown', this._handleSidebarOverlayPointerDown, true);
+	}
+
+	override disconnectedCallback(): void {
+		super.disconnectedCallback?.();
+		document.removeEventListener('focusout', this._handleSidebarOverlayFocusOut, true);
+		document.removeEventListener('pointerdown', this._handleSidebarOverlayPointerDown, true);
+	}
+
+	private _handleSidebarOverlayFocusOut = (e: FocusEvent): void => {
+		if (!this.shouldAutoCollapseOverlay()) return;
+		const next = e.relatedTarget as Node | null;
+		// Focus left the document/webview entirely — leave panel open so it's still there
+		// when the user comes back.
+		if (next == null) return;
+		if (this.isInsideSidebarZone(next)) return;
+		this.scheduleAutoCollapse();
+	};
+
+	private _handleSidebarOverlayPointerDown = (e: PointerEvent): void => {
+		if (!this.shouldAutoCollapseOverlay()) return;
+		const target = e.target as Node | null;
+		if (target == null) return;
+		if (this.isInsideSidebarZone(target)) return;
+		this.scheduleAutoCollapse();
+	};
+
+	// Pre-collapse sidebarVisible captured synchronously when the auto-collapse fires. The
+	// sidebar toggle button's click runs in a later task — by then the queued hide has
+	// already mutated state, so handleToggleSidebar would see the post-collapse value and
+	// flip the toggle backwards. This snapshot lets the click handler honor the user's
+	// actual pre-click intent. Cleared on read.
+	private _sidebarVisibleAtAutoCollapse: boolean | undefined;
+
+	private scheduleAutoCollapse(): void {
+		this._sidebarVisibleAtAutoCollapse = this.graphState.sidebarVisible ?? false;
+		// Microtask, not sync: lets any same-task handlers run before the actual hide; the
+		// click handler in a later task reads _sidebarVisibleAtAutoCollapse instead of current
+		// state. hideSidebar gates on already-hidden so a stale schedule is a no-op.
+		queueMicrotask(() => this.hideSidebar());
+	}
+
+	private shouldAutoCollapseOverlay(): boolean {
+		if (this.graphState.config?.sidebarPinned !== false) return false;
+		if (!this.graphState.sidebarVisible) return false;
+		return true;
+	}
+
+	private isInsideSidebarZone(node: Node): boolean {
+		const rail = this.querySelector('gl-graph-sidebar');
+		if (rail?.contains(node)) return true;
+		const panel = this.sidebarPanelEl;
+		if (panel?.contains(node)) return true;
+		// Pointerdown / focusout from the split-panel divider (in its shadow DOM) retargets to
+		// the split-panel host. Without this, dragging the divider auto-collapses the panel.
+		const sidebarSplit = this.querySelector('.graph__sidebar-split');
+		if (sidebarSplit === node) return true;
+		return false;
+	}
+
 	onWebviewVisibilityChanged(visible: boolean): void {
 		if (!visible) return;
 
@@ -252,9 +317,8 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				// re-added within the same microtask.
 				void (sidebarPanel as HTMLElement).offsetWidth;
 				sidebarPanel.setAttribute(attr, '');
-				sidebarPanel.addEventListener('animationend', () => sidebarPanel.removeAttribute(attr), {
-					once: true,
-				});
+				// The sidebar-panel itself listens for animationend on its inner element and
+				// clears the attribute (animationend doesn't cross shadow DOM, so no listener here).
 			}
 		}
 
@@ -351,7 +415,9 @@ export class GraphApp extends SignalWatcher(LitElement) {
 						html`<gl-graph-sidebar
 							active-panel=${this.graphState.activeSidebarPanel ?? nothing}
 							.sidebarVisible=${this.graphState.sidebarVisible ?? false}
+							?pinned=${this.graphState.config?.sidebarPinned ?? true}
 							@gl-graph-sidebar-toggle=${this.handleSidebarToggle}
+							@gl-graph-sidebar-toggle-pinned=${this.handleSidebarTogglePinned}
 						></gl-graph-sidebar>`,
 				)}
 				${this.graphState.config?.sidebar
@@ -364,9 +430,11 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private renderSidebarSplit() {
 		const isOpen = (this.graphState.sidebarVisible ?? false) && this.graphState.activeSidebarPanel != null;
 		const sidebarPosition = this.graphState.sidebarPosition ?? sidebarDefaultPct;
+		const sidebarPinned = this.graphState.config?.sidebarPinned ?? true;
 		return html`<gl-split-panel
 			class="graph__sidebar-split"
 			primary="start"
+			mode=${sidebarPinned ? 'split' : 'overlay'}
 			.position=${isOpen ? sidebarPosition : 0}
 			.snap=${this._sidebarSnap}
 			@gl-split-panel-change=${this.handleSidebarSplitChange}
@@ -662,7 +730,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 
 	private handleToggleSidebar() {
 		const gs = this.graphState;
-		if (gs.sidebarVisible) {
+		const stashed = this._sidebarVisibleAtAutoCollapse;
+		this._sidebarVisibleAtAutoCollapse = undefined;
+		const wasVisible = stashed ?? gs.sidebarVisible ?? false;
+		if (wasVisible) {
 			this.hideSidebar();
 		} else {
 			this.setSidebarPanel(gs.activeSidebarPanel ?? 'branches');
@@ -678,6 +749,11 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			this.setSidebarPanel(panel);
 		}
 	}
+
+	private handleSidebarTogglePinned = (): void => {
+		const next = !(this.graphState.config?.sidebarPinned ?? true);
+		this._ipc.sendCommand(UpdateGraphConfigurationCommand, { changes: { sidebarPinned: next } });
+	};
 
 	private handleSidebarPanelSelect(e: CustomEvent<GraphSidebarPanelSelectEventDetail>) {
 		this.graph?.ensureAndSelectCommit(e.detail.sha);

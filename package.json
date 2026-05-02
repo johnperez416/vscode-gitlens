@@ -1107,6 +1107,13 @@
 						"scope": "window",
 						"order": 300
 					},
+					"gitlens.graph.sidebar.pinned": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "Specifies whether the _Commit Graph_ sidebar is pinned. When pinned, the sidebar shares space with the graph; when unpinned, the sidebar floats over the graph and auto-collapses when it loses focus",
+						"scope": "window",
+						"order": 301
+					},
 					"gitlens.graph.branchesVisibility": {
 						"type": "string",
 						"enum": [

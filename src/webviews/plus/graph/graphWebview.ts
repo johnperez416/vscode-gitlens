@@ -2433,6 +2433,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					case 'detailsLocation':
 						void configuration.updateEffective('graph.details.location', params.changes[key]);
 						break;
+					case 'sidebarPinned':
+						void configuration.updateEffective('graph.sidebar.pinned', params.changes[key]);
+						break;
 					default:
 						// TODO:@eamodio add more config options as needed
 						debugger;
@@ -4905,6 +4908,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			showRemoteNamesOnRefs: configuration.get('graph.showRemoteNames'),
 			showWorktreeWipStats: configuration.get('graph.showWorktreeWipStats'),
 			sidebar: configuration.get('graph.sidebar.enabled') ?? true,
+			sidebarPinned: configuration.get('graph.sidebar.pinned') ?? true,
 			stickyTimeline: configuration.get('graph.stickyTimeline'),
 		};
 		return config;
