@@ -15,7 +15,6 @@ import { createFromDateDelta, formatDate, fromNow } from '../../../shared/date.j
 import { timelineChartStyles } from './chart.css.js';
 import type { SliderChangeEventDetail } from './slider.js';
 import { GlChartSlider } from './slider.js';
-import '@shoelace-style/shoelace/dist/components/resize-observer/resize-observer.js';
 import './scroller.js';
 import '../../../shared/components/commit-sha.js';
 import '../../../shared/components/indicators/watermark-loader.js';
@@ -43,6 +42,7 @@ export class GlTimelineChart extends GlElement {
 	private slider?: GlChartSlider;
 
 	private _chartAborter?: AbortController;
+	private resizeObserver?: ResizeObserver;
 
 	private readonly _slices = new Map<
 		string,
@@ -147,6 +147,11 @@ export class GlTimelineChart extends GlElement {
 		document.addEventListener('keyup', this.onDocumentKeyUp);
 	}
 
+	override firstUpdated(): void {
+		this.resizeObserver = new ResizeObserver(this.onResize);
+		this.resizeObserver.observe(this.chartContainer);
+	}
+
 	override disconnectedCallback(): void {
 		// Destroy the chart first to stop any in-flight d3 transitions (e.g. circle `cy` tweens)
 		// before the DOM teardown surfaces NaN values to the console.
@@ -158,6 +163,9 @@ export class GlTimelineChart extends GlElement {
 		this._chartAborter = undefined;
 
 		this._loading?.cancel();
+
+		this.resizeObserver?.disconnect();
+		this.resizeObserver = undefined;
 
 		document.removeEventListener('keydown', this.onDocumentKeyDown);
 		document.removeEventListener('keyup', this.onDocumentKeyUp);
@@ -202,9 +210,7 @@ export class GlTimelineChart extends GlElement {
 				@gl-scroll-start=${this.onScrollStart}
 				@gl-scroll-end=${this.onScrollEnd}
 			>
-				<sl-resize-observer @sl-resize=${this.onResize}>
-					<div id="chart" tabindex="-1"></div>
-				</sl-resize-observer>
+				<div id="chart" tabindex="-1"></div>
 				${this.data?.length ? this.renderFooter() : nothing}
 			</gl-chart-scroller>`;
 	}
@@ -318,10 +324,10 @@ export class GlTimelineChart extends GlElement {
 		this.hideTooltip();
 	}
 
-	private readonly onResize = (e: CustomEvent<{ entries: ResizeObserverEntry[] }>) => {
-		if (!this._chart) return;
+	private readonly onResize = (entries: ResizeObserverEntry[]) => {
+		if (!this._chart || !entries.length) return;
 
-		this.updateChartSize(e.detail.entries[0].contentRect);
+		this.updateChartSize(entries[0].contentRect);
 	};
 
 	private _transitionDuration: number | undefined;
