@@ -1,6 +1,6 @@
 ---
 name: live-inspect
-description: Use when you need to visually inspect, interact with, or debug the running GitLens extension in VS Code — examining UI state, reading logs, checking feature flags, or verifying code changes against the live product
+description: Use for one-off / single-question inspection of the running GitLens extension — examining UI state, reading logs, checking feature flags, dispatching a command, or asking "what does the live DOM look like right now". Reference for `vscode-inspector` MCP primitives. For iterative debug-and-fix loops on UI bugs (sweep → fix → re-verify), use `/live-exercise` instead.
 ---
 
 # /live-inspect — Live Extension Inspection
