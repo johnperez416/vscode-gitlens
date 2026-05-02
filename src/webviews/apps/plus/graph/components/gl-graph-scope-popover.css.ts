@@ -13,7 +13,7 @@ export const graphScopePopoverStyles = css`
 		align-items: center;
 		gap: 0.4rem;
 		padding: 0.2rem 0.3rem 0.2rem 0.4rem;
-		background: var(--color-graph-actionbar-background);
+		background: transparent;
 		color: var(--color-foreground);
 		border: 1px solid transparent;
 		border-radius: 0.3rem;
@@ -118,6 +118,9 @@ export const graphScopePopoverStyles = css`
 	.mode-menu-item--current {
 		background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 30%, transparent);
 	}
+	.mode-menu-item--current:hover {
+		background: var(--vscode-menu-selectionBackground);
+	}
 
 	.mode-menu-item__icon {
 		display: inline-flex;
@@ -170,7 +173,8 @@ export const graphScopePopoverStyles = css`
 	}
 	.mode-popover__section-title {
 		flex: 1;
-		color: var(--color-foreground--75);
+		color: var(--vscode-menu-foreground, var(--color-foreground));
+		opacity: 0.75;
 		font-size: 1rem;
 		font-weight: 600;
 		text-transform: uppercase;
@@ -178,23 +182,60 @@ export const graphScopePopoverStyles = css`
 	}
 	.mode-popover__section-header gl-button {
 		--button-padding: 0.1rem;
+		--button-foreground: var(--vscode-menu-foreground, var(--vscode-foreground));
+		--button-hover-background: color-mix(in srgb, var(--vscode-menu-foreground) 18%, transparent);
+		opacity: 0.5;
 	}
 	.mode-popover__section-header gl-button.is-active {
-		--button-background: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 22%, transparent);
-		--button-foreground: var(--vscode-statusBarItem-prominentForeground, var(--vscode-foreground));
+		--button-background: var(--vscode-menu-selectionBackground);
+		--button-foreground: var(--vscode-menu-selectionForeground);
+		--button-hover-background: color-mix(in srgb, var(--vscode-menu-selectionBackground) 80%, #000);
+		opacity: 1;
+	}
+	:host-context(.vscode-light) .mode-popover__section-header gl-button:not(.is-active),
+	:host-context(.vscode-high-contrast-light) .mode-popover__section-header gl-button:not(.is-active) {
+		opacity: 1;
+		--button-background: color-mix(in srgb, var(--vscode-menu-foreground) 25%, transparent);
+		--button-foreground: var(--vscode-menu-foreground);
+	}
+	@media (prefers-color-scheme: light) {
+		.mode-popover__section-header gl-button:not(.is-active) {
+			opacity: 1;
+			--button-background: color-mix(in srgb, var(--vscode-menu-foreground) 25%, transparent);
+			--button-foreground: var(--vscode-menu-foreground);
+		}
 	}
 
 	.mode-popover__checkbox-item {
-		padding: 0 0.8rem;
+		display: flex;
+		align-items: center;
+		padding: 0.3rem 0.8rem;
+		min-height: 2.2rem;
+		cursor: pointer;
+		border-radius: 0.3rem;
+		color: var(--vscode-menu-foreground);
+	}
+	.mode-popover__checkbox-item:hover {
+		background-color: var(--vscode-menu-selectionBackground);
+		color: var(--vscode-menu-selectionForeground);
+	}
+	.mode-popover__checkbox-item:has(gl-checkbox[disabled]) {
+		cursor: default;
+	}
+	.mode-popover__checkbox-item:has(gl-checkbox[disabled]):hover {
+		background-color: transparent;
+		color: var(--vscode-menu-foreground);
 	}
 	.mode-popover__checkbox-item gl-checkbox {
 		display: block;
+		flex: 1;
+		margin: 0;
+		padding: 0;
 		font-size: 1.2rem;
-		line-height: 1.6rem;
-		padding: 0.1rem 0;
-		margin-block: 0.4rem;
-		--checkbox-foreground: var(--vscode-menu-foreground, var(--color-foreground));
-		--checkbox-checked-foreground: var(--vscode-menu-foreground, var(--color-foreground));
+		--checkbox-foreground: currentColor;
+		--checkbox-background: var(--vscode-checkbox-selectBackground);
+		--checkbox-border: var(--vscode-checkbox-selectBorder);
+		--checkbox-hover-background: var(--vscode-checkbox-selectBackground);
 	}
 
 	.mode-popover__focus-pane {

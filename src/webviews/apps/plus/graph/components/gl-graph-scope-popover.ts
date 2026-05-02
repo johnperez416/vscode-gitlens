@@ -183,6 +183,7 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 
 		return html`<gl-popover
 			class="popover mode-popover"
+			appearance="menu"
 			placement="right-start"
 			trigger="click"
 			?arrow=${false}
