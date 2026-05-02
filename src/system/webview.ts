@@ -53,3 +53,15 @@ export function isWebviewItemGroupContext<TValue = unknown>(
 export function serializeWebviewItemContext<T = WebviewItemContext | WebviewItemGroupContext>(context: T): string {
 	return JSON.stringify(context);
 }
+
+/**
+ * Returns a copy of `context` with `+<flag>` appended to its `webviewItem` string. Used for
+ * conditionally-applied flags like `+working` whose state isn't known at the time the host
+ * builds the base context (e.g. async `hasChanges` resolution for worktrees). No-op if the
+ * flag is already present so repeated applications are idempotent.
+ */
+export function withWebviewItemFlag<T extends WebviewItemContext>(context: T, flag: string): T {
+	const re = new RegExp(`\\+${flag}\\b`);
+	if (re.test(context.webviewItem)) return context;
+	return { ...context, webviewItem: `${context.webviewItem}+${flag}` };
+}

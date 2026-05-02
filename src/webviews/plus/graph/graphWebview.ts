@@ -180,7 +180,7 @@ import { getContext, onDidChangeContext, setContext } from '../../../system/-web
 import type { StorageChangeEvent } from '../../../system/-webview/storage.js';
 import type { OpenWorkspaceLocation } from '../../../system/-webview/vscode/workspaces.js';
 import { openWorkspace } from '../../../system/-webview/vscode/workspaces.js';
-import { isDarkTheme, isLightTheme } from '../../../system/-webview/vscode.js';
+import { isDarkTheme, isLightTheme, revealInFileExplorer } from '../../../system/-webview/vscode.js';
 import { createCommandDecorator, getWebviewCommand } from '../../../system/decorators/command.js';
 import { serializeWebviewItemContext } from '../../../system/webview.js';
 import { DeepLinkActionType } from '../../../uris/deepLinks/deepLink.js';
@@ -268,6 +268,7 @@ import type {
 	GraphSelectedRows,
 	GraphSelection,
 	GraphSidebarPanel,
+	GraphSidebarWorktree,
 	GraphStashContextValue,
 	GraphTagContextValue,
 	GraphWipMetadataBySha,
@@ -2065,7 +2066,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				date: b.date?.getTime(),
 				providerName: remoteName ? providerByRemote.get(remoteName) : undefined,
 				starred: b.starred || undefined,
-				menuContext: serializeWebviewItemContext<GraphItemRefContext<GraphBranchContextValue>>({
+				context: {
 					webview: this.host.id,
 					webviewItem: `gitlens:branch${b.current ? '+current' : ''}${
 						b.upstream != null && !b.upstream.missing ? '+tracking' : ''
@@ -2082,7 +2083,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							upstream: b.upstream,
 						}),
 					},
-				}),
+				} satisfies GraphItemRefContext<GraphBranchContextValue>,
 			};
 		});
 		return { panel: 'branches' as const, items: items, layout: branchCfg.layout, compact: branchCfg.compact };
@@ -2111,7 +2112,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				const branches = rBranches.map(b => ({
 					name: getBranchNameWithoutRemote(b.name),
 					sha: b.sha,
-					menuContext: serializeWebviewItemContext<GraphItemRefContext<GraphBranchContextValue>>({
+					context: {
 						webview: this.host.id,
 						webviewItem: `gitlens:branch+remote`,
 						webviewItemValue: {
@@ -2123,7 +2124,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 								remote: true,
 							}),
 						},
-					}),
+					} satisfies GraphItemRefContext<GraphBranchContextValue>,
 				}));
 
 				let connected: boolean | undefined;
@@ -2148,7 +2149,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					providerName: r.provider?.name,
 					connected: connected,
 					branches: branches,
-					menuContext: serializeWebviewItemContext<GraphItemTypedContext<GraphRemoteContextValue>>({
+					context: {
 						webview: this.host.id,
 						webviewItem: webviewItem,
 						webviewItemValue: {
@@ -2156,7 +2157,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							name: r.name,
 							repoPath: graph.repoPath,
 						},
-					}),
+					} satisfies GraphItemTypedContext<GraphRemoteContextValue>,
 				};
 			}),
 		);
@@ -2174,7 +2175,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						date: s.author.date.getTime(),
 						stashNumber: s.stashNumber ?? '',
 						stashOnRef: s.stashOnRef,
-						menuContext: serializeWebviewItemContext<GraphItemRefContext<GraphStashContextValue>>({
+						context: {
 							webview: this.host.id,
 							webviewItem: 'gitlens:stash',
 							webviewItemValue: {
@@ -2186,7 +2187,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 									number: s.stashNumber,
 								}),
 							},
-						}),
+						} satisfies GraphItemRefContext<GraphStashContextValue>,
 					}))
 				: [];
 		return { panel: 'stashes' as const, items: items };
@@ -2202,7 +2203,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			message: t.message || undefined,
 			annotated: t.message != null && t.message.length > 0,
 			date: t.date?.getTime(),
-			menuContext: serializeWebviewItemContext<GraphItemRefContext<GraphTagContextValue>>({
+			context: {
 				webview: this.host.id,
 				webviewItem: 'gitlens:tag',
 				webviewItemValue: {
@@ -2213,7 +2214,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						name: t.name,
 					}),
 				},
-			}),
+			} satisfies GraphItemRefContext<GraphTagContextValue>,
 		}));
 		return { panel: 'tags' as const, items: items, layout: tagCfg.layout, compact: tagCfg.compact };
 	}
@@ -2230,6 +2231,68 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const items = worktrees.map(w => {
 			const upstreamName = w.branch?.upstream?.name;
 			const remoteName = upstreamName ? getRemoteNameFromBranchName(upstreamName) : undefined;
+
+			let webviewItem = `gitlens:worktree${w.isDefault ? '+default' : ''}${
+				w.workspaceFolder != null ? '+active' : ''
+			}`;
+			if (w.branch != null) {
+				webviewItem += '+branch';
+				if (w.branch.starred) {
+					webviewItem += '+starred';
+				}
+				if (w.branch.upstream != null && !w.branch.upstream.missing) {
+					webviewItem += '+tracking';
+				}
+				switch (w.branch.status) {
+					case 'ahead':
+						webviewItem += '+ahead';
+						break;
+					case 'behind':
+						webviewItem += '+behind';
+						break;
+					case 'diverged':
+						webviewItem += '+ahead+behind';
+						break;
+				}
+				if (w.branch.rebasing) {
+					webviewItem += '+rebasing';
+				}
+			} else if (w.type === 'detached') {
+				webviewItem += '+detached';
+			}
+
+			// Base context — `+working` is appended in the webview when the async hasChanges resolves.
+			const context: GraphSidebarWorktree['context'] =
+				w.branch != null
+					? {
+							webview: this.host.id,
+							webviewItem: webviewItem,
+							webviewItemValue: {
+								type: 'branch',
+								ref: createReference(w.branch.name, graph.repoPath, {
+									id: w.branch.id,
+									refType: 'branch',
+									name: w.branch.name,
+									remote: false,
+									upstream: w.branch.upstream,
+								}),
+							},
+						}
+					: w.sha != null
+						? {
+								webview: this.host.id,
+								webviewItem: webviewItem,
+								webviewItemValue: {
+									type: 'commit',
+									ref: createReference(w.sha, graph.repoPath, {
+										refType: 'revision',
+										name: w.sha,
+										message: '',
+									}),
+								},
+							}
+						: undefined;
+
 			return {
 				name: w.name,
 				uri: w.uri.fsPath,
@@ -2242,42 +2305,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				upstream: w.branch?.upstream?.name,
 				tracking: w.branch?.upstream?.state,
 				providerName: remoteName ? providerByRemote.get(remoteName) : undefined,
-				menuContext:
-					w.branch != null
-						? serializeWebviewItemContext<GraphItemRefContext<GraphBranchContextValue>>({
-								webview: this.host.id,
-								webviewItem: `gitlens:branch${w.branch.current ? '+current' : ''}${
-									w.branch.upstream != null && !w.branch.upstream.missing ? '+tracking' : ''
-								}+worktree${
-									w.branch.current || w.workspaceFolder != null ? '+checkedout' : ''
-								}${w.workspaceFolder != null ? '+opened' : ''}`,
-								webviewItemValue: {
-									type: 'branch',
-									ref: createReference(w.branch.name, graph.repoPath, {
-										id: w.branch.id,
-										refType: 'branch',
-										name: w.branch.name,
-										remote: false,
-										upstream: w.branch.upstream,
-									}),
-								},
-							})
-						: w.sha != null
-							? serializeWebviewItemContext<GraphItemRefContext<GraphCommitContextValue>>({
-									webview: this.host.id,
-									webviewItem: `gitlens:commit+worktree${
-										w.workspaceFolder != null ? '+checkedout' : ''
-									}`,
-									webviewItemValue: {
-										type: 'commit',
-										ref: createReference(w.sha, graph.repoPath, {
-											refType: 'revision',
-											name: w.sha,
-											message: '',
-										}),
-									},
-								})
-							: undefined,
+				context: context,
 			};
 		});
 
@@ -4195,7 +4223,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			const results = await Promise.allSettled(
 				worktrees.map(async w => {
 					const hasChanges = await getWorktreeHasWorkingChanges(this.container, w);
-					return [w.uri.toString(), hasChanges] as const;
+					return [w.uri.fsPath, hasChanges] as const;
 				}),
 			);
 
@@ -7303,12 +7331,15 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.ai.explainWip:')
 	@debug()
-	private explainWip(item?: GraphItemContext) {
-		const ref = this.getGraphItemRef(item, 'revision');
-		if (ref == null) return Promise.resolve();
+	private async explainWip(item?: GraphItemContext) {
+		const ref = this.getGraphItemRef(item);
+		if (ref == null) return;
 
-		return executeCommand<ExplainWipCommandArgs>('gitlens.ai.explainWip', {
-			repoPath: ref.repoPath,
+		const worktree = await this.getGraphItemWorktree(item);
+
+		await executeCommand<ExplainWipCommandArgs>('gitlens.ai.explainWip', {
+			repoPath: worktree?.repoPath ?? ref.repoPath,
+			worktreePath: worktree?.path,
 			source: { source: 'graph', context: { type: 'wip' } },
 		});
 	}
@@ -7464,6 +7495,27 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	@command('gitlens.openWorktreeInNewWindow:')
 	private openWorktreeInNewWindow(item?: GraphItemContext | BranchRef) {
 		return this.openWorktree(item, { location: 'newWindow' });
+	}
+
+	@command('gitlens.graph.revealWorktreeInExplorer')
+	@debug()
+	private async revealWorktreeInExplorer(item?: GraphItemContext) {
+		const worktree = await this.getGraphItemWorktree(item);
+		if (worktree == null) return;
+
+		// Pass a sub-path (.git always exists in any worktree) so the OS file manager opens the
+		// worktree folder itself rather than its parent — the default `revealFileInOS` selects
+		// the folder in the parent on Windows/WSL, which isn't what users expect for a worktree.
+		void revealInFileExplorer(Uri.joinPath(worktree.uri, '.git'));
+	}
+
+	@command('gitlens.graph.deleteWorktree')
+	@debug()
+	private async deleteWorktree(item?: GraphItemContext) {
+		const worktree = await this.getGraphItemWorktree(item);
+		if (worktree == null || worktree.isDefault || worktree.opened) return;
+
+		await WorktreeActions.remove(worktree.repoPath, [worktree.uri]);
 	}
 
 	@command('gitlens.graph.addAuthor')
@@ -7670,15 +7722,15 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@debug()
 	private async composeCommits(item?: GraphItemContext) {
-		if (isGraphItemRefContext(item, 'revision')) {
-			const { ref } = item.webviewItemValue;
+		const ref = this.getGraphItemRef(item);
+		if (ref == null) return;
 
-			await executeCommand<ComposerCommandArgs>('gitlens.composeCommits', {
-				repoPath: ref.repoPath,
-				source: 'graph',
-			});
-		}
-		return Promise.resolve();
+		const worktree = await this.getGraphItemWorktree(item);
+
+		await executeCommand<ComposerCommandArgs>('gitlens.composeCommits', {
+			repoPath: worktree?.path ?? ref.repoPath,
+			source: 'graph',
+		});
 	}
 
 	@command('gitlens.visualizeHistory.repo:')
@@ -7787,6 +7839,30 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			default:
 				return isGraphItemRefContext(item) ? item.webviewItemValue.ref : undefined;
 		}
+	}
+
+	private async getGraphItemWorktree(item?: GraphItemContext): Promise<GitWorktree | undefined> {
+		if (isGraphItemRefContext(item, 'branch')) {
+			const { ref } = item.webviewItemValue;
+			if (ref.id == null) return undefined;
+
+			let worktreesByBranch;
+			if (ref.repoPath === this._graph?.repoPath) {
+				worktreesByBranch = this._graph?.worktreesByBranch;
+			} else {
+				const repo = this.container.git.getRepository(ref.repoPath);
+				if (repo == null) return undefined;
+
+				worktreesByBranch = await getWorktreesByBranch(repo);
+			}
+
+			return worktreesByBranch?.get(ref.id);
+		}
+		if (isGraphItemRefContext(item, 'revision')) {
+			const { ref } = item.webviewItemValue;
+			return this._graph?.worktrees?.find(w => w.sha === ref.ref);
+		}
+		return undefined;
 	}
 
 	private getGraphItemRefs(

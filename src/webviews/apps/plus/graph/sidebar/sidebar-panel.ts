@@ -7,6 +7,8 @@ import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { fromNow } from '@gitlens/utils/date.js';
 import type { GlCommands } from '../../../../../constants.commands.js';
+import type { WebviewItemContext } from '../../../../../system/webview.js';
+import { serializeWebviewItemContext, withWebviewItemFlag } from '../../../../../system/webview.js';
 import type {
 	DidGetSidebarDataParams,
 	GraphSidebarBranch,
@@ -101,7 +103,10 @@ interface LeafProps {
 	context: SidebarItemContext;
 	decorations?: TreeModel<SidebarItemContext>['decorations'];
 	actions?: TreeModel<SidebarItemContext>['actions'];
-	menuContext?: string;
+	/** Typed context object — serialized at the leaf→tree-model boundary so consumers (VS Code's
+	 *  context-menu API) get the JSON-encoded `data-vscode-context` string they expect, while the
+	 *  rest of the panel works with a typed shape. */
+	contextValue?: WebviewItemContext;
 }
 
 function trackingDecorations(
@@ -144,7 +149,7 @@ function leafToTreeModel(leaf: LeafProps, path: string, level: number): TreeMode
 		context: leaf.context,
 		decorations: leaf.decorations,
 		actions: leaf.actions,
-		contextData: leaf.menuContext,
+		contextData: leaf.contextValue != null ? serializeWebviewItemContext(leaf.contextValue) : undefined,
 	};
 }
 
@@ -305,7 +310,11 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 
 	/** Memo for `buildTreeModel`. Renders fire on every filter/expansion change, so without this
 	 *  the tree model is rebuilt for an unchanged `data` reference. Reset on key change. */
-	private _treeModelCache?: { data: DidGetSidebarDataParams; model: TreeModel<SidebarItemContext>[] };
+	private _treeModelCache?: {
+		data: DidGetSidebarDataParams;
+		dateFormat: string | null | undefined;
+		model: TreeModel<SidebarItemContext>[];
+	};
 
 	private readonly _contextMenuProxy = new ContextMenuProxyController(this);
 
@@ -407,11 +416,11 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	private renderTreeContent(config: (typeof panelConfig)[GraphSidebarPanel], data: DidGetSidebarDataParams): unknown {
 		const cache = this._treeModelCache;
 		let model: TreeModel<SidebarItemContext>[];
-		if (cache?.data === data) {
+		if (cache?.data === data && cache.dateFormat === this.dateFormat) {
 			model = cache.model;
 		} else {
 			model = this.buildTreeModel(data);
-			this._treeModelCache = { data: data, model: model };
+			this._treeModelCache = { data: data, dateFormat: this.dateFormat, model: model };
 		}
 
 		// Automatically track/restore tree expansion state per panel.
@@ -509,7 +518,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 							{ icon: 'gl-stash-pop', label: 'Apply Stash...', action: 'gitlens.stashApply:graph' },
 							{ icon: 'trash', label: 'Delete Stash...', action: 'gitlens.stashDelete:graph' },
 						],
-						contextData: s.menuContext,
+						contextData: s.context != null ? serializeWebviewItemContext(s.context) : undefined,
 					};
 				});
 			case 'tags':
@@ -603,7 +612,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			context: [b.sha] as SidebarItemContext,
 			decorations: trackingDecorations(b.tracking, b.upstream?.missing),
 			actions: actions,
-			menuContext: b.menuContext,
+			contextValue: b.context,
 		};
 	}
 
@@ -616,7 +625,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			description: t.message,
 			context: [t.sha] as SidebarItemContext,
 			actions: [{ icon: 'gl-switch', label: 'Switch to Tag...', action: 'gitlens.graph.switchToTag' }],
-			menuContext: t.menuContext,
+			contextValue: t.context,
 		};
 	}
 
@@ -661,7 +670,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			label: isTree ? (branchName.split('/').pop() ?? branchName) : branchName,
 			filterText: isTree ? branchName : undefined,
 			tooltip: worktreeTooltip(w),
-			icon: { type: 'branch', status: w.status, hasChanges: w.hasChanges },
+			icon: w.branch != null ? { type: 'branch', status: w.status, hasChanges: w.hasChanges } : 'git-commit',
 			description: formatWorktreeDescription(w),
 			context: [w.sha] as SidebarItemContext,
 			decorations: [
@@ -670,7 +679,9 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				...(w.locked ? [{ type: 'icon' as const, icon: 'lock', label: 'Locked' }] : []),
 			],
 			actions: actions,
-			menuContext: w.menuContext,
+			// `+working` is appended client-side once the async hasChanges check resolves —
+			// the host emits the base context only.
+			contextValue: w.context != null && w.hasChanges ? withWebviewItemFlag(w.context, 'working') : w.context,
 		};
 	}
 
@@ -693,7 +704,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					tooltip: `$(git-branch) \`${r.name}/${b.name}\``,
 					icon: 'git-branch',
 					context: [b.sha] as SidebarItemContext,
-					menuContext: b.menuContext,
+					contextValue: b.context,
 				}),
 				2,
 			);
@@ -737,7 +748,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				description: r.url,
 				checkable: false,
 				context: [undefined],
-				contextData: r.menuContext,
+				contextData: r.context != null ? serializeWebviewItemContext(r.context) : undefined,
 				children: children,
 				decorations: r.isDefault ? [{ type: 'text' as const, label: 'default' }] : undefined,
 				actions: actions,

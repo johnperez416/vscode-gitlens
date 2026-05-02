@@ -604,13 +604,13 @@ export interface GraphSidebarBranch {
 	date?: number;
 	providerName?: string;
 	starred?: boolean;
-	menuContext?: string;
+	context?: GraphItemRefContext<GraphBranchContextValue>;
 }
 
 export interface GraphSidebarRemoteBranch {
 	name: string;
 	sha?: string;
-	menuContext?: string;
+	context?: GraphItemRefContext<GraphBranchContextValue>;
 }
 
 export interface GraphSidebarRemote {
@@ -622,7 +622,7 @@ export interface GraphSidebarRemote {
 	/** Whether the remote's integration is connected (`true`), disconnected (`false`), or not applicable (`undefined`). */
 	connected?: boolean;
 	branches: GraphSidebarRemoteBranch[];
-	menuContext?: string;
+	context?: GraphItemTypedContext<GraphRemoteContextValue>;
 }
 
 export interface GraphSidebarStash {
@@ -632,7 +632,7 @@ export interface GraphSidebarStash {
 	date?: number;
 	stashNumber: string;
 	stashOnRef?: string;
-	menuContext?: string;
+	context?: GraphItemRefContext<GraphStashContextValue>;
 }
 
 export interface GraphSidebarTag {
@@ -641,7 +641,7 @@ export interface GraphSidebarTag {
 	message?: string;
 	annotated: boolean;
 	date?: number;
-	menuContext?: string;
+	context?: GraphItemRefContext<GraphTagContextValue>;
 }
 
 export interface GraphSidebarWorktree {
@@ -657,7 +657,7 @@ export interface GraphSidebarWorktree {
 	upstream?: string;
 	tracking?: { ahead: number; behind: number };
 	providerName?: string;
-	menuContext?: string;
+	context?: GraphItemRefContext<GraphBranchContextValue> | GraphItemRefContext<GraphCommitContextValue>;
 }
 
 export type GetSidebarDataParams = { panel: GraphSidebarPanel };

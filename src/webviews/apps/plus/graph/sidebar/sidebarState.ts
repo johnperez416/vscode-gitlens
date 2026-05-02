@@ -76,17 +76,22 @@ export function createSidebarActions(): SidebarActions {
 		panels: panels,
 	};
 
-	async function doFetchCounts(): Promise<void> {
-		if (service == null) return;
-
+	async function doFetchCounts(svc: GraphSidebarService): Promise<void> {
 		countsLoading.set(true);
 		countsError.set(false);
 		try {
-			counts.set((await service.getSidebarCounts()) as Counts | undefined);
+			const result = (await svc.getSidebarCounts()) as Counts | undefined;
+			if (service === svc) {
+				counts.set(result);
+			}
 		} catch {
-			countsError.set(true);
+			if (service === svc) {
+				countsError.set(true);
+			}
 		} finally {
-			countsLoading.set(false);
+			if (service === svc) {
+				countsLoading.set(false);
+			}
 		}
 	}
 
@@ -124,6 +129,7 @@ export function createSidebarActions(): SidebarActions {
 			unsubscribeWorktree = undefined;
 
 			service = svc;
+			fetchCountsPromise = undefined;
 
 			// Supertalk RPC marshals subscription methods as `Promise<Unsubscribe>`, so
 			// the call must be awaited — synchronous assignment captures the Promise
@@ -165,10 +171,15 @@ export function createSidebarActions(): SidebarActions {
 		},
 
 		fetchCounts: function () {
-			if (service == null) return;
-			fetchCountsPromise ??= doFetchCounts().finally(() => {
-				fetchCountsPromise = undefined;
+			if (service == null || fetchCountsPromise != null) return;
+
+			const promise = doFetchCounts(service).finally(() => {
+				// Only clear the promise if it hasn't been replaced by a newer call
+				if (fetchCountsPromise === promise) {
+					fetchCountsPromise = undefined;
+				}
 			});
+			fetchCountsPromise = promise;
 		},
 
 		invalidateAll: function () {
