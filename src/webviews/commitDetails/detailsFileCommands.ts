@@ -90,7 +90,7 @@ export class DetailsFileCommands {
 	async openChangesWithMergeBase(
 		commit: GitCommit,
 		file: GitFileChange,
-		_showOptions?: TextDocumentShowOptions,
+		showOptions?: TextDocumentShowOptions,
 		comparison?: ComparisonContext,
 	): Promise<void> {
 		if (comparison == null) return;
@@ -103,7 +103,7 @@ export class DetailsFileCommands {
 		void openChanges(
 			file,
 			{ repoPath: commit.repoPath, lhs: mergeBase, rhs: comparison.sha },
-			{ preserveFocus: true, preview: true, lhsTitle: `${basename(file.path)} (Base)` },
+			{ preserveFocus: true, preview: true, ...showOptions, lhsTitle: `${basename(file.path)} (Base)` },
 		);
 	}
 
@@ -126,14 +126,14 @@ export class DetailsFileCommands {
 
 	@command('gitlens.views.openFile:')
 	@debug()
-	openFile(commit: GitCommit, file: GitFileChange): void {
-		void openFile(file, commit, { preserveFocus: true, preview: true });
+	openFile(commit: GitCommit, file: GitFileChange, showOptions?: TextDocumentShowOptions): void {
+		void openFile(file, commit, { preserveFocus: true, preview: true, ...showOptions });
 	}
 
 	@command('gitlens.views.openFileRevision:')
 	@debug()
-	openFileRevision(commit: GitCommit, file: GitFileChange): void {
-		void openFileAtRevision(file, commit, { preserveFocus: true, preview: false });
+	openFileRevision(commit: GitCommit, file: GitFileChange, showOptions?: TextDocumentShowOptions): void {
+		void openFileAtRevision(file, commit, { preserveFocus: true, preview: false, ...showOptions });
 	}
 
 	@command('gitlens.openFileOnRemote:')

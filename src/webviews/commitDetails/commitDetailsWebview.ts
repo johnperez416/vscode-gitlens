@@ -44,6 +44,7 @@ import type {
 	GenerateResult,
 	NavigateResult,
 } from './commitDetailsService.js';
+import type { ComparisonContext } from './commitDetailsWebview.utils.js';
 import { getFileCommitFromContext, isDetailsFileContext, isDetailsItemContext } from './commitDetailsWebview.utils.js';
 import { DetailsFileCommands, getDetailsFileCommands } from './detailsFileCommands.js';
 import type {
@@ -349,10 +350,10 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 							this.suspendLineTracker();
 						}
 
-						const [commit, file] = await this.getFileCommitFromContextOrParams(item);
+						const [commit, file, comparison] = await this.getFileCommitFromContextOrParams(item);
 						if (commit == null) return;
 
-						return void handler.call(fileCommands, commit, file, this.getShowOptions(item));
+						return void handler.call(fileCommands, commit, file, this.getShowOptions(item), comparison);
 					},
 					this,
 				),
@@ -688,8 +689,8 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 	private async getFileCommitFromContextOrParams(
 		item: DetailsItemContext | ExecuteFileActionParams | undefined,
 	): Promise<
-		| [commit: GitCommit, file: GitFileChange, ...rest: unknown[]]
-		| [commit?: undefined, file?: undefined, ...rest: unknown[]]
+		| [commit: GitCommit, file: GitFileChange, comparison?: ComparisonContext]
+		| [commit?: undefined, file?: undefined, comparison?: undefined]
 	> {
 		if (item == null) return [];
 
