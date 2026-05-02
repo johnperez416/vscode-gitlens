@@ -50,6 +50,7 @@ import { scrollableBase } from '../shared/components/styles/lit/base.css.js';
 import type {
 	TreeItemActionDetail,
 	TreeItemDecoration,
+	TreeItemDecorationKind,
 	TreeItemSelectionDetail,
 	TreeModel,
 } from '../shared/components/tree/base.js';
@@ -71,35 +72,35 @@ import '../shared/components/overlays/popover-confirm.js';
 import '../shared/components/overlays/tooltip.js';
 import '../shared/components/split-panel/split-panel.js';
 
-const conflictActions: Record<string, { label: string; color: string }> = {
-	A: { label: 'Added', color: 'var(--vscode-gitDecoration-addedResourceForeground)' },
-	D: { label: 'Deleted', color: 'var(--vscode-gitDecoration-deletedResourceForeground)' },
-	U: { label: 'Modified', color: 'var(--vscode-gitDecoration-modifiedResourceForeground)' },
+const conflictActions: Record<string, { label: string; kind: TreeItemDecorationKind }> = {
+	A: { label: 'Added', kind: 'added' },
+	D: { label: 'Deleted', kind: 'deleted' },
+	U: { label: 'Modified', kind: 'modified' },
 };
 
 function getConflictStatusInfo(
 	status: GitFileConflictStatus,
 	branchName?: string,
-): { label: string; color: string; description: string } | undefined {
+): { label: string; kind: TreeItemDecorationKind; description: string } | undefined {
 	// First char = current (ours in rebase = onto/target), second char = incoming (theirs in rebase = branch)
 	const currentAction = conflictActions[status[0]];
 	const incomingAction = conflictActions[status[1]];
 	if (currentAction == null || incomingAction == null) return undefined;
 
-	const color = currentAction.color === conflictActions.U.color ? incomingAction.color : currentAction.color;
+	const kind = currentAction.kind === conflictActions.U.kind ? incomingAction.kind : currentAction.kind;
 	const branch = branchName ? `$(git-branch) ${branchName}` : 'incoming';
 
 	if (status[0] === status[1]) {
 		return {
 			label: `${currentAction.label} (Both)`,
-			color: color,
+			kind: kind,
 			description: `${currentAction.label} on both ${branch} and the target`,
 		};
 	}
 
 	return {
 		label: `${currentAction.label} (Current), ${incomingAction.label} (Incoming)`,
-		color: color,
+		kind: kind,
 		description: `${incomingAction.label} on ${branch}\n${currentAction.label} on the target`,
 	};
 }
@@ -1667,14 +1668,14 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 				type: 'text',
 				label: conflictStatus,
 				tooltip: info.description,
-				color: info.color,
+				kind: info.kind,
 				position: 'after',
 			});
 			decorations.push({
 				type: 'text',
 				label: info.label,
 				tooltip: info.label,
-				color: 'var(--vscode-descriptionForeground)',
+				kind: 'muted',
 				position: 'before',
 			});
 		}
@@ -1685,7 +1686,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 				label: pluralize('conflict', conflictCount),
 				count: conflictCount,
 				tooltip: pluralize('conflict', conflictCount),
-				color: info?.color ?? conflictActions.U.color,
+				kind: info?.kind ?? conflictActions.U.kind,
 				position: 'before',
 			});
 		}

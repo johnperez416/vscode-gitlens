@@ -6,7 +6,7 @@ import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { joinPaths } from '@gitlens/utils/path.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
-import type { TreeItemAction, TreeItemBase, TreeModel } from './base.js';
+import type { TreeItemAction, TreeItemBase, TreeItemDecorationKind, TreeModel } from './base.js';
 
 /**
  * Determines whether the file tree should use tree layout based on the
@@ -296,50 +296,22 @@ export function buildGroupedTree<T extends GitFileChangeShape>(opts: GroupedTree
 
 export function getStatusDecoration(
 	status: GitFileStatus | (string & {}),
-): { letter: string; tooltip: string; color: string } | undefined {
+): { letter: string; tooltip: string; kind: TreeItemDecorationKind } | undefined {
 	switch (status) {
 		case 'A':
-			return {
-				letter: 'A',
-				tooltip: 'Added',
-				color: 'var(--vscode-gitDecoration-addedResourceForeground)',
-			};
+			return { letter: 'A', tooltip: 'Added', kind: 'added' };
 		case '?':
-			return {
-				letter: 'U',
-				tooltip: 'Untracked',
-				color: 'var(--vscode-gitDecoration-untrackedResourceForeground)',
-			};
+			return { letter: 'U', tooltip: 'Untracked', kind: 'untracked' };
 		case 'M':
-			return {
-				letter: 'M',
-				tooltip: 'Modified',
-				color: 'var(--vscode-gitDecoration-modifiedResourceForeground)',
-			};
+			return { letter: 'M', tooltip: 'Modified', kind: 'modified' };
 		case 'D':
-			return {
-				letter: 'D',
-				tooltip: 'Deleted',
-				color: 'var(--vscode-gitDecoration-deletedResourceForeground)',
-			};
+			return { letter: 'D', tooltip: 'Deleted', kind: 'deleted' };
 		case 'R':
-			return {
-				letter: 'R',
-				tooltip: 'Renamed',
-				color: 'var(--vscode-gitDecoration-renamedResourceForeground)',
-			};
+			return { letter: 'R', tooltip: 'Renamed', kind: 'renamed' };
 		case 'C':
-			return {
-				letter: 'C',
-				tooltip: 'Copied',
-				color: 'var(--vscode-gitDecoration-renamedResourceForeground)',
-			};
+			return { letter: 'C', tooltip: 'Copied', kind: 'renamed' };
 		case 'T':
-			return {
-				letter: 'T',
-				tooltip: 'Type Changed',
-				color: 'var(--vscode-gitDecoration-modifiedResourceForeground)',
-			};
+			return { letter: 'T', tooltip: 'Type Changed', kind: 'modified' };
 		case 'U':
 		case 'AA':
 		case 'AU':
@@ -348,11 +320,7 @@ export function getStatusDecoration(
 		case 'DU':
 		case 'UD':
 		case 'UU':
-			return {
-				letter: '!',
-				tooltip: 'Conflict',
-				color: 'var(--vscode-gitDecoration-conflictingResourceForeground)',
-			};
+			return { letter: '!', tooltip: 'Conflict', kind: 'conflict' };
 		default:
 			return undefined;
 	}

@@ -4,7 +4,6 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import type { Ref } from 'lit/directives/ref.js';
 import { createRef, ref } from 'lit/directives/ref.js';
-import { styleMap } from 'lit/directives/style-map.js';
 import { when } from 'lit/directives/when.js';
 import { GlElement } from '../element.js';
 import type { GlGitStatus } from '../status/git-status.js';
@@ -514,12 +513,12 @@ export class GlTreeView extends GlElement {
 			}
 
 			if (decoration.type === 'text') {
+				const classes = `decoration-text${decoration.kind ? ` decoration-text--${decoration.kind}` : ''}`;
 				return html`<span
 					slot=${slot}
 					part=${slot}
-					class="decoration-text"
+					class=${classes}
 					aria-label=${ifDefined(decoration.tooltip ?? decoration.label)}
-					style=${decoration.color ? styleMap({ color: decoration.color }) : nothing}
 					>${decoration.label}</span
 				>`;
 			}
@@ -537,17 +536,12 @@ export class GlTreeView extends GlElement {
 			}
 
 			if (decoration.type === 'conflict') {
+				const classes = `conflict-count${decoration.kind ? ` conflict-count--${decoration.kind}` : ''}`;
 				return html`<span
 					slot=${slot}
 					part=${slot}
-					class="conflict-count"
+					class=${classes}
 					aria-label=${ifDefined(decoration.tooltip ?? decoration.label)}
-					style=${decoration.color
-						? styleMap({
-								color: decoration.color,
-								'border-color': `color-mix(in srgb, transparent 60%, ${decoration.color})`,
-							})
-						: nothing}
 					><code-icon icon="warning" size="12"></code-icon>${decoration.count}</span
 				>`;
 			}

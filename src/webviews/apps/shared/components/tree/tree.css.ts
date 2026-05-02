@@ -361,6 +361,54 @@ export const treeItemStyles = [
 			opacity: var(--gl-decoration-after-opacity, 1);
 		}
 
+		::slotted([slot^='decorations-'].decoration-text--added),
+		::slotted([slot^='decorations-'].conflict-count--added) {
+			color: var(--vscode-gitDecoration-addedResourceForeground);
+		}
+		::slotted([slot^='decorations-'].conflict-count--added) {
+			border-color: color-mix(in srgb, transparent 60%, var(--vscode-gitDecoration-addedResourceForeground));
+		}
+
+		::slotted([slot^='decorations-'].decoration-text--deleted),
+		::slotted([slot^='decorations-'].conflict-count--deleted) {
+			color: var(--vscode-gitDecoration-deletedResourceForeground);
+		}
+		::slotted([slot^='decorations-'].conflict-count--deleted) {
+			border-color: color-mix(in srgb, transparent 60%, var(--vscode-gitDecoration-deletedResourceForeground));
+		}
+
+		::slotted([slot^='decorations-'].decoration-text--modified),
+		::slotted([slot^='decorations-'].conflict-count--modified) {
+			color: var(--vscode-gitDecoration-modifiedResourceForeground);
+		}
+		::slotted([slot^='decorations-'].conflict-count--modified) {
+			border-color: color-mix(in srgb, transparent 60%, var(--vscode-gitDecoration-modifiedResourceForeground));
+		}
+
+		::slotted([slot^='decorations-'].decoration-text--untracked) {
+			color: var(--vscode-gitDecoration-untrackedResourceForeground);
+		}
+
+		::slotted([slot^='decorations-'].decoration-text--renamed) {
+			color: var(--vscode-gitDecoration-renamedResourceForeground);
+		}
+
+		::slotted([slot^='decorations-'].decoration-text--conflict),
+		::slotted([slot^='decorations-'].conflict-count--conflict) {
+			color: var(--vscode-gitDecoration-conflictingResourceForeground);
+		}
+		::slotted([slot^='decorations-'].conflict-count--conflict) {
+			border-color: color-mix(
+				in srgb,
+				transparent 60%,
+				var(--vscode-gitDecoration-conflictingResourceForeground)
+			);
+		}
+
+		::slotted([slot^='decorations-'].decoration-text--muted) {
+			color: var(--vscode-descriptionForeground);
+		}
+
 		/* High Contrast Mode Support */
 		@media (forced-colors: active) {
 			:host {

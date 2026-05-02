@@ -454,13 +454,13 @@ export class GlFileTreePane extends LitElement {
 				{
 					type: 'text' as const,
 					label: `+${file.stats.additions}`,
-					color: 'var(--vscode-gitDecoration-addedResourceForeground)',
+					kind: 'added' as const,
 					position: 'before' as const,
 				},
 				{
 					type: 'text' as const,
 					label: `−${file.stats.deletions}`,
-					color: 'var(--vscode-gitDecoration-deletedResourceForeground)',
+					kind: 'deleted' as const,
 					position: 'before' as const,
 				},
 			);
@@ -474,7 +474,7 @@ export class GlFileTreePane extends LitElement {
 					type: 'text' as const,
 					label: statusInfo.letter,
 					tooltip: statusInfo.tooltip,
-					color: statusInfo.color,
+					kind: statusInfo.kind,
 					position: 'after' as const,
 				});
 			}

@@ -51,10 +51,12 @@ export interface TreeItemDecorationIcon extends TreeItemDecorationBase {
 	icon: string;
 }
 
+export type TreeItemDecorationKind = 'added' | 'deleted' | 'modified' | 'untracked' | 'renamed' | 'conflict' | 'muted';
+
 export interface TreeItemDecorationText extends TreeItemDecorationBase {
 	type: 'text';
 	tooltip?: string;
-	color?: string;
+	kind?: TreeItemDecorationKind;
 }
 
 export interface TreeItemDecorationStatus extends TreeItemDecorationBase {
@@ -73,7 +75,7 @@ export interface TreeItemDecorationConflict extends TreeItemDecorationBase {
 	type: 'conflict';
 	count: number;
 	tooltip?: string;
-	color?: string;
+	kind?: TreeItemDecorationKind;
 }
 
 export type TreeItemDecoration =
