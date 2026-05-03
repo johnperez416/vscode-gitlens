@@ -3756,7 +3756,7 @@
 				"properties": {
 					"gitlens.rebaseEditor.density": {
 						"type": "string",
-						"default": "compact",
+						"default": "comfortable",
 						"enum": [
 							"compact",
 							"comfortable"
@@ -5582,9 +5582,9 @@
 					},
 					"gitlens.advanced.git.maxConcurrentProcesses": {
 						"type": "number",
-						"default": 7,
+						"default": 20,
 						"minimum": 1,
-						"maximum": 50,
+						"maximum": 100,
 						"markdownDescription": "Specifies the maximum number of background Git processes that can run concurrently. Reduce this value if you experience system slowdowns with large repositories",
 						"scope": "window",
 						"order": 79

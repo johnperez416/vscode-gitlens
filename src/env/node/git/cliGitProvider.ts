@@ -235,7 +235,7 @@ export class GlCliGitProvider implements GlGitProvider {
 				decode: (data: Uint8Array, options?: { readonly encoding: string }) =>
 					Promise.resolve(options ? workspace.decode(data, options) : workspace.decode(data)),
 				gitTimeout: (configuration.get('advanced.git.timeout') ?? 60) * 1000,
-				queue: { maxConcurrent: configuration.get('advanced.git.maxConcurrentProcesses') ?? 7 },
+				queue: { maxConcurrent: configuration.get('advanced.git.maxConcurrentProcesses') ?? 20 },
 				logger: gitOutputChannel,
 				hooks: {
 					onAborted: info => container.telemetry.sendEvent('op/git/aborted', info),
