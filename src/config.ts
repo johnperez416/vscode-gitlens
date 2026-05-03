@@ -430,6 +430,7 @@ export interface GraphConfig {
 		readonly location: 'right' | 'bottom';
 	};
 	readonly dimMergeCommits: boolean;
+	readonly editorOpeningBehavior: 'auto' | 'active';
 	readonly experimental: {
 		readonly renderer: {
 			readonly enabled: boolean;
@@ -1088,6 +1089,7 @@ interface VirtualRepositoriesConfig {
 
 interface VisualHistoryConfig {
 	readonly allowMultiple: boolean;
+	readonly editorOpeningBehavior: 'auto' | 'active';
 	readonly queryLimit: number;
 }
 

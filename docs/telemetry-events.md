@@ -2720,6 +2720,7 @@ or
   'context.config.defaultItemLimit': number,
   'context.config.details.location': 'right' | 'bottom',
   'context.config.dimMergeCommits': boolean,
+  'context.config.editorOpeningBehavior': 'active' | 'auto',
   'context.config.experimental.renderer.enabled': boolean,
   'context.config.experimentalFeatures.enabled': boolean,
   'context.config.highlightRowsOnRefHover': boolean,
@@ -4491,6 +4492,7 @@ or
 ```typescript
 {
   'context.config.allowMultiple': boolean,
+  'context.config.editorOpeningBehavior': 'active' | 'auto',
   'context.config.queryLimit': number,
   'context.period': 'all' | `${number}|D` | `${number}|M` | `${number}|Y`,
   'context.scope.hasBase': boolean,

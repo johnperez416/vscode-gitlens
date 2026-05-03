@@ -978,6 +978,21 @@
 						"scope": "window",
 						"order": 3
 					},
+					"gitlens.graph.editorOpeningBehavior": {
+						"type": "string",
+						"default": "auto",
+						"enum": [
+							"auto",
+							"active"
+						],
+						"enumDescriptions": [
+							"Opens editors beside the Commit Graph when it is the active editor; otherwise opens in the active editor group",
+							"Always opens editors in the active editor group"
+						],
+						"markdownDescription": "Specifies which editor group editors (files, diffs, etc.) opened from the _Commit Graph_ should appear in when the graph is in an editor tab. Has no effect when the graph is shown as a panel.",
+						"scope": "window",
+						"order": 4
+					},
 					"gitlens.graph.multiselect": {
 						"type": [
 							"boolean",
@@ -2565,6 +2580,21 @@
 						"markdownDescription": "Specifies whether to allow opening multiple instances of the _Visual File History_ in the editor area",
 						"scope": "window",
 						"order": 10
+					},
+					"gitlens.visualHistory.editorOpeningBehavior": {
+						"type": "string",
+						"default": "auto",
+						"enum": [
+							"auto",
+							"active"
+						],
+						"enumDescriptions": [
+							"Opens editors beside the Visual File History when it is the active editor; otherwise opens in the active editor group",
+							"Always opens editors in the active editor group"
+						],
+						"markdownDescription": "Specifies which editor group editors (files, diffs, etc.) opened from the _Visual File History_ should appear in when it is in an editor tab. Has no effect when shown in a sidebar.",
+						"scope": "window",
+						"order": 15
 					},
 					"gitlens.visualHistory.queryLimit": {
 						"type": "number",

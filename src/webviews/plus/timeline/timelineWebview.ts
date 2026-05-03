@@ -1,4 +1,4 @@
-import type { TabChangeEvent, TabGroupChangeEvent } from 'vscode';
+import type { TabChangeEvent, TabGroupChangeEvent, TextDocumentShowOptions } from 'vscode';
 import { Disposable, EventEmitter, Uri, ViewColumn, window } from 'vscode';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange } from '@gitlens/git/models/fileChange.js';
@@ -793,6 +793,15 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 		return dataset;
 	}
 
+	private getOpenEditorShowOptions(): (TextDocumentShowOptions & { sourceViewColumn?: ViewColumn }) | undefined {
+		if (this.host.is('view')) return undefined;
+
+		const mode = configuration.get('visualHistory.editorOpeningBehavior') ?? 'auto';
+		if (mode !== 'auto' || !this.host.active) return undefined;
+
+		return { viewColumn: ViewColumn.Beside, sourceViewColumn: this.host.viewColumn };
+	}
+
 	private async openDataPoint(params: SelectDataPointParams) {
 		if (params.scope == null) return;
 
@@ -842,12 +851,10 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 						{
 							preserveFocus: true,
 							preview: true,
-							// Since the multi-diff editor doesn't support choosing the view column, we need to do it manually so passing in our view column
-							sourceViewColumn: this.host.viewColumn,
-							viewColumn: this.host.is('view') ? undefined : ViewColumn.Beside,
 							title: `Folder Changes in ${shortenRevision(commit.sha, {
 								strings: { working: 'Working Tree' },
 							})}`,
+							...this.getOpenEditorShowOptions(),
 						},
 						type === 'folder' ? getFilesFilter(uri, commit.sha) : undefined,
 					);
@@ -859,12 +866,10 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 						{
 							preserveFocus: true,
 							preview: true,
-							// Since the multi-diff editor doesn't support choosing the view column, we need to do it manually so passing in our view column
-							sourceViewColumn: this.host.viewColumn,
-							viewColumn: this.host.is('view') ? undefined : ViewColumn.Beside,
 							title: `Folder Changes in ${shortenRevision(commit.sha, {
 								strings: { working: 'Working Tree' },
 							})}`,
+							...this.getOpenEditorShowOptions(),
 						},
 						type === 'folder' ? getFilesFilter(uri, commit.sha) : undefined,
 					);
@@ -881,7 +886,7 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 					void openTextEditor(uri, {
 						preserveFocus: true,
 						preview: true,
-						viewColumn: this.host.is('view') ? undefined : ViewColumn.Beside,
+						...this.getOpenEditorShowOptions(),
 					});
 
 					break;
@@ -891,13 +896,13 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 					await openChanges(uri, commit, {
 						preserveFocus: true,
 						preview: true,
-						viewColumn: this.host.is('view') ? undefined : ViewColumn.Beside,
+						...this.getOpenEditorShowOptions(),
 					});
 				} else {
 					await openChangesWithWorking(uri, commit, {
 						preserveFocus: true,
 						preview: true,
-						viewColumn: this.host.is('view') ? undefined : ViewColumn.Beside,
+						...this.getOpenEditorShowOptions(),
 					});
 				}
 

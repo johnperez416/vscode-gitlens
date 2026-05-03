@@ -1,6 +1,6 @@
 import type { emptySetMarker, GraphRefOptData, GraphSearchMode } from '@gitkraken/gitkraken-components';
-import type { CancellationToken, ColorTheme, ConfigurationChangeEvent } from 'vscode';
-import { CancellationTokenSource, Disposable, env, ProgressLocation, Uri, window } from 'vscode';
+import type { CancellationToken, ColorTheme, ConfigurationChangeEvent, TextDocumentShowOptions } from 'vscode';
+import { CancellationTokenSource, Disposable, env, ProgressLocation, Uri, ViewColumn, window } from 'vscode';
 import { isClaudeAvailable } from '@env/providers.js';
 import { GitSearchError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
@@ -7348,13 +7348,22 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		});
 	}
 
+	private getOpenEditorShowOptions(): (TextDocumentShowOptions & { sourceViewColumn?: ViewColumn }) | undefined {
+		if (this.host.is('view')) return undefined;
+
+		const mode = configuration.get('graph.editorOpeningBehavior') ?? 'auto';
+		if (mode !== 'auto' || !this.host.active) return undefined;
+
+		return { viewColumn: ViewColumn.Beside, sourceViewColumn: this.host.viewColumn };
+	}
+
 	@command('gitlens.graph.openChangedFiles')
 	@debug()
 	private async openFiles(item?: GraphItemContext) {
 		const commit = await this.getCommitFromGraphItemRef(item);
 		if (commit == null) return;
 
-		return openFiles(commit);
+		return openFiles(commit, this.getOpenEditorShowOptions());
 	}
 
 	@debug()
@@ -7362,7 +7371,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const commit = await this.getCommitFromGraphItemRef(item);
 		if (commit == null) return;
 
-		return openCommitChanges(this.container, commit, individually);
+		return openCommitChanges(this.container, commit, individually, this.getOpenEditorShowOptions());
 	}
 
 	@command('gitlens.graph.openChangedFileDiffs')
@@ -7379,7 +7388,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const commit = await this.getCommitFromGraphItemRef(item);
 		if (commit == null) return;
 
-		return openCommitChangesWithWorking(this.container, commit, individually);
+		return openCommitChangesWithWorking(this.container, commit, individually, this.getOpenEditorShowOptions());
 	}
 
 	@command('gitlens.graph.openChangedFileDiffsWithWorking')
@@ -7397,7 +7406,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const commit = await this.getCommitFromGraphItemRef(item);
 		if (commit == null) return;
 
-		return openFilesAtRevision(commit);
+		return openFilesAtRevision(commit, this.getOpenEditorShowOptions());
 	}
 
 	@command('gitlens.graph.openOnlyChangedFiles')
