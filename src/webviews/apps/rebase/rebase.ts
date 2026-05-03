@@ -1,7 +1,6 @@
 import './rebase.scss';
 import type { LitVirtualizer } from '@lit-labs/virtualizer';
 import { flow } from '@lit-labs/virtualizer/layouts/flow.js';
-import type SlSelect from '@shoelace-style/shoelace/dist/components/select/select.js';
 import type { PropertyValues } from 'lit';
 import { html, nothing } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
@@ -46,6 +45,7 @@ import {
 	UpdateSelectionCommand,
 } from '../../rebase/protocol.js';
 import { GlAppHost } from '../shared/appHost.js';
+import type { GlSelect } from '../shared/components/select/select.js';
 import { scrollableBase } from '../shared/components/styles/lit/base.css.js';
 import type {
 	TreeItemActionDetail,
@@ -312,7 +312,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 			}
 
 			// If already selected, open the action dropdown
-			const actionSelect = focusedEntry.shadowRoot?.querySelector<SlSelect>('.action-select');
+			const actionSelect = focusedEntry.shadowRoot?.querySelector<GlSelect>('.action-select');
 			if (actionSelect != null) {
 				actionSelect.focus();
 				// Use requestAnimationFrame to ensure focus is processed before show
@@ -1424,7 +1424,6 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 			const conflictCount = result?.status === 'conflicts' ? (result.conflict?.shas?.length ?? 0) : 0;
 			if (conflictCount) {
 				return html`<gl-tooltip
-					hoist
 					content="Potential conflicts detected in ${conflictCount} remaining commit${conflictCount > 1
 						? 's'
 						: ''}"
@@ -1487,7 +1486,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 
 		// Build status message based on pause reason
 		const sha = currentCommitSha
-			? html`<gl-tooltip hoist content=${revealTooltip}>
+			? html`<gl-tooltip content=${revealTooltip}>
 					<gl-commit-sha
 						.sha=${currentCommitSha}
 						tabindex="0"
@@ -1534,7 +1533,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 			<code-icon icon="${icon}"></code-icon>
 			<span class="rebase-status">${statusContent}</span>
 			${pauseReason === 'conflict'
-				? html`<gl-tooltip hoist content="Show Conflicts">
+				? html`<gl-tooltip content="Show Conflicts">
 						<a class="rebase-action-link" href="${this.showConflictsCommandUrl}">Show conflicts</a>
 					</gl-tooltip>`
 				: nothing}
@@ -1838,7 +1837,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 		const revealTooltip = this.state.revealLocation === 'graph' ? 'Open in Commit Graph' : 'Open in Inspect View';
 
 		return html`
-			<gl-tooltip hoist content=${revealTooltip}>
+			<gl-tooltip content=${revealTooltip}>
 				<gl-branch-name
 					.name=${this.state.branch}
 					tabindex="0"
@@ -1850,7 +1849,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 			${this.state.onto
 				? html`<span class="header-onto"
 						>onto
-						<gl-tooltip hoist content=${revealTooltip}>
+						<gl-tooltip content=${revealTooltip}>
 							<gl-commit-sha
 								.sha=${this.state.onto.sha}
 								tabindex="0"

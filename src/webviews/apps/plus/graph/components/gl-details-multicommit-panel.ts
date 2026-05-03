@@ -376,7 +376,7 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 			<div class="compare-middle">
 				<div class="compare-middle__line">
 					<div class="compare-middle__rule"></div>
-					<gl-tooltip hoist content="Swap Direction" placement="bottom">
+					<gl-tooltip content="Swap Direction" placement="bottom">
 						<button
 							class="compare-middle__swap"
 							aria-label="Swap comparison direction"

@@ -403,7 +403,7 @@ export class GlFileTreePane extends LitElement {
 
 		return html`<span class="checkbox-header" @click=${(e: Event) => e.stopPropagation()}>
 			${tooltipText
-				? html`<gl-tooltip hoist placement="bottom"
+				? html`<gl-tooltip placement="bottom"
 						>${checkbox}<span slot="content">${tooltipText}</span></gl-tooltip
 					>`
 				: checkbox}

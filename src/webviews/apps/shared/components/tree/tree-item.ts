@@ -182,7 +182,7 @@ export class GlTreeItem extends GlElement {
 			><code-icon icon="dash" size="14" class="checkbox__dash"></code-icon
 		></span>`;
 		return this.checkableTooltip
-			? html`<gl-tooltip hoist placement="right"
+			? html`<gl-tooltip placement="right"
 					>${checkbox}<span slot="content">${this.checkableTooltip}</span></gl-tooltip
 				>`
 			: checkbox;

@@ -93,7 +93,7 @@ export class GlDetailsWipHeader extends LitElement {
 				? html`<div slot="secondary" class="graph-details-header__branch-row">
 							<div class="branch-identity">
 								${branchName
-									? html`<gl-tooltip hoist placement="bottom">
+									? html`<gl-tooltip placement="bottom">
 											<gl-branch-name
 												appearance="button"
 												class="graph-details-header__branch"
@@ -245,7 +245,7 @@ export class GlDetailsWipHeader extends LitElement {
 
 		return html`<span class="issue-chip-group" data-associated="true">
 			${chip}
-			<gl-tooltip hoist placement="bottom" content="Remove Branch Association">
+			<gl-tooltip placement="bottom" content="Remove Branch Association">
 				<button
 					class="issue-chip-group__remove"
 					type="button"

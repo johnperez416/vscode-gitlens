@@ -554,7 +554,7 @@ export const compareModePanelStyles = css`
 
 	.wip-compare-view-selector {
 		display: inline-flex;
-		--sl-tooltip-padding: 0;
+		--wa-tooltip-padding: 0;
 		/* Allow the popover host (and trigger inside) to shrink within the title slot's
 		   flex layout so the label ellipses instead of overflowing the row. */
 		min-width: 0;

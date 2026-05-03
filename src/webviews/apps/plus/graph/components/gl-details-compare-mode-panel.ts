@@ -377,7 +377,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 		return html`<div class="wip-compare-bar">
 			<div class="wip-compare-bar__group">
-				<gl-tooltip hoist placement="bottom">
+				<gl-tooltip placement="bottom">
 					<gl-branch-name
 						class="wip-compare-ref wip-compare-ref--ahead"
 						appearance="button"
@@ -415,7 +415,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 				@click=${this.dispatchOpenInSearchAndCompare}
 			></gl-action-chip>
 			<div class="wip-compare-bar__group">
-				<gl-tooltip hoist placement="bottom">
+				<gl-tooltip placement="bottom">
 					<gl-branch-name
 						class="wip-compare-ref wip-compare-ref--behind"
 						appearance="button"
@@ -628,11 +628,11 @@ export class GlDetailsCompareModePanel extends LitElement {
 							</div>`
 						: nothing}
 					${isScoped
-						? html`<gl-tooltip slot="header-badge" hoist placement="top">
+						? html`<gl-tooltip slot="header-badge" placement="top">
 								<span class="wip-compare-scope-tag">
 									<code-icon icon="git-commit"></code-icon>
 									${this.selectedCommitSha!.substring(0, 7)}
-									<gl-tooltip hoist placement="bottom">
+									<gl-tooltip placement="bottom">
 										<button
 											class="wip-compare-scope-tag__close"
 											aria-label="Clear commit filter"

@@ -486,7 +486,7 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 		return html`
 			<div class="inspect-header">
 				<nav class="inspect-header__tabs">
-					<gl-tooltip hoist>
+					<gl-tooltip>
 						<button class="inspect-header__tab${!isWip ? ' is-active' : ''}" data-action="details">
 							<code-icon icon="gl-inspect"></code-icon>
 						</button>
@@ -509,7 +509,7 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 								: ''}</span
 						>
 					</gl-tooltip>
-					<gl-tooltip hoist>
+					<gl-tooltip>
 						<button class="inspect-header__tab${isWip ? ' is-active' : ''}" data-action="wip">
 							${this.renderRepoStatusContent(isWip)}
 						</button>

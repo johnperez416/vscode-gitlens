@@ -11,6 +11,7 @@ import { pluralize, truncateMiddle } from '@gitlens/utils/string.js';
 import type { ChartInternal, ChartWithInternal } from '../../../../../@types/bb.d.js';
 import type { State, TimelineDatum, TimelineSliceBy } from '../../../../plus/timeline/protocol.js';
 import { GlElement } from '../../../shared/components/element.js';
+import { ModifierKeysController } from '../../../shared/controllers/modifier-keys.js';
 import { createFromDateDelta, formatDate, fromNow } from '../../../shared/date.js';
 import { timelineChartStyles } from './chart.css.js';
 import type { SliderChangeEventDetail } from './slider.js';
@@ -110,8 +111,9 @@ export class GlTimelineChart extends GlElement {
 	@state()
 	private _shaSelected: string | undefined;
 
-	@state()
-	private _shiftKeyPressed = false;
+	private _suppressHoverState = false;
+
+	private readonly _modifiers = new ModifierKeysController(this);
 
 	private _range!: [oldest: Date, newest: Date];
 	private _rangeScrollable!: [oldest: number, newest: number];
@@ -144,7 +146,6 @@ export class GlTimelineChart extends GlElement {
 		super.connectedCallback?.();
 
 		document.addEventListener('keydown', this.onDocumentKeyDown);
-		document.addEventListener('keyup', this.onDocumentKeyUp);
 	}
 
 	override firstUpdated(): void {
@@ -168,7 +169,6 @@ export class GlTimelineChart extends GlElement {
 		this.resizeObserver = undefined;
 
 		document.removeEventListener('keydown', this.onDocumentKeyDown);
-		document.removeEventListener('keyup', this.onDocumentKeyUp);
 
 		super.disconnectedCallback?.();
 	}
@@ -237,7 +237,7 @@ export class GlTimelineChart extends GlElement {
 		return html`<footer>
 			<gl-chart-slider
 				.data=${this._dataReversed}
-				?shift=${this._shiftKeyPressed}
+				?shift=${this._modifiers.shiftKey}
 				@gl-slider-change=${this.onSliderChanged}
 				@mouseover=${this.onSliderMouseOver}
 				@mouseout=${this.onSliderMouseOut}
@@ -279,10 +279,12 @@ export class GlTimelineChart extends GlElement {
 
 		this.slider?.select(sha);
 
-		this.emit('gl-commit-select', { id: sha, shift: this._shiftKeyPressed });
+		this.emit('gl-commit-select', { id: sha, shift: this._modifiers.shiftKey });
 	}, 50);
 
 	private readonly onDataPointHovered = (d: DataItem, _element: SVGElement) => {
+		if (this._suppressHoverState) return;
+
 		const x = d.x as string | number | Date;
 		const date = x instanceof Date ? x : new Date(x);
 
@@ -291,6 +293,8 @@ export class GlTimelineChart extends GlElement {
 	};
 
 	private readonly onDataPointUnhovered = (_d: DataItem, _element: SVGElement) => {
+		if (this._suppressHoverState) return;
+
 		this._shaHovered = undefined;
 
 		// Refocus the selected commit
@@ -303,15 +307,9 @@ export class GlTimelineChart extends GlElement {
 	};
 
 	private readonly onDocumentKeyDown = (e: KeyboardEvent) => {
-		this._shiftKeyPressed = e.shiftKey;
-
 		if (e.key === 'Escape' || e.key === 'Esc') {
 			this.resetZoom();
 		}
-	};
-
-	private readonly onDocumentKeyUp = (e: KeyboardEvent) => {
-		this._shiftKeyPressed = e.shiftKey;
 	};
 
 	private onFooterShaMouseOver() {
@@ -362,6 +360,8 @@ export class GlTimelineChart extends GlElement {
 		this.showTooltip(commit);
 
 		if (sha == null) return;
+		// Defer the editor-opening emit until the drag stops; visual updates above still track the drag.
+		if (e.detail.interim) return;
 		this.emit('gl-commit-select', { id: sha, shift: e.detail.shift });
 	}
 
@@ -458,11 +458,24 @@ export class GlTimelineChart extends GlElement {
 	private showTooltip(datum: TimelineDatum | undefined) {
 		if (datum == null) return;
 
-		this._chart?.tooltip.show({ x: new Date(datum.date) });
+		// Billboard's tooltip.show() synthesizes mouseover/mousemove events on the chart, which would
+		// otherwise fire onDataPointHovered and clobber _shaHovered with whichever point billboard's
+		// index resolution picked — making the footer SHA flicker when hovering the slider/SHA badge.
+		this._suppressHoverState = true;
+		try {
+			this._chart?.tooltip.show({ x: new Date(datum.date) });
+		} finally {
+			this._suppressHoverState = false;
+		}
 	}
 
 	private hideTooltip() {
-		this._chart?.tooltip.hide();
+		this._suppressHoverState = true;
+		try {
+			this._chart?.tooltip.hide();
+		} finally {
+			this._suppressHoverState = false;
+		}
 	}
 
 	zoom(factor: number): void {

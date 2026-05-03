@@ -1,8 +1,9 @@
+import type WaSlider from '@awesome.me/webawesome/dist/components/slider/slider.js';
 import { css, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import type { TimelineDatum } from '../../../../plus/timeline/protocol.js';
 import { GlElement } from '../../../shared/components/element.js';
-import '@shoelace-style/shoelace/dist/components/range/range.js';
+import '@awesome.me/webawesome/dist/components/slider/slider.js';
 
 const tagName = 'gl-chart-slider';
 
@@ -21,15 +22,34 @@ export class GlChartSlider extends GlElement {
 			padding-bottom: 0.4rem;
 		}
 
-		sl-range::part(input) {
-			--track-height: 3px;
-			--thumb-size: 16px;
-			--track-active-offset: 100%;
-			--track-color-active: var(--gl-track-color-active, var(--sl-color-neutral-200));
+		wa-slider {
+			--track-size: 3px;
+			--thumb-width: 16px;
+			--thumb-height: 16px;
 		}
 
-		sl-range::part(thumb) {
+		wa-slider::part(track) {
+			background-color: var(--vscode-scrollbarSlider-background);
+		}
+
+		/* Indicator is anchored to max via indicator-offset, so it spans thumb to right edge —
+		   the range from the selected commit to the working tree. Hidden by default (matches
+		   track), revealed in the accent color only while Shift is held. */
+		wa-slider::part(indicator) {
+			background-color: transparent;
+		}
+
+		:host([shift]) wa-slider::part(indicator) {
+			background-color: var(--wa-color-primary-600);
+		}
+
+		/* WA's thumb defaults to var(--wa-form-control-activated-color) (background) + 2px
+		   border in var(--wa-color-surface-default) — neither token is defined since we
+		   don't ship WA's theme CSS, so the thumb is invisible without these overrides. */
+		wa-slider::part(thumb) {
 			cursor: pointer;
+			background-color: var(--vscode-foreground);
+			border: 2px solid var(--vscode-editor-background);
 		}
 	`;
 
@@ -59,32 +79,52 @@ export class GlChartSlider extends GlElement {
 	@property({ type: Boolean })
 	set shift(value: boolean) {
 		this._shift = value;
-		if (value) {
-			this.style.setProperty('--gl-track-color-active', 'var(--sl-color-primary-600');
-		} else {
-			this.style.removeProperty('--gl-track-color-active');
-		}
 	}
 
 	get value() {
 		return this.data?.[this._value];
 	}
 
+	@query('wa-slider')
+	private _slider!: WaSlider;
+
 	override render() {
 		return html`<div class="slider-container">
-			<sl-range
+			<wa-slider
 				id="slider"
 				.min=${this._min}
 				.max=${this._max}
 				.value=${this._value}
-				.tooltip="top"
-				.tooltipFormatter=${(_: number) => `Hold shift to compare with working tree`}
-				@sl-change=${this.handleSliderInput}
-				@sl-input=${this.handleSliderInput}
+				.indicatorOffset=${this._max}
+				with-tooltip
+				tooltip-placement="top"
+				.valueFormatter=${(_: number) => `Hold shift to compare with working tree`}
+				@change=${this.handleSliderInput}
+				@input=${this.handleSliderInput}
 				@click=${this.handleSliderInput}
-			></sl-range>
+				@pointerenter=${this.handleShowTooltip}
+				@pointermove=${this.handleShowTooltip}
+				@pointerleave=${this.handleHideTooltip}
+			></wa-slider>
 		</div>`;
 	}
+
+	// wa-slider's tooltip only opens on focus/drag-start. Add hover triggers by toggling the
+	// internal `wa-tooltip` element directly — `showTooltip`/`hideTooltip` exist at runtime but
+	// are typed `private`, so go through the rendered shadow tree.
+	private handleShowTooltip = () => {
+		const tooltip = this._slider?.shadowRoot?.getElementById('tooltip') as { open: boolean } | null;
+		if (tooltip != null) {
+			tooltip.open = true;
+		}
+	};
+
+	private handleHideTooltip = () => {
+		const tooltip = this._slider?.shadowRoot?.getElementById('tooltip') as { open: boolean } | null;
+		if (tooltip != null) {
+			tooltip.open = false;
+		}
+	};
 
 	select(id: string): void;
 	select(date: Date): void;
@@ -107,7 +147,7 @@ export class GlChartSlider extends GlElement {
 		const index = parseInt((e.target as HTMLInputElement).value);
 
 		const date = new Date(this.data[index].date);
-		this.emit('gl-slider-change', { date: date, shift: this.shift });
+		this.emit('gl-slider-change', { date: date, shift: this.shift, interim: e.type === 'input' });
 	}
 }
 
@@ -124,4 +164,6 @@ declare global {
 export interface SliderChangeEventDetail {
 	date: Date;
 	shift: boolean;
+	/** True for `input` events fired while dragging; false for the final `change`/`click`. */
+	interim: boolean;
 }

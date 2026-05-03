@@ -206,28 +206,28 @@ export const graphHeaderControlStyles = css`
 
 	gl-search-box::part(search) {
 		--gl-search-input-background: var(--color-graph-actionbar-background);
-		--gl-search-input-border: var(--sl-input-border-color);
+		--gl-search-input-border: var(--wa-input-border-color);
 	}
 
-	sl-option::part(base) {
+	wa-option::part(base) {
 		padding: 0.2rem 0.4rem;
 	}
 
-	sl-option:focus::part(base) {
+	wa-option:focus::part(base) {
 		background-color: var(--vscode-list-activeSelectionBackground);
 		color: var(--vscode-list-activeSelectionForeground);
 	}
 
-	sl-option:not(:focus):hover::part(base) {
+	wa-option:not(:focus):hover::part(base) {
 		background-color: var(--vscode-list-inactiveSelectionBackground);
 		color: var(--vscode-list-activeSelectionForeground);
 	}
 
-	sl-option::part(checked-icon) {
+	wa-option::part(checked-icon) {
 		display: none;
 	}
 
-	sl-select::part(listbox) {
+	wa-select::part(listbox) {
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
@@ -235,28 +235,28 @@ export const graphHeaderControlStyles = css`
 		width: max-content;
 	}
 
-	sl-select::part(combobox) {
-		--sl-input-background-color: var(--color-graph-actionbar-background);
-		--sl-input-color: var(--color-foreground);
-		--sl-input-color-hover: var(--color-foreground);
+	wa-select::part(combobox) {
+		--wa-input-background-color: var(--color-graph-actionbar-background);
+		--wa-input-color: var(--color-foreground);
+		--wa-input-color-hover: var(--color-foreground);
 		padding: 0 0.75rem;
 		color: var(--color-foreground);
-		border-radius: var(--sl-border-radius-small);
+		border-radius: var(--wa-border-radius-small);
 	}
 
-	sl-select::part(display-input) {
+	wa-select::part(display-input) {
 		field-sizing: content;
 	}
 
-	sl-select::part(expand-icon) {
-		margin-inline-start: var(--sl-spacing-x-small);
+	wa-select::part(expand-icon) {
+		margin-inline-start: var(--wa-spacing-x-small);
 	}
 
-	sl-select[open]::part(combobox) {
+	wa-select[open]::part(combobox) {
 		background-color: var(--color-graph-actionbar-background);
 	}
-	sl-select:hover::part(combobox),
-	sl-select:focus::part(combobox) {
+	wa-select:hover::part(combobox),
+	wa-select:focus::part(combobox) {
 		background-color: var(--color-graph-actionbar-selectedBackground);
 	}
 `;

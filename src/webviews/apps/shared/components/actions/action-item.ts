@@ -150,7 +150,7 @@ export class ActionItem extends LitElement {
 
 	override render(): unknown {
 		return html`
-			<gl-tooltip hoist content="${this.effectiveTooltip ?? nothing}">
+			<gl-tooltip content="${this.effectiveTooltip ?? nothing}">
 				<a
 					role="${!this.effectiveHref ? 'button' : nothing}"
 					type="${!this.effectiveHref ? 'button' : nothing}"

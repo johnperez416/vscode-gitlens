@@ -199,6 +199,13 @@ export class GlGraphHover extends GlElement {
 		}
 	}
 
+	onRowChanged(row: GraphRow): void {
+		if (!this.open || row.sha === this.shaHovering) return;
+
+		this._showCoreDebounced?.cancel();
+		this.hide();
+	}
+
 	onRowUnhovered(_row: GraphRow, relatedTarget: EventTarget | null): void {
 		this.recalculated = false;
 		this.resetUnhoverTimer();

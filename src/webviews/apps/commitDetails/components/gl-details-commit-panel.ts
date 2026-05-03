@@ -400,7 +400,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 					${isStash ? this.renderStashApplyButton() : nothing}
 					${isStash
 						? this.branchName
-							? html`<gl-tooltip hoist content="Stashed on ${this.branchName}">
+							? html`<gl-tooltip content="Stashed on ${this.branchName}">
 									<span class="metadata-bar__branch-indicator">
 										<gl-branch-name
 											class="metadata-bar__branch"
@@ -425,7 +425,6 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 
 		return html`<gl-tooltip
 			class="metadata-bar__more-tooltip"
-			hoist
 			content="Show ${isStash ? 'Stash' : 'Commit'} Actions"
 		>
 			<button
@@ -444,7 +443,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 		if (this.commit?.stashNumber == null) return nothing;
 
 		const isPop = this.isPopMode;
-		return html`<gl-tooltip hoist>
+		return html`<gl-tooltip>
 			<button
 				class="metadata-bar__action metadata-bar__action--apply"
 				type="button"
@@ -550,7 +549,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 
 		// Error
 		if (state === 'error') {
-			return html`<gl-tooltip hoist content="Unable to load branch reachability. Click to Retry">
+			return html`<gl-tooltip content="Unable to load branch reachability. Click to Retry">
 				<button
 					class="metadata-bar__branch-indicator metadata-bar__branch-indicator--error"
 					@click=${() => this.dispatchEvent(new CustomEvent('refresh-reachability'))}
@@ -563,7 +562,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 
 		// Loaded, no refs — unreachable commit
 		if (state === 'loaded' && refs?.length === 0) {
-			return html`<gl-tooltip hoist content="This commit is not reachable from any branch or tag">
+			return html`<gl-tooltip content="This commit is not reachable from any branch or tag">
 				<span class="metadata-bar__branch-unreachable">
 					<code-icon icon="git-branch"></code-icon> Unreachable
 				</span>
@@ -573,7 +572,6 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 		// Loaded with refs — show branch name + count
 		if (this.branchName) {
 			return html`<gl-tooltip
-				hoist
 				content="${this._reachabilityExpanded
 					? 'Hide All Branches & Tags Containing this Commit'
 					: 'Show All Branches & Tags Containing this Commit'}"
@@ -590,7 +588,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 		}
 
 		// Idle / no data — click to load
-		return html`<gl-tooltip hoist content="Show All Branches &amp; Tags Containing this Commit">
+		return html`<gl-tooltip content="Show All Branches &amp; Tags Containing this Commit">
 			<button
 				class="metadata-bar__branch-indicator metadata-bar__branch-indicator--idle"
 				aria-label="Show all branches and tags"
@@ -972,7 +970,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 				${this.renderReachabilityChip('branch', branches)} ${this.renderReachabilityChip('tag', tags)}
 			</div>
 			${this.reachability.partial
-				? html`<gl-tooltip hoist content="Load All Branches &amp; Tags">
+				? html`<gl-tooltip content="Load All Branches &amp; Tags">
 						<button
 							class="reachability__load-all"
 							aria-label="Load all branches and tags"

@@ -28252,6 +28252,7 @@
 		"prepare": "husky"
 	},
 	"dependencies": {
+		"@awesome.me/webawesome": "3.5.0",
 		"@eamodio/supertalk": "0.0.7",
 		"@eamodio/supertalk-core": "0.0.6",
 		"@eamodio/supertalk-signals": "0.0.6",
@@ -28276,7 +28277,6 @@
 		"@opentelemetry/resources": "2.7.0",
 		"@opentelemetry/sdk-trace-base": "2.7.0",
 		"@opentelemetry/semantic-conventions": "1.40.0",
-		"@shoelace-style/shoelace": "2.20.1",
 		"@vscode/codicons": "0.0.45",
 		"billboard.js": "3.18.0",
 		"diff2html": "3.4.56",

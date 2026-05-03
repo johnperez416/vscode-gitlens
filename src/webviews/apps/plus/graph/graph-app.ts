@@ -1152,6 +1152,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private handleGraphRowHoverTrack({ detail: { graphZoneType, graphRow } }: CustomEventType<'rowhovertrack'>) {
 		if (graphZoneType === refZone) return;
 		this.minimapEl?.select(graphRow.date, true);
+		this.graphHover?.onRowChanged(graphRow);
 	}
 
 	private handleGraphRowUnhover({

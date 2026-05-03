@@ -12,18 +12,12 @@ catalogs:
     '@types/sinon':
       specifier: 21.0.1
       version: 21.0.1
-    mocha:
-      specifier: 11.7.5
-      version: 11.7.5
     sinon:
       specifier: 21.1.2
       version: 21.1.2
     tinybench:
       specifier: 6.0.0
       version: 6.0.0
-    tsx:
-      specifier: 4.21.0
-      version: 4.21.0
     typescript:
       specifier: 6.0.3
       version: 6.0.3
@@ -44,6 +38,9 @@ importers:
 
   .:
     dependencies:
+      '@awesome.me/webawesome':
+        specifier: 3.5.0
+        version: 3.5.0(@floating-ui/utils@0.2.11)(@types/react@19.2.14)
       '@eamodio/supertalk':
         specifier: 0.0.7
         version: 0.0.7
@@ -116,9 +113,6 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: 1.40.0
         version: 1.40.0
-      '@shoelace-style/shoelace':
-        specifier: 2.20.1
-        version: 2.20.1(@floating-ui/utils@0.2.11)(@types/react@19.2.14)
       '@vscode/codicons':
         specifier: 0.0.45
         version: 0.0.45
@@ -576,6 +570,10 @@ importers:
 
 packages:
 
+  '@awesome.me/webawesome@3.5.0':
+    resolution: {integrity: sha512-/hJOe5vsKu9GejyTB3xFyQvvGRzXCLqdOGtBa4a+ifDNPRwzQLR3bzxcEpJsLmVfOhhem1XGbyOD9cMwefuAlA==}
+    engines: {node: '>=14.17.0'}
+
   '@axosoft/react-virtualized@9.22.3-gitkraken.3':
     resolution: {integrity: sha512-sCU8gM0Ut1I3lNBYLQCq7nmRObFsdGKkTIMZkVThZhFYtmQchl1RLnsXilicmNlwCNZdm3/uDCpOw6q7T1gtog==}
     peerDependencies:
@@ -713,8 +711,8 @@ packages:
   '@colordx/core@5.2.0':
     resolution: {integrity: sha512-wifnqsGCXRh+lJdX4975nKEPJaSk7k8rMiA/VeGrS4tOTn06WZrow6cUA7wFJKPXfcqj0rXeH4BMgGoKZvBf7g==}
 
-  '@ctrl/tinycolor@4.2.0':
-    resolution: {integrity: sha512-kzyuwOAQnXJNLS9PSyrk0CWk35nWJW/zl/6KvnTBMFK65gm7U1/Z5BqjxeapjZCIhQcM/DsrEmcbRwDyXyXK4A==}
+  '@ctrl/tinycolor@4.1.0':
+    resolution: {integrity: sha512-WyOx8cJQ+FQus4Mm4uPIZA64gbk3Wxh0so5Lcii0aJifqwoVOlfFtorjLE0Hen4OYyHZMXDWqMmaQemBhgxFRQ==}
     engines: {node: '>=14'}
 
   '@custom-elements-manifest/analyzer@0.11.0':
@@ -1961,10 +1959,6 @@ packages:
 
   '@shoelace-style/localize@3.2.1':
     resolution: {integrity: sha512-r4C9C/5kSfMBIr0D9imvpRdCNXtUNgyYThc4YlS6K5Hchv1UyxNQ9mxwj+BTRH2i1Neits260sR3OjKMnplsFA==}
-
-  '@shoelace-style/shoelace@2.20.1':
-    resolution: {integrity: sha512-FSghU95jZPGbwr/mybVvk66qRZYpx5FkXL+vLNpy1Vp8UsdwSxXjIHE3fsvMbKWTKi9UFfewHTkc5e7jAqRYoQ==}
-    engines: {node: '>=14.17.0'}
 
   '@sinclair/typebox@0.34.49':
     resolution: {integrity: sha512-brySQQs7Jtn0joV8Xh9ZV/hZb9Ozb0pmazDIASBkYKCjXrXU3mpcFahmK/z4YDhGkQvP9mWJbVyahdtU5wQA+A==}
@@ -4938,6 +4932,11 @@ packages:
     resolution: {integrity: sha512-BuU2qnTti9YKgK5N+IeMubp14ZUKUUw7yeJbkjtosvHiP0AZ5c8IAgEMk79D0eC8F23r4Ac/q8cAIFdm2FtyoA==}
     hasBin: true
 
+  marked@11.2.0:
+    resolution: {integrity: sha512-HR0m3bvu0jAPYiIvLUUQtdg1g6D247//lvcekpHO1WMvbwDlwSkZAX9Lw4F4YHE1T0HaaNve0tuAWuV1UJ6vtw==}
+    engines: {node: '>= 18'}
+    hasBin: true
+
   marked@18.0.2:
     resolution: {integrity: sha512-NsmlUYBS/Zg57rgDWMYdnre6OTj4e+qq/JS2ot3KrYLSoHLw+sDu0Nm1ZGpRgYAq6c+b1ekaY5NzVchMCQnzcg==}
     engines: {node: '>= 20'}
@@ -5117,6 +5116,11 @@ packages:
   nanoid@3.3.11:
     resolution: {integrity: sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
+  nanoid@5.1.9:
+    resolution: {integrity: sha512-ZUvP7KeBLe3OZ1ypw6dI/TzYJuvHP77IM4Ry73waSQTLn8/g8rpdjfyVAh7t1/+FjBtG4lCP42MEbDxOsRpBMw==}
+    engines: {node: ^18 || >=20}
     hasBin: true
 
   napi-build-utils@2.0.0:
@@ -7054,6 +7058,22 @@ packages:
 
 snapshots:
 
+  '@awesome.me/webawesome@3.5.0(@floating-ui/utils@0.2.11)(@types/react@19.2.14)':
+    dependencies:
+      '@ctrl/tinycolor': 4.1.0
+      '@floating-ui/dom': 1.7.6
+      '@lit/react': 1.0.8(@types/react@19.2.14)
+      '@shoelace-style/animations': 1.2.0
+      '@shoelace-style/localize': 3.2.1
+      composed-offset-position: 0.0.6(@floating-ui/utils@0.2.11)
+      lit: 3.3.2
+      marked: 11.2.0
+      nanoid: 5.1.9
+      qr-creator: 1.0.0
+    transitivePeerDependencies:
+      - '@floating-ui/utils'
+      - '@types/react'
+
   '@axosoft/react-virtualized@9.22.3-gitkraken.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
     dependencies:
       '@babel/runtime': 7.29.2
@@ -7262,7 +7282,7 @@ snapshots:
 
   '@colordx/core@5.2.0': {}
 
-  '@ctrl/tinycolor@4.2.0': {}
+  '@ctrl/tinycolor@4.1.0': {}
 
   '@custom-elements-manifest/analyzer@0.11.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
@@ -8319,20 +8339,6 @@ snapshots:
   '@shoelace-style/animations@1.2.0': {}
 
   '@shoelace-style/localize@3.2.1': {}
-
-  '@shoelace-style/shoelace@2.20.1(@floating-ui/utils@0.2.11)(@types/react@19.2.14)':
-    dependencies:
-      '@ctrl/tinycolor': 4.2.0
-      '@floating-ui/dom': 1.7.6
-      '@lit/react': 1.0.8(@types/react@19.2.14)
-      '@shoelace-style/animations': 1.2.0
-      '@shoelace-style/localize': 3.2.1
-      composed-offset-position: 0.0.6(@floating-ui/utils@0.2.11)
-      lit: 3.3.2
-      qr-creator: 1.0.0
-    transitivePeerDependencies:
-      - '@floating-ui/utils'
-      - '@types/react'
 
   '@sinclair/typebox@0.34.49': {}
 
@@ -11639,6 +11645,8 @@ snapshots:
       punycode.js: 2.3.1
       uc.micro: 2.1.0
 
+  marked@11.2.0: {}
+
   marked@18.0.2: {}
 
   math-intrinsics@1.1.0: {}
@@ -11829,6 +11837,8 @@ snapshots:
   nan@2.26.2: {}
 
   nanoid@3.3.11: {}
+
+  nanoid@5.1.9: {}
 
   napi-build-utils@2.0.0:
     optional: true

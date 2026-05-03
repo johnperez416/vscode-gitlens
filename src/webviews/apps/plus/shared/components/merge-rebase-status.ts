@@ -161,7 +161,7 @@ export class GlMergeConflictWarning extends LitElement {
 	private renderConflictsLink(label: string) {
 		if (!this.conflicts) return label;
 
-		return html`<gl-tooltip hoist content="Show Conflicts">
+		return html`<gl-tooltip content="Show Conflicts">
 			<a href="${this.onShowConflictsUrl}" class="link">${label}</a>
 		</gl-tooltip>`;
 	}
@@ -180,7 +180,7 @@ export class GlMergeConflictWarning extends LitElement {
 				: 'Open Commit in Commit Graph';
 		const jumpUrl = this.createJumpUrl(ref);
 
-		return html`<gl-tooltip hoist content=${tooltip}>
+		return html`<gl-tooltip content=${tooltip}>
 			<a href=${jumpUrl} class="ref-link">
 				${isBranch
 					? html`<gl-branch-name .name=${ref.name} .size=${12}></gl-branch-name>`

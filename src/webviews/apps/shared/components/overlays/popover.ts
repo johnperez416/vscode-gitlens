@@ -1,13 +1,10 @@
-import type SlPopup from '@shoelace-style/shoelace/dist/components/popup/popup.js';
+import type WaPopup from '@awesome.me/webawesome/dist/components/popup/popup.js';
 import { css, html, LitElement } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { parseDuration, waitForEvent } from '../../dom.js';
 import { GlElement, observe } from '../element.js';
 import { scrollableBase } from '../styles/lit/base.css.js';
-import '@shoelace-style/shoelace/dist/components/popup/popup.js';
-import '../shoelace-stub.js';
-
-// Adapted from shoelace tooltip
+import '@awesome.me/webawesome/dist/components/popup/popup.js';
 
 declare const CloseWatcher: CloseWatcher;
 interface CloseWatcher extends EventTarget {
@@ -133,7 +130,7 @@ function parseResizeHandles(value: string | undefined): ResizeHandle[] {
  * @slot anchor - The element that triggers the popover
  * @slot content - The content of the popover
  *
- * @csspart base - Styles the sl-popup element itself
+ * @csspart base - Styles the wa-popup element itself
  * @csspart arrow - Styles the arrow's container
  * @csspart popup - Styles the popup's container
  * @csspart body - Styles the element that wraps the content slot
@@ -179,17 +176,16 @@ export class GlPopover extends GlElement {
 			}
 
 			.popover {
-				--arrow-size: var(--sl-tooltip-arrow-size);
-				--arrow-color: var(--sl-tooltip-background-color);
+				--arrow-size: var(--wa-tooltip-arrow-size);
+				--arrow-color: var(--wa-tooltip-background-color);
+				/* tells wa-popup to overlap the arrow with the inside edge of our 1px body
+				   border, so the arrow base aligns with the body's content area instead of
+				   sitting on top of the border line */
+				--popup-border-width: 1px;
 			}
 
 			.popover::part(popup) {
-				z-index: var(--sl-z-index-tooltip);
-			}
-
-			.popover::part(arrow) {
-				border: 1px solid var(--gl-tooltip-border-color);
-				z-index: 1;
+				z-index: var(--wa-z-index-tooltip);
 			}
 
 			.popover[placement^='top']::part(popup) {
@@ -208,45 +204,21 @@ export class GlPopover extends GlElement {
 				transform-origin: left;
 			}
 
-			.popover[data-current-placement^='top']::part(arrow) {
-				border-top-width: 0;
-				border-left-width: 0;
-				clip-path: polygon(0 50%, 100% 0, 100% 100%, 0 100%);
-			}
-
-			.popover[data-current-placement^='bottom']::part(arrow) {
-				border-bottom-width: 0;
-				border-right-width: 0;
-				clip-path: polygon(0 0, 100% 0, 100% 50%, 0 100%);
-			}
-
-			.popover[data-current-placement^='left']::part(arrow) {
-				border-bottom-width: 0;
-				border-left-width: 0;
-				clip-path: polygon(0 0, 100% 0, 100% 100%, 70% 100%, 0 30%);
-			}
-
-			.popover[data-current-placement^='right']::part(arrow) {
-				border-top-width: 0;
-				border-right-width: 0;
-				clip-path: polygon(0 0, 0 100%, 100% 100%, 100% 70%, 30% 0);
-			}
-
 			.popover__body {
 				display: block;
 				width: fit-content;
 				border: 1px solid var(--gl-tooltip-border-color);
-				border-radius: var(--sl-tooltip-border-radius);
+				border-radius: var(--wa-tooltip-border-radius);
 				box-shadow: 0 2px 8px var(--gl-tooltip-shadow);
-				background-color: var(--sl-tooltip-background-color);
-				font-family: var(--sl-tooltip-font-family);
-				font-size: var(--sl-tooltip-font-size);
-				font-weight: var(--sl-tooltip-font-weight);
-				line-height: var(--sl-tooltip-line-height);
+				background-color: var(--wa-tooltip-background-color);
+				font-family: var(--wa-tooltip-font-family);
+				font-size: var(--wa-tooltip-font-size);
+				font-weight: var(--wa-tooltip-font-weight);
+				line-height: var(--wa-tooltip-line-height);
 				text-align: start;
 				white-space: normal;
-				color: var(--sl-tooltip-color);
-				padding: var(--sl-tooltip-padding);
+				color: var(--wa-tooltip-color);
+				padding: var(--wa-tooltip-padding);
 				user-select: none;
 				-webkit-user-select: none;
 				max-width: min(var(--auto-size-available-width), var(--max-width, 70vw));
@@ -390,9 +362,9 @@ export class GlPopover extends GlElement {
 			}
 
 			:host([appearance='menu']) {
-				--sl-tooltip-padding: var(--sl-spacing-2x-small);
-				--sl-tooltip-font-size: var(--vscode-font-size);
-				--sl-tooltip-background-color: var(--vscode-menu-background);
+				--wa-tooltip-padding: var(--wa-spacing-2x-small);
+				--wa-tooltip-font-size: var(--vscode-font-size);
+				--wa-tooltip-background-color: var(--vscode-menu-background);
 				--arrow-color: var(--vscode-menu-background);
 			}
 
@@ -415,13 +387,13 @@ export class GlPopover extends GlElement {
 	private resizeObserver?: ResizeObserver;
 
 	@query('#popover')
-	body!: HTMLElement;
+	private body!: HTMLElement;
 
-	@query('sl-popup')
-	popup!: SlPopup;
+	@query('wa-popup')
+	private popup!: WaPopup;
 
 	@property({ reflect: true })
-	placement: SlPopup['placement'] = 'bottom';
+	placement: WaPopup['placement'] = 'bottom';
 
 	@property({ type: Object })
 	anchor?: string | HTMLElement | { getBoundingClientRect: () => Omit<DOMRect, 'toJSON'> };
@@ -461,9 +433,9 @@ export class GlPopover extends GlElement {
 	trigger: Triggers = 'hover focus';
 
 	/**
-	 * Enable this option to prevent the popover from being clipped when the component is placed inside a container with
-	 * `overflow: auto|hidden|scroll`. Hoisting uses a fixed positioning strategy that works in many, but not all,
-	 * scenarios.
+	 * @deprecated No longer needed — `wa-popup` renders in the browser's top layer via the HTML Popover API,
+	 * which escapes all clipping, stacking contexts, and transform containing blocks. Kept as a no-op for
+	 * source compatibility; will be removed in a follow-up.
 	 */
 	@property({ type: Boolean })
 	hoist = false;
@@ -473,10 +445,10 @@ export class GlPopover extends GlElement {
 
 	@state() private suppressed: boolean = false;
 
-	@state() private _resolvedPlacement?: SlPopup['placement'];
+	@state() private _resolvedPlacement?: WaPopup['placement'];
 
-	get currentPlacement(): SlPopup['placement'] {
-		return (this.popup?.getAttribute('data-current-placement') ?? this.placement) as SlPopup['placement'];
+	get currentPlacement(): WaPopup['placement'] {
+		return (this.popup?.getAttribute('data-current-placement') as WaPopup['placement'] | null) ?? this.placement;
 	}
 
 	override connectedCallback(): void {
@@ -549,18 +521,18 @@ export class GlPopover extends GlElement {
 	override render(): unknown {
 		const resolvedPlacement = this._resolvedPlacement ?? this.placement;
 		const handles = parseResizeHandles(this.resize).filter(h => !isHandleAnchored(h, resolvedPlacement));
-		return html`<sl-popup
+		return html`<wa-popup
 			part="base"
 			exportparts="
 				popup:base__popup,
-				arrow:base__arrow
+				arrow:base__arrow,
+				hover-bridge:base__hover-bridge
 			"
 			class="popover"
 			.anchor=${this.anchor}
 			placement=${this.placement}
 			distance=${this.distance}
 			skidding=${this.skidding}
-			strategy=${this.hoist ? 'fixed' : 'absolute'}
 			auto-size=${this.autoSizeVertical ? 'both' : 'horizontal'}
 			auto-size-padding="3"
 			flip-padding="3"
@@ -568,7 +540,7 @@ export class GlPopover extends GlElement {
 			shift
 			?arrow=${this.arrow}
 			hover-bridge
-			@sl-reposition=${this.handleReposition}
+			@wa-reposition=${this.handleReposition}
 		>
 			<div slot="anchor" aria-describedby="popover">
 				<slot name="anchor"></slot>
@@ -594,11 +566,11 @@ export class GlPopover extends GlElement {
 						></div>`,
 				)}
 			</div>
-		</sl-popup>`;
+		</wa-popup>`;
 	}
 
 	private handleReposition = (): void => {
-		const p = this.popup?.getAttribute('data-current-placement') as SlPopup['placement'] | null;
+		const p = this.popup?.getAttribute('data-current-placement') as WaPopup['placement'] | null;
 		if (p != null && p !== this._resolvedPlacement) {
 			this._resolvedPlacement = p;
 		}
@@ -858,7 +830,7 @@ export class GlPopover extends GlElement {
 		}
 	}
 
-	@observe(['distance', 'hoist', 'placement', 'skidding'])
+	@observe(['distance', 'placement', 'skidding'])
 	async handleOptionsChange(): Promise<void> {
 		if (this.hasUpdated) {
 			await this.updateComplete;

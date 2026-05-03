@@ -51,10 +51,11 @@ export const timelineChartStyles = css`
 		margin-left: 1.4rem;
 	}
 
-	gl-commit-sha {
+	gl-commit-sha-copy {
 		color: var(--color-foreground--75);
-		text-align: right;
-		min-width: 7.5rem; /* Ugly but stops the text from jumping around */
+		justify-content: flex-end;
+		min-width: 7.5rem; /* Reserves space so the badge doesn't resize across SHAs */
+		font-variant-numeric: tabular-nums;
 	}
 
 	.bb svg {

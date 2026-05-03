@@ -498,7 +498,7 @@ export class GlDetailsComposeModePanel extends LitElement {
 			</div>
 			${isCommitted
 				? nothing
-				: html`<gl-tooltip placement="left" hoist>
+				: html`<gl-tooltip placement="left">
 						<button
 							class="compose-commit__action ${isNext ? 'compose-commit__action--next' : ''}"
 							aria-label="Commit Up To Here"

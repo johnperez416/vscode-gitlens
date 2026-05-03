@@ -223,7 +223,7 @@ export class GlFeatureBadge extends LitElement {
 			case SubscriptionState.Paid:
 				content = html`<p>
 					Your
-					<gl-tooltip hoist content="Show Account view">
+					<gl-tooltip content="Show Account view">
 						<a href="${createCommandLink('gitlens.showAccountView')}"
 							>${getSubscriptionProductPlanName(this.subscription?.plan.actual.id ?? 'pro')}</a
 						>
@@ -289,7 +289,7 @@ export class GlFeatureBadge extends LitElement {
 			default:
 				content = html`<p>
 						You only have access to
-						<gl-tooltip hoist content="Pro features that do not require an account"
+						<gl-tooltip content="Pro features that do not require an account"
 							><span class="hint">local</span></gl-tooltip
 						>
 						Pro features on publicly-hosted repos.

@@ -345,7 +345,6 @@ export class GlSearchBox extends GlElement {
 					<code-icon class="search-button__stop" icon="stop-circle"></code-icon>
 				</gl-button>
 				<gl-tooltip
-					hoist
 					placement="top"
 					?disabled="${!tooltip}"
 					class="count${!hasResults && this.valid && isComplete ? ' error' : ''}"
@@ -365,7 +364,6 @@ export class GlSearchBox extends GlElement {
 					<code-icon icon="play-circle"></code-icon>
 				</gl-button>
 				<gl-tooltip
-					hoist
 					placement="top"
 					?disabled="${!tooltip}"
 					class="count${!hasResults && this.valid && isComplete ? ' error' : ''}"
@@ -375,7 +373,6 @@ export class GlSearchBox extends GlElement {
 
 		// Not searching - just show results
 		return html`<gl-tooltip
-			hoist
 			placement="top"
 			?disabled="${!tooltip}"
 			class="count${!hasResults && this.valid && isComplete ? ' error' : ''}"
@@ -413,7 +410,7 @@ export class GlSearchBox extends GlElement {
 			></gl-search-input>
 			<div class="search-navigation" aria-label="Search navigation">
 				${this.resultsHtml}
-				<gl-tooltip hoist>
+				<gl-tooltip>
 					<button
 						type="button"
 						class="button ${this.navigating === 'previous' ? 'navigating' : ''}"
@@ -427,7 +424,7 @@ export class GlSearchBox extends GlElement {
 					</button>
 					<span slot="content">Previous Match (Shift+Enter)<br />First Match (Shift+Click)</span>
 				</gl-tooltip>
-				<gl-tooltip hoist>
+				<gl-tooltip>
 					<button
 						type="button"
 						class="button ${this.navigating === 'next' ? 'navigating' : ''}"
@@ -441,7 +438,7 @@ export class GlSearchBox extends GlElement {
 					</button>
 					<span slot="content">Next Match (Enter)<br />Last Match (Shift+Click)</span>
 				</gl-tooltip>
-				<gl-tooltip hoist content="Show Results in Side Bar">
+				<gl-tooltip content="Show Results in Side Bar">
 					<button
 						type="button"
 						class="button"
