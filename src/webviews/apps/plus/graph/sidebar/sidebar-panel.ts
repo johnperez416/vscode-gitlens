@@ -175,7 +175,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				flex-direction: column;
 				height: 100%;
 				overflow: visible;
-				background-color: var(--titlebar-bg);
+				background-color: var(--color-view-background);
 				z-index: 1;
 				border-right: 1px solid transparent;
 				border-color: var(--vscode-sideBar-border, transparent);
@@ -224,8 +224,8 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				font-size: 1.1rem;
 				font-weight: 600;
 				text-transform: uppercase;
-				color: var(--titlebar-fg);
-				background-color: var(--titlebar-bg);
+				color: var(--color-view-header-foreground);
+				background-color: var(--color-view-background);
 				border-bottom: 1px solid transparent;
 				border-color: var(--vscode-sideBarSectionHeader-border, transparent);
 				flex: none;

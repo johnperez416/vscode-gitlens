@@ -61,6 +61,8 @@
 
 	--color-view-background: var(--vscode-sideBar-background, var(--color-background));
 	--color-view-foreground: var(--vscode-sideBar-foreground, var(--color-foreground));
+	--color-view-foreground--65: color-mix(in srgb, transparent 35%, var(--color-view-foreground));
+	--color-view-foreground--50: color-mix(in srgb, transparent 50%, var(--color-view-foreground));
 	--color-view-header-foreground: var(--vscode-sideBarSectionHeader-foreground, var(--color-foreground));
 
 	--color-hover-background: var(--vscode-editorHoverWidget-background);

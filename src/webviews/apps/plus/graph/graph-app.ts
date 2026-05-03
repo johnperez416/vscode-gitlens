@@ -181,19 +181,21 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		// stay attached for the lifetime of the component and become inert in split mode.
 		document.addEventListener('focusout', this._handleSidebarOverlayFocusOut, true);
 		document.addEventListener('pointerdown', this._handleSidebarOverlayPointerDown, true);
+		window.addEventListener('webview-blur', this._handleSidebarOverlayWebviewBlur, false);
 	}
 
 	override disconnectedCallback(): void {
 		super.disconnectedCallback?.();
 		document.removeEventListener('focusout', this._handleSidebarOverlayFocusOut, true);
 		document.removeEventListener('pointerdown', this._handleSidebarOverlayPointerDown, true);
+		window.removeEventListener('webview-blur', this._handleSidebarOverlayWebviewBlur, false);
 	}
 
 	private _handleSidebarOverlayFocusOut = (e: FocusEvent): void => {
 		if (!this.shouldAutoCollapseOverlay()) return;
 		const next = e.relatedTarget as Node | null;
-		// Focus left the document/webview entirely — leave panel open so it's still there
-		// when the user comes back.
+		// Focus left the webview entirely — handled by _handleSidebarOverlayWebviewBlur, not
+		// here, so we don't react to in-webview focus moves to non-focusable nodes.
 		if (next == null) return;
 		if (this.isInsideSidebarZone(next)) return;
 		this.scheduleAutoCollapse();
@@ -204,6 +206,11 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		const target = e.target as Node | null;
 		if (target == null) return;
 		if (this.isInsideSidebarZone(target)) return;
+		this.scheduleAutoCollapse();
+	};
+
+	private _handleSidebarOverlayWebviewBlur = (): void => {
+		if (!this.shouldAutoCollapseOverlay()) return;
 		this.scheduleAutoCollapse();
 	};
 

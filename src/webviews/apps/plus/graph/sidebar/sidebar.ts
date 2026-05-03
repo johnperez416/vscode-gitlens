@@ -50,8 +50,8 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 			flex-direction: column;
 			align-items: center;
 			gap: 1.4rem;
-			background-color: var(--titlebar-bg);
-			color: var(--titlebar-fg);
+			background-color: var(--color-view-background);
+			color: var(--color-view-foreground--65);
 			width: 2.6rem;
 			font-size: 9px;
 			font-weight: 600;
@@ -59,7 +59,7 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 			padding: 0.5rem 0;
 			z-index: 1040;
 			border-right: 1px solid transparent;
-			border-color: var(--vscode-activityBar-border, transparent);
+			border-color: var(--vscode-sideBar-border, transparent);
 		}
 
 		gl-tooltip {
@@ -69,7 +69,7 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		.item {
 			position: relative;
 			width: 100%;
-			color: var(--vscode-activityBar-inactiveForeground, var(--titlebar-fg));
+			color: var(--color-view-foreground--65);
 			text-decoration: none;
 			display: flex;
 			flex-direction: column;
@@ -82,12 +82,12 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		}
 
 		.item:hover {
-			color: var(--vscode-activityBar-foreground, var(--color-foreground));
+			color: var(--color-view-foreground);
 			text-decoration: none;
 		}
 
 		.item.active {
-			color: var(--vscode-activityBar-foreground, var(--color-foreground));
+			color: var(--color-view-foreground);
 		}
 
 		.item.overview {
@@ -100,10 +100,7 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 			top: 0;
 			width: 1px;
 			border-radius: 1px;
-			background-color: var(
-				--vscode-activityBar-activeBorder,
-				var(--vscode-activityBar-foreground, var(--color-foreground))
-			);
+			background-color: var(--color-view-foreground);
 			height: var(--indicator-height, 0px);
 			transform: translateY(var(--indicator-top, 0px));
 			transition:
@@ -123,7 +120,7 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		}
 
 		.count {
-			color: var(--color-foreground--50);
+			color: var(--color-view-foreground--50);
 			margin-top: 0.4rem;
 		}
 
@@ -259,11 +256,8 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		const sidebar = this.renderRoot.querySelector<HTMLElement>('.sidebar');
 		if (sidebar == null) return;
 
-		const tooltipHost = activeButton.closest('gl-tooltip');
-		const target = tooltipHost ?? activeButton;
-
 		const sidebarRect = sidebar.getBoundingClientRect();
-		const targetRect = target.getBoundingClientRect();
+		const targetRect = activeButton.getBoundingClientRect();
 
 		indicator.style.setProperty('--indicator-top', `${targetRect.top - sidebarRect.top}px`);
 		indicator.style.setProperty('--indicator-height', `${targetRect.height}px`);

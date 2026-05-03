@@ -19295,6 +19295,11 @@
             },
             {
               "kind": "field",
+              "name": "_handleSidebarOverlayWebviewBlur",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
               "name": "_hoverTrackingCounter",
               "privacy": "private"
             },
