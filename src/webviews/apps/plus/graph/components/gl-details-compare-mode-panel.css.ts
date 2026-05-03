@@ -475,12 +475,12 @@ export const compareModePanelStyles = css`
 	}
 
 	.wip-compare-stats__additions {
-		color: var(--vscode-gitDecoration-addedResourceForeground);
+		color: var(--gl-stat-added);
 		margin-inline-end: 0.6rem;
 	}
 
 	.wip-compare-stats__deletions {
-		color: var(--vscode-gitDecoration-deletedResourceForeground);
+		color: var(--gl-stat-removed);
 	}
 
 	/* Scoped file-pane header uses the SAME warning hue as the selected commit row + the graph

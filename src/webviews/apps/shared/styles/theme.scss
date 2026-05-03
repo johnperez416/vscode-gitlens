@@ -92,6 +92,25 @@
 	--gl-tracking-working: var(--vscode-activityBarBadge-background);
 	--gl-tracking-missing: var(--vscode-gitlens-decorations\.branchMissingUpstreamForegroundColor);
 	--gl-overlay-color: var(--vscode-widget-shadow);
+
+	/* Unified stat colors — used by commit-stats, gl-commit-row, wip-stats-pill, wip-compare-stats, etc. */
+	--gl-stat-added: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, #2da44e));
+	--gl-stat-modified: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-charts-yellow, #bf8700));
+	--gl-stat-removed: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red, #cf222e));
+
+	/* Unified scope/filter chip indicator colors — bg/border use the *-color (translucent via
+	   color-mix); text uses *-text-color so light themes can pair a vibrant tint with much
+	   darker readable text. By default both resolve to the same color. */
+	--gl-chip-filtered-color: var(--vscode-statusBarItem-prominentBackground, var(--vscode-charts-blue, #0969da));
+	--gl-chip-filtered-text-color: var(--gl-chip-filtered-color);
+	--gl-chip-scoped-color: var(--vscode-statusBarItem-warningBackground, var(--vscode-charts-yellow, #bf8700));
+	--gl-chip-scoped-text-color: var(--gl-chip-scoped-color);
+
+	/* Mix percentages used by chip bg / border / hover bg. Defaults are tuned for dark themes;
+	   light themes override below to balance the white-dilution effect. */
+	--gl-chip-tint-bg: 22%;
+	--gl-chip-tint-border: 50%;
+	--gl-chip-tint-hover: 32%;
 }
 
 body[data-placement='view'] {
@@ -108,6 +127,15 @@ body[data-placement='panel'] {
 	--color-alert-errorHoverBackground: color-mix(in srgb, #fff 5%, var(--color-alert-errorBackground));
 	--color-alert-neutralBackground: color-mix(in srgb, #fff 5%, var(--color-background));
 	--color-alert-neutralHoverBackground: color-mix(in srgb, #fff 5%, var(--color-alert-neutralBackground));
+
+	/* Force bright, vivid chip indicator colors on dark themes — themes vary widely on
+	   statusBarItem-* tokens (some are teal/cyan instead of blue/yellow). The bg uses the
+	   saturated hue (it's already translucent); text uses a lighter/brighter shade so it
+	   contrasts against the tinted bg. Same base hues as light theme for visual consistency. */
+	--gl-chip-filtered-color: #0099ff;
+	--gl-chip-filtered-text-color: #79c0ff;
+	--gl-chip-scoped-color: #f2cc60;
+	--gl-chip-scoped-text-color: #f2cc60;
 }
 
 @include utils.light-theme($selectorPrefix: ':root:has(', $selectorPostfix: ')') {
@@ -116,4 +144,22 @@ body[data-placement='panel'] {
 	--color-alert-errorHoverBackground: color-mix(in srgb, #000 5%, var(--color-alert-errorBackground));
 	--color-alert-neutralBackground: color-mix(in srgb, #000 5%, var(--color-background));
 	--color-alert-neutralHoverBackground: color-mix(in srgb, #000 5%, var(--color-alert-neutralBackground));
+
+	/* Force saturated, high-contrast stat colors on light backgrounds — many themes' gitDecoration
+	   colors are too pale to read against white surfaces (esp. inside chip backgrounds). */
+	--gl-stat-added: #2da44e;
+	--gl-stat-modified: #bf8700;
+	--gl-stat-removed: #cf222e;
+
+	/* Light themes: pair a vibrant bg tint with a much darker text color for readability on white.
+	   Bump tint percentages so chips/rows pop with the same vibrance as dark themes — mixing 18%
+	   of any color into white just produces a pale wash. */
+	--gl-chip-filtered-color: #0099ff;
+	--gl-chip-filtered-text-color: #0550ae;
+	--gl-chip-scoped-color: #e89500;
+	--gl-chip-scoped-text-color: #4d3300;
+
+	--gl-chip-tint-bg: 22%;
+	--gl-chip-tint-border: 55%;
+	--gl-chip-tint-hover: 32%;
 }

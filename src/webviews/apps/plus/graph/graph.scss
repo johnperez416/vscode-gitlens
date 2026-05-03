@@ -142,6 +142,14 @@
 	--color-graph-actionbar-background: color-mix(in srgb, #000 5%, var(--color-background));
 	--color-graph-background1: color-mix(in srgb, #000 5%, var(--color-background));
 	--color-graph-background2: color-mix(in srgb, #000 10%, var(--color-background));
+
+	.graph-container .wip-stats-pill {
+		background-color: color-mix(
+			in srgb,
+			var(--vscode-sideBarSectionHeader-background) 96%,
+			var(--vscode-foreground) 4%
+		);
+	}
 }
 
 // Light DOM
@@ -1222,6 +1230,36 @@ web-graph {
 
 	& .changes-zone.changes-bar .changes-sub-bar.deleted {
 		margin-left: 2px;
+	}
+
+	& .wip-stats-pill {
+		background-color: color-mix(
+			in srgb,
+			var(--vscode-sideBarSectionHeader-background) 90%,
+			var(--vscode-foreground) 10%
+		);
+		border: 1px solid
+			color-mix(in srgb, var(--vscode-sideBarSectionHeader-border) 100%, var(--vscode-foreground) 70%) !important;
+		border-radius: 0.4rem;
+		font-weight: 600;
+
+		& .graph-icon {
+			font-weight: 600;
+		}
+	}
+
+	/* Package default selector chain is 5 classes; `!important` is the simplest reliable beat. */
+	& .wip-stats-pill__item--added {
+		color: var(--gl-stat-added) !important;
+	}
+	& .wip-stats-pill__item--modified {
+		color: var(--gl-stat-modified) !important;
+	}
+	& .wip-stats-pill__item--deleted {
+		color: var(--gl-stat-removed) !important;
+	}
+	& .wip-stats-pill__check {
+		color: var(--gl-stat-added) !important;
 	}
 
 	// Graph footer styles

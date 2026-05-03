@@ -117,11 +117,11 @@ export class GlCommitRow extends LitElement {
 		}
 
 		.stats__added {
-			color: var(--gl-tracking-ahead, #4ec9b0);
+			color: var(--gl-stat-added);
 		}
 
 		.stats__deleted {
-			color: var(--vscode-charts-red, #f14c4c);
+			color: var(--gl-stat-removed);
 		}
 
 		.dot {

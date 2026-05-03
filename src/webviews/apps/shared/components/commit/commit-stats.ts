@@ -55,6 +55,7 @@ export class CommitStats extends LitElement {
 			align-items: center;
 			white-space: nowrap;
 			font-size: 1.1rem;
+			font-weight: 600;
 		}
 
 		:host([appearance='pill']) {
@@ -69,6 +70,15 @@ export class CommitStats extends LitElement {
 			padding: 0 0.8rem 0 0.6rem;
 			white-space: nowrap;
 			line-height: 1.5rem;
+		}
+
+		:host-context(.vscode-light):host([appearance='pill']),
+		:host-context(.vscode-high-contrast-light):host([appearance='pill']) {
+			background-color: color-mix(
+				in srgb,
+				var(--vscode-sideBarSectionHeader-background) 98%,
+				var(--vscode-foreground) 2%
+			);
 		}
 
 		.stat {
@@ -86,13 +96,13 @@ export class CommitStats extends LitElement {
 		}
 
 		.added {
-			color: var(--vscode-gitDecoration-addedResourceForeground);
+			color: var(--gl-stat-added);
 		}
 		.modified {
-			color: var(--vscode-gitDecoration-modifiedResourceForeground);
+			color: var(--gl-stat-modified);
 		}
 		.removed {
-			color: var(--vscode-gitDecoration-deletedResourceForeground);
+			color: var(--gl-stat-removed);
 		}
 
 		.label {
@@ -103,6 +113,7 @@ export class CommitStats extends LitElement {
 			--code-icon-size: 1.1rem;
 			--code-icon-v-align: middle;
 			margin-inline-end: 0.2rem;
+			font-weight: 600;
 		}
 
 		/* Pill styles */

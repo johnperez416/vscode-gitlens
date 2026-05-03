@@ -53,15 +53,15 @@ export const titlebarStyles = css`
 	}
 
 	.titlebar__row--filtered {
-		background: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 18%, transparent);
-		border-top-color: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 45%, transparent);
-		border-bottom-color: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 30%, transparent);
+		background: color-mix(in srgb, var(--gl-chip-filtered-color) var(--gl-chip-tint-bg), transparent);
+		border-top-color: color-mix(in srgb, var(--gl-chip-filtered-color) var(--gl-chip-tint-border), transparent);
+		border-bottom-color: color-mix(in srgb, var(--gl-chip-filtered-color) var(--gl-chip-tint-hover), transparent);
 	}
 
 	.titlebar__row--scoped {
-		background: color-mix(in srgb, var(--vscode-statusBarItem-warningBackground) 18%, transparent);
-		border-top-color: color-mix(in srgb, var(--vscode-statusBarItem-warningBackground) 45%, transparent);
-		border-bottom-color: color-mix(in srgb, var(--vscode-statusBarItem-warningBackground) 30%, transparent);
+		background: color-mix(in srgb, var(--gl-chip-scoped-color) var(--gl-chip-tint-bg), transparent);
+		border-top-color: color-mix(in srgb, var(--gl-chip-scoped-color) var(--gl-chip-tint-border), transparent);
+		border-bottom-color: color-mix(in srgb, var(--gl-chip-scoped-color) var(--gl-chip-tint-hover), transparent);
 	}
 
 	.titlebar__row--wrap {

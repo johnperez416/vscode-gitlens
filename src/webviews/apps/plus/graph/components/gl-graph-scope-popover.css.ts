@@ -31,21 +31,21 @@ export const graphScopePopoverStyles = css`
 	}
 
 	.mode-chip--filtered {
-		background: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 30%, transparent);
-		color: var(--vscode-statusBarItem-prominentForeground, var(--vscode-foreground));
-		border-color: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 55%, transparent);
+		background: color-mix(in srgb, var(--gl-chip-filtered-color) var(--gl-chip-tint-bg), transparent);
+		color: var(--gl-chip-filtered-text-color);
+		border-color: color-mix(in srgb, var(--gl-chip-filtered-color) var(--gl-chip-tint-border), transparent);
 	}
 	.mode-chip--filtered:hover {
-		background: color-mix(in srgb, var(--vscode-statusBarItem-prominentBackground) 42%, transparent);
+		background: color-mix(in srgb, var(--gl-chip-filtered-color) var(--gl-chip-tint-hover), transparent);
 	}
 
 	.mode-chip--scoped {
-		background: color-mix(in srgb, var(--vscode-statusBarItem-warningBackground) 30%, transparent);
-		color: var(--vscode-statusBarItem-warningForeground, var(--vscode-foreground));
-		border-color: color-mix(in srgb, var(--vscode-statusBarItem-warningBackground) 55%, transparent);
+		background: color-mix(in srgb, var(--gl-chip-scoped-color) var(--gl-chip-tint-bg), transparent);
+		color: var(--gl-chip-scoped-text-color);
+		border-color: color-mix(in srgb, var(--gl-chip-scoped-color) var(--gl-chip-tint-border), transparent);
 	}
 	.mode-chip--scoped:hover {
-		background: color-mix(in srgb, var(--vscode-statusBarItem-warningBackground) 42%, transparent);
+		background: color-mix(in srgb, var(--gl-chip-scoped-color) var(--gl-chip-tint-hover), transparent);
 	}
 
 	.mode-chip__icon {
