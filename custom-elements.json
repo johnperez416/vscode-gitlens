@@ -60827,6 +60827,16 @@
               ]
             },
             {
+              "kind": "method",
+              "name": "onCheckboxMouseEnter",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "onCheckboxMouseLeave",
+              "privacy": "private"
+            },
+            {
               "kind": "field",
               "name": "onComponentClick",
               "privacy": "private",

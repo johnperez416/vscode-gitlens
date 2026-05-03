@@ -26,6 +26,7 @@ import '../file-icon/file-icon.js';
 import '../status/git-status.js';
 import '../button.js';
 import '../code-icon.js';
+import '../markdown/markdown.js';
 import './tree-item.js';
 
 const filterableCharRegex = /^[a-zA-Z0-9\s\-_.]$/;
@@ -173,7 +174,6 @@ export class GlTreeView extends GlElement {
 			.hover-content {
 				font-size: 1.2rem;
 				line-height: 1.5;
-				white-space: pre-line;
 				/* anywhere wraps at any character when forced — avoids the default behavior of
 				   breaking paths at hyphens (the worst possible split point). */
 				overflow-wrap: anywhere;
@@ -620,6 +620,8 @@ export class GlTreeView extends GlElement {
 			@gl-tree-item-checked=${(e: CustomEvent<TreeItemCheckedDetail>) => this.onTreeItemChecked(e, model)}
 			@mouseenter=${(e: MouseEvent) => this.onTreeItemHover(e, model)}
 			@mouseleave=${() => this.onTreeItemUnhover()}
+			@gl-tree-item-suspend-tooltip=${() => this.onSuspendRowTooltip()}
+			@gl-tree-item-resume-tooltip=${() => this.onResumeRowTooltip()}
 		>
 			${this.renderIcon(model.icon)}
 			${this.highlightText(model.label)}${when(
@@ -719,7 +721,9 @@ export class GlTreeView extends GlElement {
 						hoist
 						.distance=${12}
 					>
-						<div slot="content" class="hover-content">${this._hoveredTooltip ?? ''}</div>
+						<div slot="content" class="hover-content">
+							<gl-markdown density="compact" .markdown=${this._hoveredTooltip ?? ''}></gl-markdown>
+						</div>
 					</gl-popover>`
 				: nothing}
 		`;

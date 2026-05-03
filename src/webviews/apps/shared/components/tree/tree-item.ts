@@ -169,7 +169,10 @@ export class GlTreeItem extends GlElement {
 		if (!this.checkable) {
 			return nothing;
 		}
-		const checkbox = html`<span class="checkbox"
+		const checkbox = html`<span
+			class="checkbox"
+			@mouseenter=${this.onCheckboxMouseEnter}
+			@mouseleave=${this.onCheckboxMouseLeave}
 			><input
 				class="checkbox__input"
 				id="checkbox"
@@ -308,6 +311,14 @@ export class GlTreeItem extends GlElement {
 
 		this.emit('gl-tree-item-checked', { node: this, checked: newChecked });
 	}
+
+	private onCheckboxMouseEnter() {
+		this.emit('gl-tree-item-suspend-tooltip');
+	}
+
+	private onCheckboxMouseLeave() {
+		this.emit('gl-tree-item-resume-tooltip');
+	}
 }
 
 declare global {
@@ -319,5 +330,7 @@ declare global {
 		'gl-tree-item-select': CustomEvent<undefined>;
 		'gl-tree-item-selected': CustomEvent<TreeItemSelectionDetail>;
 		'gl-tree-item-checked': CustomEvent<TreeItemCheckedDetail>;
+		'gl-tree-item-suspend-tooltip': CustomEvent<undefined>;
+		'gl-tree-item-resume-tooltip': CustomEvent<undefined>;
 	}
 }
