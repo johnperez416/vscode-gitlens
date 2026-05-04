@@ -589,15 +589,24 @@ export class GlDetailsReviewModePanel extends LitElement {
 					icon=${isExpanded ? 'chevron-down' : 'chevron-right'}
 					class="review-area__chevron"
 				></code-icon>
-				<span class="review-area__severity review-area__severity--${area.severity}">
-					<code-icon
-						icon=${area.severity === 'critical'
-							? 'error'
-							: area.severity === 'warning'
-								? 'warning'
-								: 'info'}
-					></code-icon>
-				</span>
+				<gl-tooltip
+					content=${area.severity === 'critical'
+						? 'Critical Issue'
+						: area.severity === 'warning'
+							? 'Warning (Non-Critical)'
+							: 'Suggestion'}
+					placement="bottom-start"
+				>
+					<span class="review-area__severity review-area__severity--${area.severity}">
+						<code-icon
+							icon=${area.severity === 'critical'
+								? 'error'
+								: area.severity === 'warning'
+									? 'warning'
+									: 'info'}
+						></code-icon>
+					</span>
+				</gl-tooltip>
 				<span class="review-area__label">${area.label}</span>
 				<span class="review-area__file-count">${pluralize('file', area.files.length)}</span>
 			</button>
