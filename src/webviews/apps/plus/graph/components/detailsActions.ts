@@ -22,6 +22,7 @@ import type { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { uncommitted, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import { areEqual } from '@gitlens/utils/array.js';
+import { Logger } from '@gitlens/utils/logger.js';
 import { LruMap } from '@gitlens/utils/lruMap.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { Autolink } from '../../../../../autolinks/models/autolinks.js';
@@ -164,6 +165,11 @@ export class DetailsActions {
 	private _branchCommitsController?: AbortController;
 	private _branchCommitsLoadMoreController?: AbortController;
 	private _enrichmentController?: AbortController;
+	private _branchCompareEnrichmentControllers = new Map<BranchComparisonContributorsScope, AbortController>();
+	private _branchCompareContributorsControllers = new Map<BranchComparisonContributorsScope, AbortController>();
+	/** Per-(tab,sha) abort controllers for lazy commit-file fetches in branch-compare. New selection
+	 *  on a tab aborts any in-flight fetch for the same tab so the latest click wins. */
+	private _compareCommitFilesControllers = new Map<string, AbortController>();
 	private _aiExcludedFilesGeneration = 0;
 
 	/** Branch-keyed cache of WIP enrichment (autolinks/issues/mergeTarget). Populated on first
@@ -201,6 +207,8 @@ export class DetailsActions {
 		this.state.branchCompareBehindCommits.set([]);
 		this.state.branchCompareAllFiles.set([]);
 		this.state.branchCompareAllFilesCount.set(0);
+		this.state.branchCompareAheadFiles.set([]);
+		this.state.branchCompareBehindFiles.set([]);
 		this.state.branchCompareAheadLoaded.set(false);
 		this.state.branchCompareBehindLoaded.set(false);
 	}
@@ -217,7 +225,20 @@ export class DetailsActions {
 	dispose(): void {
 		this._disposed = true;
 		this._branchCommitsController?.abort();
+		this._branchCommitsLoadMoreController?.abort();
 		this._enrichmentController?.abort();
+		for (const c of this._branchCompareEnrichmentControllers.values()) {
+			c.abort();
+		}
+		for (const c of this._branchCompareContributorsControllers.values()) {
+			c.abort();
+		}
+		for (const c of this._compareCommitFilesControllers.values()) {
+			c.abort();
+		}
+		this._branchCompareEnrichmentControllers.clear();
+		this._branchCompareContributorsControllers.clear();
+		this._compareCommitFilesControllers.clear();
 		this._wipEnrichmentCache.clear();
 		this._commitEnrichmentCache.clear();
 		this.resources.commit.dispose();
@@ -789,9 +810,11 @@ export class DetailsActions {
 			const fromPromise: Promise<CommitDetails | undefined> =
 				cachedFrom != null
 					? Promise.resolve(cachedFrom)
-					: this.services.graphInspect.getCommit(repoPath, fromSha);
+					: this.services.graphInspect.getCommit(repoPath, fromSha, enrichSignal);
 			const toPromise: Promise<CommitDetails | undefined> =
-				cachedTo != null ? Promise.resolve(cachedTo) : this.services.graphInspect.getCommit(repoPath, toSha);
+				cachedTo != null
+					? Promise.resolve(cachedTo)
+					: this.services.graphInspect.getCommit(repoPath, toSha, enrichSignal);
 
 			const [commitFrom, commitTo] = await Promise.all([fromPromise, toPromise, comparePromise]);
 
@@ -1011,8 +1034,10 @@ export class DetailsActions {
 		const options: BranchComparisonOptions = {
 			includeWorkingTree: this.state.branchCompareIncludeWorkingTree.get(),
 		};
+		const identityKey = this.getBranchCompareIdentityKey(repoPath);
 
 		await this.resources.branchCompareSummary.fetch(repoPath, leftRef, rightRef, options);
+		if (identityKey == null || this.getBranchCompareIdentityKey(repoPath) !== identityKey) return;
 
 		if (this.resources.branchCompareSummary.status.get() !== 'success') return;
 		const result = this.resources.branchCompareSummary.value.get();
@@ -1045,8 +1070,10 @@ export class DetailsActions {
 		const options: BranchComparisonOptions = {
 			includeWorkingTree: this.state.branchCompareIncludeWorkingTree.get(),
 		};
+		const identityKey = this.getBranchCompareIdentityKey(repoPath, side);
 
 		await this.resources.branchCompareSide.fetch(repoPath, leftRef, rightRef, side, options);
+		if (identityKey == null || this.getBranchCompareIdentityKey(repoPath, side) !== identityKey) return;
 
 		if (this.resources.branchCompareSide.status.get() !== 'success') return;
 		const result = this.resources.branchCompareSide.value.get();
@@ -1054,9 +1081,11 @@ export class DetailsActions {
 
 		if (side === 'ahead') {
 			this.state.branchCompareAheadCommits.set(result.commits);
+			this.state.branchCompareAheadFiles.set(result.files);
 			this.state.branchCompareAheadLoaded.set(true);
 		} else {
 			this.state.branchCompareBehindCommits.set(result.commits);
+			this.state.branchCompareBehindFiles.set(result.files);
 			this.state.branchCompareBehindLoaded.set(true);
 		}
 
@@ -1093,11 +1122,9 @@ export class DetailsActions {
 		} else {
 			this.state.branchCompareRightRef.set(result.name);
 		}
-		// Comparison identity changed — invalidate per-side loaded flags so the next activation
-		// triggers a fresh fetch. (Resource itself is keyed on refs, so the cached entry is
-		// already isolated.)
-		this.state.branchCompareAheadLoaded.set(false);
-		this.state.branchCompareBehindLoaded.set(false);
+		// Comparison identity changed — clear side/all-file data immediately so stale commits
+		// cannot seed enrichment while the new summary/side fetches are in flight.
+		this.clearBranchCompareData();
 		this.clearBranchCompareEnrichmentCaches();
 		void this.refreshCompare(repoPath);
 	}
@@ -1143,7 +1170,7 @@ export class DetailsActions {
 		}
 	}
 
-	selectCompareCommit(sha: string | undefined, _repoPath: string | undefined): void {
+	selectCompareCommit(sha: string | undefined, repoPath: string | undefined): void {
 		const tab = this.state.branchCompareActiveTab.get();
 		// 'all' tab has no commit list, so it has no per-commit selection to persist.
 		if (tab === 'all') return;
@@ -1154,17 +1181,126 @@ export class DetailsActions {
 			next.delete(tab);
 		}
 		this.state.branchCompareSelectedCommitShaByTab.set(next);
-		// No fetch — files for this commit are already present inline on the loaded side.
-		// The panel filters to `commits.find(c => c.sha === sha).files` purely client-side.
+
+		if (sha && repoPath) {
+			void this.fetchCompareCommitFilesIfNeeded(repoPath, tab, sha);
+		}
+	}
+
+	private async fetchCompareCommitFilesIfNeeded(
+		repoPath: string,
+		tab: 'ahead' | 'behind',
+		sha: string,
+	): Promise<void> {
+		const listState =
+			tab === 'ahead' ? this.state.branchCompareAheadCommits : this.state.branchCompareBehindCommits;
+		const commits = listState.get();
+		if (!commits) return;
+
+		const commit = commits.find(c => c.sha === sha);
+		if (commit == null) return;
+		if (commit.files != null) return; // Already fetched
+
+		// One in-flight fetch per (tab, sha). New selection on the same tab cancels the prior one
+		// so the latest click wins; same-sha re-clicks dedupe so we don't double-fetch.
+		const controllerKey = `${tab}:${sha}`;
+		if (this._compareCommitFilesControllers.has(controllerKey)) return;
+
+		// Identity guard — refs/repo/worktree-toggle changes invalidate this fetch's target list.
+		const identityKey = this.getBranchCompareIdentityKey(repoPath);
+		if (identityKey == null) return;
+
+		// Abort any other in-flight fetch on the same tab — only one selection can be active at a time.
+		for (const [key, c] of this._compareCommitFilesControllers) {
+			if (key.startsWith(`${tab}:`)) {
+				c.abort();
+				this._compareCommitFilesControllers.delete(key);
+			}
+		}
+
+		const controller = new AbortController();
+		this._compareCommitFilesControllers.set(controllerKey, controller);
+		const signal = controller.signal;
+
+		const setLoading = (loading: boolean): void => {
+			const next = new Map(this.state.branchCompareCommitFilesLoading.get());
+			if (loading) {
+				next.set(sha, true);
+			} else {
+				next.delete(sha);
+			}
+			this.state.branchCompareCommitFilesLoading.set(next);
+		};
+		setLoading(true);
+
+		try {
+			const details = await this.services.graphInspect.getCommit(repoPath, sha, signal);
+			if (this._disposed || signal.aborted) return;
+			if (this.getBranchCompareIdentityKey(repoPath) !== identityKey) return;
+
+			const currentCommits = listState.get();
+			const currentCommitIndex = currentCommits.findIndex(c => c.sha === sha);
+			if (currentCommitIndex === -1) return;
+
+			// Cache an empty array on miss so re-clicks don't re-fetch the same dead sha.
+			const files =
+				details?.files?.map(f => ({
+					...f,
+					source: 'comparison' as const,
+				})) ?? [];
+
+			const nextCommits = [...currentCommits];
+			nextCommits[currentCommitIndex] = {
+				...currentCommits[currentCommitIndex],
+				files: files,
+			};
+			listState.set(nextCommits);
+		} catch (ex) {
+			if (signal.aborted) return;
+			Logger.error(ex, `Failed to fetch files for commit ${sha}`);
+		} finally {
+			if (this._compareCommitFilesControllers.get(controllerKey) === controller) {
+				this._compareCommitFilesControllers.delete(controllerKey);
+			}
+			if (!this._disposed && !signal.aborted) {
+				setLoading(false);
+			}
+		}
 	}
 
 	private clearBranchCompareEnrichmentCaches(): void {
+		for (const c of this._branchCompareEnrichmentControllers.values()) {
+			c.abort();
+		}
+		for (const c of this._branchCompareContributorsControllers.values()) {
+			c.abort();
+		}
+		for (const c of this._compareCommitFilesControllers.values()) {
+			c.abort();
+		}
+		this._branchCompareEnrichmentControllers.clear();
+		this._branchCompareContributorsControllers.clear();
+		this._compareCommitFilesControllers.clear();
+
 		this.state.branchCompareAutolinksByScope.set(new Map());
 		this.state.branchCompareEnrichedAutolinksByScope.set(new Map());
 		this.state.branchCompareContributorsByScope.set(new Map());
-		this.state.branchCompareEnrichmentLoading.set(false);
-		this.state.branchCompareContributorsLoading.set(false);
+		this.state.branchCompareEnrichmentLoading.set(new Map());
+		this.state.branchCompareContributorsLoading.set(new Map());
+		this.state.branchCompareCommitFilesLoading.set(new Map());
 		this.state.branchCompareEnrichmentRequested.set(false);
+	}
+
+	private getBranchCompareIdentityKey(
+		repoPath: string | undefined,
+		scope?: BranchComparisonContributorsScope,
+	): string | undefined {
+		const leftRef = this.state.branchCompareLeftRef.get();
+		const rightRef = this.state.branchCompareRightRef.get();
+		if (!repoPath || !leftRef || !rightRef) return undefined;
+
+		const includeWorkingTree = this.state.branchCompareIncludeWorkingTree.get() ? '1' : '0';
+		return `${repoPath}:${leftRef}:${rightRef}:${includeWorkingTree}:${scope ?? ''}`;
 	}
 
 	private getShasInScope(scope: BranchComparisonContributorsScope): string[] {
@@ -1188,7 +1324,10 @@ export class DetailsActions {
 		if (!shas.length) return;
 
 		try {
+			const identityKey = this.getBranchCompareIdentityKey(repoPath, activeScope);
 			const autolinks = await this.services.autolinks.getAutolinksForCommits(repoPath, shas);
+			if (identityKey == null || this.getBranchCompareIdentityKey(repoPath, activeScope) !== identityKey) return;
+
 			const next = new Map(this.state.branchCompareAutolinksByScope.get());
 			next.set(activeScope, autolinks);
 			this.state.branchCompareAutolinksByScope.set(next);
@@ -1215,16 +1354,33 @@ export class DetailsActions {
 		const shas = this.getShasInScope(activeScope);
 		if (!shas.length) return;
 
-		this.state.branchCompareEnrichmentLoading.set(true);
+		this._branchCompareEnrichmentControllers.get(activeScope)?.abort();
+		const controller = new AbortController();
+		this._branchCompareEnrichmentControllers.set(activeScope, controller);
+		const signal = controller.signal;
+
+		const nextLoading = new Map(this.state.branchCompareEnrichmentLoading.get());
+		nextLoading.set(activeScope, true);
+		this.state.branchCompareEnrichmentLoading.set(nextLoading);
+		const identityKey = this.getBranchCompareIdentityKey(repoPath, activeScope);
 		try {
-			const items = await this.services.autolinks.enrichAutolinksForCommits(repoPath, shas);
+			const items = await this.services.autolinks.enrichAutolinksForCommits(repoPath, shas, signal);
+			if (signal.aborted) return;
+			if (identityKey == null || this.getBranchCompareIdentityKey(repoPath, activeScope) !== identityKey) return;
+
 			const next = new Map(this.state.branchCompareEnrichedAutolinksByScope.get());
 			next.set(activeScope, items);
 			this.state.branchCompareEnrichedAutolinksByScope.set(next);
 		} catch {
 			// Leave the cache without an entry so a future request can retry.
 		} finally {
-			this.state.branchCompareEnrichmentLoading.set(false);
+			if (!signal.aborted) {
+				if (identityKey != null && this.getBranchCompareIdentityKey(repoPath, activeScope) === identityKey) {
+					const nextLoading = new Map(this.state.branchCompareEnrichmentLoading.get());
+					nextLoading.set(activeScope, false);
+					this.state.branchCompareEnrichmentLoading.set(nextLoading);
+				}
+			}
 		}
 	}
 
@@ -1241,21 +1397,39 @@ export class DetailsActions {
 		const rightRef = this.state.branchCompareRightRef.get();
 		if (!leftRef || !rightRef) return;
 
-		this.state.branchCompareContributorsLoading.set(true);
+		this._branchCompareContributorsControllers.get(activeScope)?.abort();
+		const controller = new AbortController();
+		this._branchCompareContributorsControllers.set(activeScope, controller);
+		const signal = controller.signal;
+
+		const nextLoading = new Map(this.state.branchCompareContributorsLoading.get());
+		nextLoading.set(activeScope, true);
+		this.state.branchCompareContributorsLoading.set(nextLoading);
+		const identityKey = this.getBranchCompareIdentityKey(repoPath, activeScope);
 		try {
 			const result = await this.services.graphInspect.getContributorsForBranchComparison(
 				repoPath,
 				leftRef,
 				rightRef,
 				activeScope,
+				signal,
 			);
+			if (signal.aborted) return;
+			if (identityKey == null || this.getBranchCompareIdentityKey(repoPath, activeScope) !== identityKey) return;
+
 			const next = new Map(this.state.branchCompareContributorsByScope.get());
 			next.set(activeScope, result?.contributors ?? []);
 			this.state.branchCompareContributorsByScope.set(next);
 		} catch {
 			// Leave the cache without an entry so a future request can retry.
 		} finally {
-			this.state.branchCompareContributorsLoading.set(false);
+			if (!signal.aborted) {
+				if (identityKey != null && this.getBranchCompareIdentityKey(repoPath, activeScope) === identityKey) {
+					const nextLoading = new Map(this.state.branchCompareContributorsLoading.get());
+					nextLoading.set(activeScope, false);
+					this.state.branchCompareContributorsLoading.set(nextLoading);
+				}
+			}
 		}
 	}
 

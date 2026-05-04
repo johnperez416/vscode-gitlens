@@ -117,6 +117,8 @@ function createDurableState() {
 	// client-side filter — no fetch.
 	const branchCompareAheadCommits = signal<BranchComparisonCommit[]>([]);
 	const branchCompareBehindCommits = signal<BranchComparisonCommit[]>([]);
+	const branchCompareAheadFiles = signal<BranchComparisonFile[]>([]);
+	const branchCompareBehindFiles = signal<BranchComparisonFile[]>([]);
 	// Per-side "loaded for the current refs/wip" flag. Drives the per-tab loading state in the
 	// panel. Cleared whenever the comparison identity changes.
 	const branchCompareAheadLoaded = signal(false);
@@ -135,8 +137,12 @@ function createDurableState() {
 	const branchCompareContributorsByScope = signal<
 		Map<BranchComparisonContributorsScope, BranchComparisonContributor[]>
 	>(new Map());
-	const branchCompareEnrichmentLoading = signal(false);
-	const branchCompareContributorsLoading = signal(false);
+	const branchCompareEnrichmentLoading = signal<Map<BranchComparisonContributorsScope, boolean>>(new Map());
+	const branchCompareContributorsLoading = signal<Map<BranchComparisonContributorsScope, boolean>>(new Map());
+	/** Per-sha pending state for lazy commit-file fetches in branch-compare. Set while a fetch is
+	 *  in flight; cleared on success/abort/dispose. The compare panel reads this to show a loading
+	 *  indicator instead of the empty "No changes" message during the fetch. */
+	const branchCompareCommitFilesLoading = signal<Map<string, boolean>>(new Map());
 
 	// Capabilities
 	const preferences = signal<Preferences | undefined>(undefined);
@@ -193,6 +199,8 @@ function createDurableState() {
 		branchCompareAllFilesCount: branchCompareAllFilesCount,
 		branchCompareAheadCommits: branchCompareAheadCommits,
 		branchCompareBehindCommits: branchCompareBehindCommits,
+		branchCompareAheadFiles: branchCompareAheadFiles,
+		branchCompareBehindFiles: branchCompareBehindFiles,
 		branchCompareAheadLoaded: branchCompareAheadLoaded,
 		branchCompareBehindLoaded: branchCompareBehindLoaded,
 
@@ -201,6 +209,7 @@ function createDurableState() {
 		branchCompareContributorsByScope: branchCompareContributorsByScope,
 		branchCompareEnrichmentLoading: branchCompareEnrichmentLoading,
 		branchCompareContributorsLoading: branchCompareContributorsLoading,
+		branchCompareCommitFilesLoading: branchCompareCommitFilesLoading,
 
 		preferences: preferences,
 		orgSettings: orgSettings,

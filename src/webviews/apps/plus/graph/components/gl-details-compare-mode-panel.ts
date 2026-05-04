@@ -102,7 +102,13 @@ export class GlDetailsCompareModePanel extends LitElement {
 	aheadCommits: BranchComparisonCommit[] = [];
 
 	@property({ type: Array })
+	aheadFiles: BranchComparisonFile[] = [];
+
+	@property({ type: Array })
 	behindCommits: BranchComparisonCommit[] = [];
+
+	@property({ type: Array })
+	behindFiles: BranchComparisonFile[] = [];
 
 	/** Files for the All Files tab — comes from Phase 1 of the progressive load (counts + 2-dot
 	 *  diff). Distinct from the per-side commits so the All tab is renderable as soon as the
@@ -160,6 +166,11 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 	@property({ type: Boolean, attribute: 'contributors-loading' })
 	contributorsLoading = false;
+
+	/** Map<sha, true> for commit-file fetches in flight. Used to show a "Loading changes…" state
+	 *  in the file pane while the lazy fetch for the selected commit is pending. */
+	@property({ type: Object })
+	commitFilesLoadingByShas?: Map<string, boolean>;
 
 	@property({ type: Object })
 	preferences?: Preferences;
@@ -267,7 +278,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 				<span>Loading commits…</span>
 			</div>`;
 		}
-		const files = this.filesForSelection(this.aheadCommits);
+		const files = this.filesForSelection(this.aheadCommits, this.aheadFiles);
 		return html`<gl-split-panel
 			class="wip-compare-split"
 			data-tab="ahead"
@@ -290,7 +301,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 				<span>Loading commits…</span>
 			</div>`;
 		}
-		const files = this.filesForSelection(this.behindCommits);
+		const files = this.filesForSelection(this.behindCommits, this.behindFiles);
 		return html`<gl-split-panel
 			class="wip-compare-split"
 			data-tab="behind"
@@ -307,32 +318,15 @@ export class GlDetailsCompareModePanel extends LitElement {
 	}
 
 	/** Derive the file list to show on a side: scoped to the active tab's selected commit when
-	 *  one is set (instant client-side filter — no fetch), otherwise the union of all commits'
-	 *  files deduped by source + path. Per-file stats are summed across commits in the union case
-	 *  so the row reflects cumulative churn over the side's range. */
-	private filesForSelection(commits: BranchComparisonCommit[]): BranchComparisonFile[] {
+	 *  one is set (instant client-side filter after fetch), otherwise the overall files for the side. */
+	private filesForSelection(
+		commits: BranchComparisonCommit[],
+		overallFiles: BranchComparisonFile[],
+	): BranchComparisonFile[] {
 		const sel = this.selectedCommitSha;
 		if (sel) return commits.find(c => c.sha === sel)?.files ?? [];
 
-		const map = new Map<string, BranchComparisonFile>();
-		for (const c of commits) {
-			for (const f of c.files) {
-				const key = `${f.source ?? 'comparison'}:${f.path}`;
-				const existing = map.get(key);
-				if (existing == null) {
-					map.set(key, { ...f, stats: f.stats ? { ...f.stats } : undefined });
-					continue;
-				}
-				if (existing.stats && f.stats) {
-					existing.stats = {
-						additions: (existing.stats.additions ?? 0) + (f.stats.additions ?? 0),
-						deletions: (existing.stats.deletions ?? 0) + (f.stats.deletions ?? 0),
-						changes: (existing.stats.changes ?? 0) + (f.stats.changes ?? 0),
-					};
-				}
-			}
-		}
-		return [...map.values()];
+		return overallFiles;
 	}
 
 	// Clamp to sensible mins so neither pane collapses; otherwise follow the user's drag directly.
@@ -587,11 +581,16 @@ export class GlDetailsCompareModePanel extends LitElement {
 		const isScoped = this.selectedCommitSha != null;
 		const containerClass = `wip-compare-files${isScoped ? ' wip-compare-files--scoped' : ''}`;
 		const stats = this.computeFileStats(files);
-		// Only show the loading state when the comparison itself is changing (initial load,
-		// ref/worktree change). For tab switches with cache misses we briefly show the pane's
-		// "No changes" empty state, preferring a tiny flash over a misleading spinner during
-		// what's usually a fast cached transition.
-		const isLoadingEmpty = this._comparisonChanging && !files.length;
+		// Show the loading state when the comparison itself is changing (initial load,
+		// ref/worktree change) OR when a per-commit file fetch is in flight for the selected sha.
+		// For tab switches with cache misses we briefly show the pane's "No changes" empty state,
+		// preferring a tiny flash over a misleading spinner during what's usually a fast cached
+		// transition.
+		const isFetchingSelectedFiles =
+			this.selectedCommitSha != null
+				? (this.commitFilesLoadingByShas?.get(this.selectedCommitSha) ?? false)
+				: false;
+		const isLoadingEmpty = (this._comparisonChanging || isFetchingSelectedFiles) && !files.length;
 
 		// Always render the section (header + tree-view). When there are no files, gl-tree-view
 		// shows the `empty-text` message INSIDE the section so the user still sees the header
@@ -961,7 +960,8 @@ export class GlDetailsCompareModePanel extends LitElement {
 	private get activeFiles(): BranchComparisonFile[] {
 		if (this.activeTab === 'all') return this.allFiles;
 		const commits = this.activeTab === 'ahead' ? this.aheadCommits : this.behindCommits;
-		return this.filesForSelection(commits);
+		const files = this.activeTab === 'ahead' ? this.aheadFiles : this.behindFiles;
+		return this.filesForSelection(commits, files);
 	}
 
 	private handleOpenMultiDiff = (): void => {

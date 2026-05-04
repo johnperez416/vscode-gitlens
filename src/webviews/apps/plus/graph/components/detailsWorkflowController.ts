@@ -317,8 +317,9 @@ export class DetailsWorkflowController implements ReactiveController {
 			state.branchCompareAutolinksByScope.set(new Map());
 			state.branchCompareEnrichedAutolinksByScope.set(new Map());
 			state.branchCompareContributorsByScope.set(new Map());
-			state.branchCompareEnrichmentLoading.set(false);
-			state.branchCompareContributorsLoading.set(false);
+			state.branchCompareEnrichmentLoading.set(new Map());
+			state.branchCompareContributorsLoading.set(new Map());
+			state.branchCompareCommitFilesLoading.set(new Map());
 
 			if (rightRef != null) {
 				state.branchCompareRightRef.set(rightRef);

@@ -100,10 +100,12 @@ export type BranchComparisonSummary = {
 	allFiles: readonly BranchComparisonFile[];
 };
 
-/** Phase 2: a single side's commits, with per-commit files inline so selection scoping is purely
- *  client-side. Cached per `(repoPath, leftRef, rightRef, side, includeWorkingTree)`. */
+/** Phase 2: a single side's commits, with files for the entire side.
+ *  Per-commit files are fetched lazily when a specific commit is selected. */
 export type BranchComparisonSide = {
 	commits: BranchComparisonCommit[];
+	/** Union of all file changes across this side's commits */
+	files: BranchComparisonFile[];
 };
 
 export type BranchComparisonCommit = {
@@ -116,9 +118,8 @@ export type BranchComparisonCommit = {
 	date: string;
 	additions?: number;
 	deletions?: number;
-	/** This commit's file changes — included inline so selecting the commit can filter the file
-	 *  list without an additional fetch. */
-	files: BranchComparisonFile[];
+	/** This commit's file changes — fetched lazily when the commit is selected in the UI */
+	files?: BranchComparisonFile[];
 };
 
 export type BranchComparisonOptions = {

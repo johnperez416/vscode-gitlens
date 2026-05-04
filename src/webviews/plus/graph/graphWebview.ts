@@ -1490,7 +1490,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					]);
 					signal?.throwIfAborted();
 
-					const aheadCount = counts?.left ?? 0;
+					const aheadCount = (counts?.left ?? 0) + (workingTreeFiles.length > 0 ? 1 : 0);
 					const behindCount = counts?.right ?? 0;
 
 					const mappedAllFiles: BranchComparisonFile[] = [];
@@ -1515,16 +1515,16 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					};
 				},
 				getBranchComparisonSide: async (repoPath, leftRef, rightRef, side, options, signal) => {
-					// Phase 2 — that side's commits with per-commit files inline. `getLog`'s default
-					// `includeFiles: true` populates each commit's `fileset.files`, so this is a single
-					// log call with no follow-up diff fan-out.
+					// Phase 2 — that side's commits without inline files.
+					// We fetch files on demand when a commit is selected.
 					signal?.throwIfAborted();
 					const svc = this.container.git.getRepositoryService(repoPath);
 
 					// Two-dot range — commits reachable from one side but not the other.
 					const range = side === 'ahead' ? `${rightRef}..${leftRef}` : `${leftRef}..${rightRef}`;
-					const [log, workingTreeFiles] = await Promise.all([
-						svc.commits.getLog(range, { limit: 100, includeFiles: true }, signal),
+					const [log, comparisonFiles, workingTreeFiles] = await Promise.all([
+						svc.commits.getLog(range, { limit: 100, includeFiles: false }, signal),
+						svc.diff.getDiffStatus(range),
 						side === 'ahead'
 							? this.getBranchComparisonWorkingTreeFiles(
 									repoPath,
@@ -1535,6 +1535,20 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							: Promise.resolve([]),
 					]);
 					signal?.throwIfAborted();
+
+					const mappedFiles: BranchComparisonFile[] = [];
+					for (const f of comparisonFiles ?? []) {
+						mappedFiles.push({
+							repoPath: repoPath,
+							path: f.path,
+							status: f.status,
+							originalPath: f.originalPath,
+							staged: false,
+							stats: f.stats,
+							source: 'comparison',
+						});
+					}
+					const allFilesForSide = [...mappedFiles, ...workingTreeFiles];
 
 					const commits: BranchComparisonCommit[] = [];
 					if (workingTreeFiles.length) {
@@ -1559,22 +1573,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							date: commit.author?.date != null ? String(commit.author.date) : '',
 							additions: commitStats?.additions,
 							deletions: commitStats?.deletions,
-							files:
-								commit.anyFiles?.map(f => ({
-									repoPath: repoPath,
-									path: f.path,
-									status: f.status,
-									originalPath: f.originalPath,
-									staged: false,
-									stats: f.stats,
-									source: 'comparison' as const,
-								})) ?? [],
 						};
 						this.setAvatarIfCached(entry, commit.author?.email, sha, repoPath);
 						commits.push(entry);
 					}
 
-					return { commits: commits };
+					return { commits: commits, files: allFilesForSide };
 				},
 				getContributorsForBranchComparison: async (repoPath, leftRef, rightRef, scope, signal) => {
 					signal?.throwIfAborted();

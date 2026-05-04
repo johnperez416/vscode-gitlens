@@ -704,6 +704,8 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.allFilesCount=${this._state.branchCompareAllFilesCount.get()}
 			.aheadCommits=${this._state.branchCompareAheadCommits.get()}
 			.behindCommits=${this._state.branchCompareBehindCommits.get()}
+			.aheadFiles=${this._state.branchCompareAheadFiles.get()}
+			.behindFiles=${this._state.branchCompareBehindFiles.get()}
 			.aheadLoaded=${this._state.branchCompareAheadLoaded.get()}
 			.behindLoaded=${this._state.branchCompareBehindLoaded.get()}
 			.allFiles=${allFiles}
@@ -717,8 +719,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.autolinks=${autolinksByScope.get(activeTab) ?? []}
 			.enrichedItems=${enrichedByScope.get(activeTab) ?? []}
 			.contributors=${contributorsByScope.get(activeTab) ?? []}
-			.contributorsLoading=${this._state.branchCompareContributorsLoading.get()}
-			.enrichmentLoading=${this._state.branchCompareEnrichmentLoading.get()}
+			.contributorsLoading=${this._state.branchCompareContributorsLoading.get().get(activeTab) ?? false}
+			.enrichmentLoading=${this._state.branchCompareEnrichmentLoading.get().get(activeTab) ?? false}
+			.commitFilesLoadingByShas=${this._state.branchCompareCommitFilesLoading.get()}
 			.enrichmentRequested=${this._state.branchCompareEnrichmentRequested.get()}
 			.autolinksEnabled=${this._state.autolinksEnabled.get()}
 			.hasIntegrationsConnected=${this._state.hasIntegrationsConnected.get()}
