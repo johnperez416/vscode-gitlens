@@ -4,6 +4,8 @@ import { css, html, LitElement, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { when } from 'lit/directives/when.js';
+import type { Deferrable } from '@gitlens/utils/debounce.js';
+import { debounce } from '@gitlens/utils/debounce.js';
 import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type {
 	GetOverviewEnrichmentResponse,
@@ -21,7 +23,7 @@ import { scrollableBase } from '../../../shared/components/styles/lit/base.css.j
 import { ipcContext } from '../../../shared/contexts/ipc.js';
 import type { HostIpc } from '../../../shared/ipc.js';
 import type { AppState } from '../context.js';
-import { graphStateContext } from '../context.js';
+import { graphServicesContext, graphStateContext } from '../context.js';
 import './graph-overview-card.js';
 import '../../../shared/components/code-icon.js';
 
@@ -113,15 +115,34 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	@consume({ context: ipcContext })
 	private _ipc!: HostIpc;
 
+	@consume({ context: graphServicesContext, subscribe: true })
+	private _services?: typeof graphServicesContext.__context__;
+
 	@state()
 	private _wipData: GetOverviewWipResponse = {};
 
 	@state()
 	private _enrichmentData: GetOverviewEnrichmentResponse = {};
 
+	/**
+	 * Map<repoPath, Set<branchName>> for branches whose history contains any selected/focused
+	 * graph row. Recomputed on selection changes (debounced) by `getCommitReachability` against
+	 * the host's existing per-(repoPath, sha) cache. Read by `renderCards` to derive each card's
+	 * `containsSelection` flag.
+	 */
+	@state()
+	private _selectionContainsByRepo: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+
 	private _lastOverview: GraphOverviewData | undefined;
 	private _lastOverviewFingerprint: string | undefined;
 	private _lastPushedWip: GetOverviewWipResponse | undefined;
+	private _lastSelectionFingerprint: string | undefined;
+	private _selectionRecomputeToken = 0;
+	private readonly _recomputeSelectionDebounced: Deferrable<() => void> = debounce(
+		() => void this.recomputeSelectionContains(),
+		100,
+		{ edges: 'both' },
+	);
 	// Branch ids with an in-flight detailed-wip fetch — guards against duplicate requests when
 	// the user re-hovers before the prior fetch resolves.
 	private readonly _pendingWipDetails = new Set<string>();
@@ -140,6 +161,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 
 	override disconnectedCallback(): void {
 		this.removeEventListener('gl-graph-overview-card-request-wip-details', this.onWipDetailsRequested);
+		this._recomputeSelectionDebounced.cancel();
 		super.disconnectedCallback?.();
 	}
 
@@ -200,6 +222,108 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 			this._lastPushedWip = pushedWip;
 			this._wipData = { ...this._wipData, ...pushedWip };
 		}
+
+		this.maybeRecomputeSelectionContains();
+	}
+
+	private maybeRecomputeSelectionContains(): void {
+		// Fingerprint of selection inputs + the repoPath set of currently rendered cards. If any
+		// of these change, the contains-selection map needs to recompute. Combining all three into
+		// one fingerprint avoids three independent change detectors.
+		const overview = this._state.overview;
+		const selectedShas = this._state.selectedRows != null ? Object.keys(this._state.selectedRows).sort() : [];
+		const activeRow = this._state.activeRow;
+		const repoPaths =
+			overview != null
+				? [
+						...new Set([...overview.active.map(b => b.repoPath), ...overview.recent.map(b => b.repoPath)]),
+					].sort()
+				: [];
+
+		// Include services-readiness so a fingerprint recorded while services were null doesn't
+		// short-circuit the retry once they arrive (the consumer re-renders via subscribe: true).
+		const servicesReady = this._services != null ? '1' : '0';
+		const fingerprint = `${servicesReady}|${activeRow ?? ''}|${selectedShas.join(',')}|${repoPaths.join(',')}`;
+		if (fingerprint === this._lastSelectionFingerprint) return;
+		this._lastSelectionFingerprint = fingerprint;
+
+		// Empty selection — clear immediately, no need to debounce or fetch.
+		if (selectedShas.length === 0 && (activeRow == null || activeRow === '')) {
+			this._recomputeSelectionDebounced.cancel();
+			if (this._selectionContainsByRepo.size > 0) {
+				this._selectionContainsByRepo = new Map();
+			}
+			return;
+		}
+
+		this._recomputeSelectionDebounced();
+	}
+
+	private async recomputeSelectionContains(): Promise<void> {
+		const services = this._services;
+		if (services == null) return;
+
+		const overview = this._state.overview;
+		if (overview == null) return;
+
+		// `activeRow` is encoded as `${sha}|${date}` by the wrapper — strip the date suffix.
+		const activeRowSha = this._state.activeRow?.split('|', 1)[0];
+		const selectedShas = new Set<string>(
+			this._state.selectedRows != null ? Object.keys(this._state.selectedRows) : [],
+		);
+		if (activeRowSha) selectedShas.add(activeRowSha);
+		if (selectedShas.size === 0) {
+			if (this._selectionContainsByRepo.size > 0) {
+				this._selectionContainsByRepo = new Map();
+			}
+			return;
+		}
+
+		const repoPaths = new Set<string>([
+			...overview.active.map(b => b.repoPath),
+			...overview.recent.map(b => b.repoPath),
+		]);
+		if (repoPaths.size === 0) return;
+
+		// "Latest wins" — discard results if a newer recompute has been kicked off while we were
+		// awaiting RPCs. Cheaper than AbortController plumbing for a small fan-out.
+		const token = ++this._selectionRecomputeToken;
+
+		// `services.<sub>` from the supertalk Remote<> is itself a Promise — resolve once.
+		const repository = await services.repository;
+		if (token !== this._selectionRecomputeToken) return;
+
+		const fetches: Array<Promise<{ repoPath: string; names: string[] }>> = [];
+		for (const repoPath of repoPaths) {
+			for (const sha of selectedShas) {
+				fetches.push(
+					repository.getCommitReachability(repoPath, sha).then(
+						r => ({
+							repoPath: repoPath,
+							names:
+								r?.refs.filter(ref => ref.refType === 'branch' && !ref.remote).map(ref => ref.name) ??
+								[],
+						}),
+						() => ({ repoPath: repoPath, names: [] }),
+					),
+				);
+			}
+		}
+
+		const results = await Promise.all(fetches);
+		if (token !== this._selectionRecomputeToken) return;
+
+		const next = new Map<string, Set<string>>();
+		for (const { repoPath, names } of results) {
+			if (names.length === 0) continue;
+			let bucket = next.get(repoPath);
+			if (bucket == null) {
+				bucket = new Set();
+				next.set(repoPath, bucket);
+			}
+			for (const name of names) bucket.add(name);
+		}
+		this._selectionContainsByRepo = next;
 	}
 
 	private maybeRefetchOverviewData(overview: GraphOverviewData): void {
@@ -249,6 +373,11 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 
 	override render() {
 		const overview = this._state.overview;
+		// Touch the selection signals during render so SignalWatcher subscribes to them — without
+		// these reads, selection-only state updates don't re-render this component, `updated()`
+		// never re-fires, and `maybeRecomputeSelectionContains` never sees the new selection.
+		void this._state.activeRow;
+		void this._state.selectedRows;
 		if (overview == null) {
 			return html`
 				<div class="content scrollable">
@@ -290,6 +419,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		if (!branches.length) return nothing;
 
 		const sessionsByRepoAndBranch = indexAgentSessionsByRepoAndBranch(this._state.agentSessions);
+		const containsByRepo = this._selectionContainsByRepo;
 
 		return html`
 			<div class="cards">
@@ -302,6 +432,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 							.wip=${this._wipData[b.id]}
 							.enrichment=${this._enrichmentData[b.id]}
 							.agentSessions=${matchAgentSessionsForBranch(sessionsByRepoAndBranch, b)}
+							.containsSelection=${containsByRepo.get(b.repoPath)?.has(b.name) ?? false}
 						></gl-graph-overview-card>
 					`,
 				)}

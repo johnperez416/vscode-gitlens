@@ -25230,6 +25230,17 @@
               "readonly": true
             },
             {
+              "kind": "field",
+              "name": "containsSelection",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "True when any selected/focused graph row's commit is contained in this branch's history.",
+              "attribute": "contains-selection",
+              "reflects": true
+            },
+            {
               "kind": "method",
               "name": "createCommandLink",
               "privacy": "private",
@@ -25542,6 +25553,15 @@
               "fieldName": "branch"
             },
             {
+              "name": "contains-selection",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "True when any selected/focused graph row's commit is contained in this branch's history.",
+              "fieldName": "containsSelection"
+            },
+            {
               "name": "enrichment",
               "type": {
                 "text": "OverviewBranchEnrichment | undefined"
@@ -25643,10 +25663,54 @@
             },
             {
               "kind": "field",
+              "name": "_lastSelectionFingerprint",
+              "type": {
+                "text": "string | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
               "name": "_pendingWipDetails",
               "privacy": "private",
               "readonly": true,
               "default": "new Set<string>()"
+            },
+            {
+              "kind": "field",
+              "name": "_recomputeSelectionDebounced",
+              "type": {
+                "text": "Deferrable<() => void>"
+              },
+              "privacy": "private",
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "_selectionContainsByRepo",
+              "type": {
+                "text": "ReadonlyMap<string, ReadonlySet<string>>"
+              },
+              "privacy": "private",
+              "default": "new Map()",
+              "description": "Map<repoPath, Set<branchName>> for branches whose history contains any selected/focused\ngraph row. Recomputed on selection changes (debounced) by `getCommitReachability` against\nthe host's existing per-(repoPath, sha) cache. Read by `renderCards` to derive each card's\n`containsSelection` flag."
+            },
+            {
+              "kind": "field",
+              "name": "_selectionRecomputeToken",
+              "type": {
+                "text": "number"
+              },
+              "privacy": "private",
+              "default": "0"
+            },
+            {
+              "kind": "field",
+              "name": "_services",
+              "type": {
+                "text": "typeof graphServicesContext.__context__ | undefined"
+              },
+              "privacy": "private"
             },
             {
               "kind": "field",
@@ -25717,6 +25781,16 @@
             },
             {
               "kind": "method",
+              "name": "maybeRecomputeSelectionContains",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
               "name": "maybeRefetchOverviewData",
               "privacy": "private",
               "return": {
@@ -25738,6 +25812,16 @@
               "name": "onWipDetailsRequested",
               "privacy": "private",
               "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "recomputeSelectionContains",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "Promise<void>"
+                }
+              }
             },
             {
               "kind": "method",

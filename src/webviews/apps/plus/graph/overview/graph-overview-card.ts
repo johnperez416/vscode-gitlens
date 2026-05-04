@@ -183,6 +183,18 @@ export class GlGraphOverviewCard extends LitElement {
 			);
 		}
 
+		/* Lights up when one or more selected/focused graph rows live on this branch.
+		   Overrides the --gl-card-background cascade so the inner-shadow :hover rule
+		   in card.css.ts continues to compose on top via --gl-card-hover-background. */
+		:host([contains-selection]) {
+			--gl-card-background: var(--vscode-list-inactiveSelectionBackground);
+			--gl-card-hover-background: color-mix(
+				in lab,
+				var(--vscode-list-inactiveSelectionBackground) 100%,
+				var(--vscode-foreground) 8%
+			);
+		}
+
 		* {
 			box-sizing: border-box;
 		}
@@ -505,6 +517,10 @@ export class GlGraphOverviewCard extends LitElement {
 
 	@property({ type: Boolean, reflect: true })
 	scoped = false;
+
+	/** True when any selected/focused graph row's commit is contained in this branch's history. */
+	@property({ type: Boolean, reflect: true, attribute: 'contains-selection' })
+	containsSelection = false;
 
 	// Track when the rich hover has been shown at least once so <gl-merge-target-status>
 	// (which has its own popover/loading affordance) only mounts when the user actually opens
