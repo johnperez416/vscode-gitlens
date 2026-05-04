@@ -461,11 +461,14 @@ export class DetailsActions {
 		this.state.searchContext.set(undefined);
 
 		// Fire hasRemotes check in parallel with the main fetch
-		void s.repository.hasRemotes(repoPath).then(has => {
-			if (this._lastFetchedKey === key) {
-				this.state.hasRemotes.set(has);
-			}
-		});
+		void s.repository
+			.hasRemotes(repoPath)
+			.then(has => {
+				if (this._lastFetchedKey === key) {
+					this.state.hasRemotes.set(has);
+				}
+			})
+			.catch(noop);
 
 		// Fire search-context fetch in parallel — it drives match highlighting + filter button
 		// in the embedded file trees. Skip for WIP (no graph SHA to look up) and skip when no
@@ -749,12 +752,15 @@ export class DetailsActions {
 
 		try {
 			const result = await this.services.graphInspect.explainCommit(commit.repoPath, commit.sha, prompt);
+			if (this.state.commit.get()?.sha !== commit.sha) return;
+
 			if ('error' in result && result.error) {
 				this.state.explain.set({ error: result.error });
 			} else if ('result' in result && result.result) {
 				this.state.explain.set({ result: result.result });
 			}
 		} catch {
+			if (this.state.commit.get()?.sha !== commit.sha) return;
 			this.state.explain.set({ error: { message: 'Failed to explain commit' } });
 		}
 	}
@@ -1528,7 +1534,7 @@ export class DetailsActions {
 				{ limit: nextLimit },
 				controller.signal,
 			);
-			if (controller.signal.aborted) return;
+			if (this._disposed || controller.signal.aborted) return;
 
 			this.state.branchCommits.set(result.commits);
 			this.state.branchMergeBase.set(result.mergeBase);
