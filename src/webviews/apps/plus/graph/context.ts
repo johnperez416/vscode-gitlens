@@ -8,7 +8,7 @@ import type {
 	GraphSelectedRows,
 	State,
 } from '../../../plus/graph/protocol.js';
-import type { GetOverviewEnrichmentResponse } from '../../../shared/overviewBranches.js';
+import type { GetOverviewEnrichmentResponse, OverviewBranchMergeTarget } from '../../../shared/overviewBranches.js';
 
 export interface AppState extends State {
 	state: State;
@@ -34,6 +34,14 @@ export interface AppState extends State {
 
 	/** Fetch enrichment for a branch not covered by the overview — used by the header scope popover. */
 	ensureEnrichmentForBranch(branchId: string): Promise<void>;
+
+	/**
+	 * Publish a lazily-fetched merge target into `overviewEnrichment` for the given branchId. The graph
+	 * overview's enrichment IPC skips merge-target fetching; the overview card and click-to-scope path
+	 * fetch via `BranchesService.getMergeTargetStatus` and call this so the scope-anchor's
+	 * `reconcileScopeMergeTarget` hook backfills the tip SHA.
+	 */
+	mergeMergeTargetIntoEnrichment(branchId: string, mergeTarget: OverviewBranchMergeTarget | undefined): void;
 
 	/**
 	 * Fetch enrichment for the overview's active/recent branches. Called lazily by consumers such as

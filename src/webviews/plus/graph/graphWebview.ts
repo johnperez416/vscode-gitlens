@@ -1977,6 +1977,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			isPro: isPro,
 			resolveLaunchpad: true,
 			getBranchOverview: (branch, associatedPullRequest) => this.getBranchOverview(branch, associatedPullRequest),
+			// Merge-target is fetched lazily by the overview card on hover (and by the click-to-scope
+			// path in `graph-app`) via `BranchesService.getMergeTargetStatus`, so initial enrichment
+			// doesn't block on ~4 git/integration ops per branch. The resolved value is then merged
+			// back into shared `overviewEnrichment` state via `mergeMergeTargetIntoEnrichment` so the
+			// scope-anchor's `reconcileScopeMergeTarget` hook still backfills the tip SHA.
+			skipMergeTarget: true,
 		});
 	}
 

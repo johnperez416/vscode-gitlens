@@ -1,5 +1,6 @@
+import type { Remote } from '@eamodio/supertalk';
 import { consume } from '@lit/context';
-import type { TemplateResult } from 'lit';
+import type { PropertyValues, TemplateResult } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -8,12 +9,14 @@ import { formatDate, fromNow } from '@gitlens/utils/date.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type { GlWebviewCommandsOrCommandsWithSuffix } from '../../../../../constants.commands.js';
+import { isSubscriptionTrialOrPaidFromState } from '../../../../../plus/gk/utils/subscription.utils.js';
 import {
 	launchpadCategoryToGroupMap,
 	launchpadGroupIconMap,
 	launchpadGroupLabelMap,
 } from '../../../../../plus/launchpad/models/launchpad.js';
 import type { BranchRef } from '../../../../home/protocol.js';
+import type { GraphServices } from '../../../../plus/graph/graphService.js';
 import type {
 	OverviewBranch,
 	OverviewBranchEnrichment,
@@ -26,6 +29,8 @@ import { renderBranchName } from '../../../shared/components/branch-name.js';
 import { srOnlyStyles } from '../../../shared/components/styles/lit/a11y.css.js';
 import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
+import type { AppState } from '../context.js';
+import { graphServicesContext, graphStateContext } from '../context.js';
 import '../../shared/components/merge-target-status.js';
 import '../../../shared/components/branch-icon.js';
 import '../../../shared/components/card/card.js';
@@ -45,6 +50,7 @@ function getBranchCardIndicator(
 	branch: OverviewBranch,
 	wip?: OverviewBranchWip,
 	enrichment?: OverviewBranchEnrichment,
+	mergeTarget?: OverviewBranchMergeTarget,
 ): string | undefined {
 	if (branch.opened) {
 		if (wip?.pausedOpStatus != null) {
@@ -66,7 +72,10 @@ function getBranchCardIndicator(
 			wip.workingTreeState.added + wip.workingTreeState.changed + wip.workingTreeState.deleted > 0;
 		if (hasWip) return 'branch-changes';
 
-		if (enrichment?.mergeTarget?.mergedStatus?.merged) return 'branch-merged';
+		// Card-local mergeTarget (resolved post-hover) takes precedence over enrichment.mergeTarget,
+		// which is undefined for the graph overview now that merge-target is fetched lazily.
+		const target = mergeTarget ?? enrichment?.mergeTarget;
+		if (target?.mergedStatus?.merged) return 'branch-merged';
 	}
 
 	if (branch.upstream?.missing) return 'branch-missingUpstream';
@@ -470,6 +479,12 @@ export class GlGraphOverviewCard extends LitElement {
 	@consume({ context: webviewContext })
 	private _webview!: WebviewContext;
 
+	@consume({ context: graphServicesContext, subscribe: true })
+	private _services?: Remote<GraphServices> | undefined;
+
+	@consume({ context: graphStateContext, subscribe: true })
+	private _graphState?: AppState;
+
 	@property({ type: Object })
 	branch!: OverviewBranch;
 
@@ -487,13 +502,30 @@ export class GlGraphOverviewCard extends LitElement {
 
 	// Track when the rich hover has been shown at least once so <gl-merge-target-status>
 	// (which has its own popover/loading affordance) only mounts when the user actually opens
-	// the hover. The merge target data itself is already part of `enrichment` (eagerly fetched
-	// for the scope popover and indicator), so this defers rendering only — see #5170.
+	// the hover. Mounting kicks off the lazy merge-target fetch (see `_mergeTargetPromise`).
 	@state()
 	private _hoverShown = false;
 
+	// Resolved merge-target value, fetched lazily on first hover via `BranchesService.getMergeTargetStatus`.
+	// Drives the `branch-merged` card indicator and is published into shared `overviewEnrichment` state
+	// so the scope-anchor flow's `reconcileScopeMergeTarget` hook can backfill the tip SHA.
+	@state()
+	private _mergeTarget?: OverviewBranchMergeTarget;
+
+	// True while the lazy fetch is in flight. Drives `<gl-merge-target-status>`'s `loading` prop so
+	// the chip shows its progress affordance (and `aria-busy="true"`) during the fetch instead of
+	// rendering nothing until resolution.
+	@state()
+	private _mergeTargetLoading = false;
+
+	// In-flight (or resolved) lazy fetch promise. Handed to <gl-merge-target-status> as `targetPromise`
+	// so the chip's `loading` affordance covers the fetch latency without re-firing across hovers.
 	private _mergeTargetPromise?: Promise<OverviewBranchMergeTarget | undefined>;
-	private _mergeTargetPromiseFor?: OverviewBranchMergeTarget;
+
+	// Tracks the branch id this card last fetched merge-target data for. When the `branch` prop
+	// transitions to a different branch (Lit's `repeat` reuses card instances), the cached promise
+	// and resolved value are stale and must be cleared.
+	private _mergeTargetFetchedFor?: string;
 
 	get branchRef(): BranchRef {
 		return {
@@ -525,7 +557,7 @@ export class GlGraphOverviewCard extends LitElement {
 		const branch = this.branch;
 		if (branch == null) return nothing;
 
-		const branchIndicator = getBranchCardIndicator(this.branch, this.wip, this.enrichment);
+		const branchIndicator = getBranchCardIndicator(this.branch, this.wip, this.enrichment, this._mergeTarget);
 		const grouping = this.launchpadGrouping;
 		const cardClasses = classMap({
 			'branch-item': true,
@@ -566,7 +598,80 @@ export class GlGraphOverviewCard extends LitElement {
 		if (!this._hoverShown) {
 			this._hoverShown = true;
 		}
+		// Kick off the lazy merge-target fetch on first popover open. Subsequent opens reuse
+		// `_mergeTargetPromise` (the chip short-circuits when the same promise reference is passed).
+		void this.ensureMergeTargetFetched();
 	};
+
+	override willUpdate(changed: PropertyValues<this>): void {
+		// Lit's `repeat` reuses card instances when the branch list reorders, so a `branch` prop
+		// transition can swap us onto a different branch entirely. Drop the stale merge-target
+		// state and any in-flight promise so the next hover triggers a fresh fetch.
+		if (changed.has('branch') && this.branch?.id !== this._mergeTargetFetchedFor) {
+			this._mergeTarget = undefined;
+			this._mergeTargetPromise = undefined;
+			this._mergeTargetFetchedFor = undefined;
+			this._mergeTargetLoading = false;
+		}
+	}
+
+	private async ensureMergeTargetFetched(): Promise<void> {
+		const branch = this.branch;
+		if (branch == null) return;
+
+		// Already fetched (or in flight) for this branch — nothing to do. The promise is reused
+		// across hovers; <gl-merge-target-status> handles loading state internally.
+		if (this._mergeTargetFetchedFor === branch.id && this._mergeTargetPromise != null) return;
+
+		// Shared `overviewEnrichment` may already have this branch's merge target — populated by
+		// `graph-app`'s click-to-scope path or a previous mount of a sibling card. Copy it onto
+		// the card-local state without re-fetching.
+		const shared = this._graphState?.overviewEnrichment?.[branch.id]?.mergeTarget;
+		if (shared != null) {
+			this._mergeTargetFetchedFor = branch.id;
+			this._mergeTarget = shared;
+			this._mergeTargetPromise = Promise.resolve(shared);
+			return;
+		}
+
+		// Non-pro users get no merge-target work today (the eager path was gated by `isPro`).
+		// Mirror that here so we don't spend IPC + git work producing data the chip won't render.
+		const subState = this._graphState?.subscription?.state;
+		if (subState != null && !isSubscriptionTrialOrPaidFromState(subState)) return;
+
+		const services = this._services;
+		if (services == null) return;
+
+		this._mergeTargetFetchedFor = branch.id;
+		this._mergeTargetLoading = true;
+		const branchId = branch.id;
+		const repoPath = branch.repoPath;
+		const branchName = branch.name;
+
+		const promise = (async (): Promise<OverviewBranchMergeTarget | undefined> => {
+			try {
+				// `services.branches` is a supertalk Remote — `await` once to resolve the proxy,
+				// then invoke the method. Same shape detailsResolver uses (`detailsResolver.ts:39`).
+				const branches = await services.branches;
+				const status = await branches.getMergeTargetStatus(repoPath, branchName);
+				return status?.mergeTarget;
+			} catch {
+				return undefined;
+			}
+		})();
+		this._mergeTargetPromise = promise;
+
+		const result = await promise;
+		// Bail out if a `branch` prop transition while we were awaiting reassigned us — `willUpdate`
+		// has already cleared the state for the new branch and `_mergeTargetFetchedFor` no longer matches.
+		if (this._mergeTargetFetchedFor !== branchId) return;
+
+		this._mergeTarget = result;
+		this._mergeTargetLoading = false;
+		// Publish into shared enrichment so the scope-anchor's `reconcileScopeMergeTarget` hook
+		// backfills the tip SHA for the currently-scoped branch.
+		this._graphState?.mergeMergeTargetIntoEnrichment(branchId, result);
+	}
 
 	// `<gl-popover>`'s built-in `focus` trigger relies on focus events bubbling out of the
 	// anchor, but `<gl-card focusable>` keeps the focusable target inside its shadow root and
@@ -586,19 +691,6 @@ export class GlGraphOverviewCard extends LitElement {
 		const popover = this.shadowRoot?.querySelector<HTMLElement & { hide: () => void }>('gl-popover');
 		popover?.hide();
 	};
-
-	private getMergeTargetPromise(): Promise<OverviewBranchMergeTarget | undefined> | undefined {
-		const data = this.enrichment?.mergeTarget;
-		if (data == null) return undefined;
-		// Memoize per data reference — <gl-merge-target-status> short-circuits when targetPromise
-		// is the same reference, so we hand it the same Promise across re-renders unless the
-		// underlying enrichment changed.
-		if (this._mergeTargetPromiseFor !== data) {
-			this._mergeTargetPromiseFor = data;
-			this._mergeTargetPromise = Promise.resolve(data);
-		}
-		return this._mergeTargetPromise;
-	}
 
 	private renderBranchIcon() {
 		return html`<gl-branch-icon
@@ -852,14 +944,19 @@ export class GlGraphOverviewCard extends LitElement {
 	}
 
 	private renderHoverMergeTarget(): TemplateResult | typeof nothing {
-		// Only mount the chip after the user has actually opened the rich hover. The merge
-		// target data is in `enrichment` already (eagerly fetched for the scope popover and
-		// card indicator), so this defers DOM mount/loading affordance only — the underlying
-		// computation isn't deferred yet (#5170 follow-up).
+		// Only mount the chip after the user has actually opened the rich hover. Mounting also
+		// triggers the lazy merge-target fetch via `onPopoverShow` → `ensureMergeTargetFetched`.
+		// While the fetch is in flight, `_mergeTargetLoading` keeps the chip's `loading` affordance
+		// (with `aria-busy="true"`) visible — without it, the chip would render `nothing` for the
+		// fetch duration and pop in on resolution.
 		if (!this._hoverShown) return nothing;
-		const promise = this.getMergeTargetPromise();
+		const promise = this._mergeTargetPromise;
 		if (promise == null) return nothing;
-		return html`<gl-merge-target-status .branch=${this.branch} .targetPromise=${promise}></gl-merge-target-status>`;
+		return html`<gl-merge-target-status
+			.branch=${this.branch}
+			.targetPromise=${promise}
+			?loading=${this._mergeTargetLoading}
+		></gl-merge-target-status>`;
 	}
 
 	private renderHoverHeader(contributors: NonNullable<OverviewBranchEnrichment['contributors']>) {
@@ -1073,7 +1170,11 @@ export class GlGraphOverviewCard extends LitElement {
 				detail: {
 					branchId: this.branch.id,
 					branchName: this.branch.name,
-					mergeTargetTipSha: this.enrichment?.mergeTarget?.sha,
+					// Prefer the card-local resolved value (post-hover) over enrichment, which is
+					// undefined for graph cards now that merge-target is fetched lazily. When both
+					// are absent, graph-app falls through to firing its own lazy fetch and
+					// `reconcileScopeMergeTarget` backfills the tip SHA when it arrives.
+					mergeTargetTipSha: this._mergeTarget?.sha ?? this.enrichment?.mergeTarget?.sha,
 				},
 				bubbles: true,
 				composed: true,

@@ -41,6 +41,7 @@ import {
 } from '../../../plus/graph/protocol.js';
 import type { WebviewState } from '../../../protocol.js';
 import { DidChangeHostWindowFocusNotification } from '../../../protocol.js';
+import type { OverviewBranchMergeTarget } from '../../../shared/overviewBranches.js';
 import type { ReactiveElementHost } from '../../shared/appHost.js';
 import { signalObjectState, signalState } from '../../shared/components/signal-utils.js';
 import type { LoggerContext } from '../../shared/contexts/logger.js';
@@ -391,6 +392,21 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 			});
 		this._adhocEnrichmentPromises.set(branchId, promise);
 		return promise;
+	}
+
+	/**
+	 * Merge a lazily-fetched merge-target into `overviewEnrichment` for the given branchId. The graph
+	 * overview's enrichment IPC opts out of eager merge-target fetching (`skipMergeTarget: true`); the
+	 * card and click-to-scope paths fetch via `BranchesService.getMergeTargetStatus` and call this to
+	 * publish the result so the existing `reconcileScopeMergeTarget` hook backfills the scope's tip SHA.
+	 */
+	mergeMergeTargetIntoEnrichment(branchId: string, mergeTarget: OverviewBranchMergeTarget | undefined): void {
+		const current = this.overviewEnrichment;
+		const existing = current?.[branchId];
+		this.overviewEnrichment = {
+			...current,
+			[branchId]: { ...existing, mergeTarget: mergeTarget },
+		};
 	}
 
 	async resolveScopeMergeBase(scope: GraphScope): Promise<void> {

@@ -775,6 +775,35 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		if (sha != null) {
 			this.graph?.ensureAndSelectCommit(sha);
 		}
+
+		// If the user clicked the card without first hovering, the merge-target tip SHA isn't known
+		// yet (the card's lazy fetch hasn't run). Kick it off here so the scope's anchor backfills
+		// via `reconcileScopeMergeTarget` once the fetch resolves. The card will pick up the result
+		// from shared state on first hover and skip its own fetch.
+		if (e.detail.mergeTargetTipSha == null) {
+			void this.ensureOverviewBranchMergeTarget(e.detail.branchId);
+		}
+	}
+
+	private async ensureOverviewBranchMergeTarget(branchId: string): Promise<void> {
+		// Already resolved into shared state (from a prior hover or click) — nothing to do.
+		if (this.graphState.overviewEnrichment?.[branchId]?.mergeTarget != null) return;
+
+		const overview = this.graphState.overview;
+		const branch = overview?.active.find(b => b.id === branchId) ?? overview?.recent.find(b => b.id === branchId);
+		if (branch == null) return;
+
+		const services = this.services;
+		if (services == null) return;
+
+		try {
+			// `services.branches` is a supertalk Remote — await once to resolve the proxy.
+			const branches = await services.branches;
+			const status = await branches.getMergeTargetStatus(branch.repoPath, branch.name);
+			this.graphState.mergeMergeTargetIntoEnrichment(branchId, status?.mergeTarget);
+		} catch {
+			// Swallow — the scope-anchor flow tolerates an absent tip SHA.
+		}
 	}
 
 	private getOverviewBranchSelectionSha(branchId: string): string | undefined {

@@ -292,11 +292,17 @@ export async function getOverviewEnrichment(
 			branch: GitBranch,
 			associatedPullRequest: Promise<PullRequest | undefined>,
 		) => Promise<BranchContributionsOverview | undefined>;
+		/**
+		 * Skip the (expensive) per-branch merge-target fetch. Callers that defer merge-target
+		 * loading to the moment a consumer actually needs it (e.g. the graph overview card's rich
+		 * hover) opt in here so initial enrichment doesn't pay for ~4 git/integration ops per branch.
+		 */
+		skipMergeTarget?: boolean;
 	},
 ): Promise<GetOverviewEnrichmentResponse> {
 	if (branchIds.length === 0) return {};
 
-	const { isPro, resolveLaunchpad, signal, getBranchOverview } = options;
+	const { isPro, resolveLaunchpad, signal, getBranchOverview, skipMergeTarget } = options;
 	const launchpadPromise: Promise<LaunchpadCategorizedResult> | undefined = isPro
 		? container.launchpad.getCategorizedItems()
 		: undefined;
@@ -335,8 +341,11 @@ export async function getOverviewEnrichment(
 					);
 			// Compute merge target for every enriched branch (not just the current one) so the graph's
 			// scope popover can render a merge-target anchor when the user focuses any branch, and so
-			// recent-branch cards can show merged status.
-			promises.mergeTarget = getBranchMergeTargetStatusInfo(container, branch, signal);
+			// recent-branch cards can show merged status. Callers that defer this work to hover-time
+			// (graph overview cards) opt out via `skipMergeTarget`.
+			if (!skipMergeTarget) {
+				promises.mergeTarget = getBranchMergeTargetStatusInfo(container, branch, signal);
+			}
 		}
 
 		enrichmentPromises.set(branchId, promises);
