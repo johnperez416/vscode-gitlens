@@ -67,9 +67,12 @@ function getBranchCardIndicator(
 			}
 		}
 
+		// Prefer the explicit `hasChanges` flag (populated by both the lightweight and detailed
+		// loaders) over deriving from `workingTreeState`, which is undefined on the basic load.
 		const hasWip =
-			wip?.workingTreeState != null &&
-			wip.workingTreeState.added + wip.workingTreeState.changed + wip.workingTreeState.deleted > 0;
+			wip?.hasChanges === true ||
+			(wip?.workingTreeState != null &&
+				wip.workingTreeState.added + wip.workingTreeState.changed + wip.workingTreeState.deleted > 0);
 		if (hasWip) return 'branch-changes';
 
 		// Card-local mergeTarget (resolved post-hover) takes precedence over enrichment.mergeTarget,
@@ -142,6 +145,9 @@ declare global {
 			branchId: string;
 			branchName: string;
 			mergeTargetTipSha?: string;
+		}>;
+		'gl-graph-overview-card-request-wip-details': CustomEvent<{
+			branchId: string;
 		}>;
 	}
 }
@@ -543,10 +549,11 @@ export class GlGraphOverviewCard extends LitElement {
 	}
 
 	private get hasWip(): boolean {
-		return (
-			this.wip?.workingTreeState != null &&
-			this.wip.workingTreeState.added + this.wip.workingTreeState.changed + this.wip.workingTreeState.deleted > 0
-		);
+		// `hasChanges` is set on both the basic and detailed wip loads, so the dirty indicator
+		// can show up before the rich hover triggers a detailed fetch.
+		if (this.wip?.hasChanges === true) return true;
+		const wts = this.wip?.workingTreeState;
+		return wts != null && wts.added + wts.changed + wts.deleted > 0;
 	}
 
 	private get launchpadGrouping() {
@@ -601,7 +608,34 @@ export class GlGraphOverviewCard extends LitElement {
 		// Kick off the lazy merge-target fetch on first popover open. Subsequent opens reuse
 		// `_mergeTargetPromise` (the chip short-circuits when the same promise reference is passed).
 		void this.ensureMergeTargetFetched();
+		// Ask the panel for the full add/changed/deleted breakdown so the rich hover's
+		// commit-stats can render. The eager overview load only carries the cheap clean/dirty flag.
+		this.maybeRequestWipDetails();
 	};
+
+	// Tracks the wip object reference we last requested details for, so we don't re-fire on every
+	// re-render. A push notification (which replaces the wip entry with a fresh basic-only object)
+	// breaks reference equality and lets the next hover refetch.
+	private _wipDetailsRequestedFor?: OverviewBranchWip;
+
+	private maybeRequestWipDetails(): void {
+		if (!this._hoverShown) return;
+		const wip = this.wip;
+		if (wip == null) return;
+		// Nothing dirty — no detailed fetch needed; commit-stats wouldn't render anyway.
+		if (wip.hasChanges !== true) return;
+		// Already have the breakdown.
+		if (wip.workingTreeState != null) return;
+		if (this._wipDetailsRequestedFor === wip) return;
+		this._wipDetailsRequestedFor = wip;
+		this.dispatchEvent(
+			new CustomEvent('gl-graph-overview-card-request-wip-details', {
+				detail: { branchId: this.branch.id },
+				bubbles: true,
+				composed: true,
+			}),
+		);
+	}
 
 	override willUpdate(changed: PropertyValues<this>): void {
 		// Lit's `repeat` reuses card instances when the branch list reorders, so a `branch` prop
@@ -612,6 +646,13 @@ export class GlGraphOverviewCard extends LitElement {
 			this._mergeTargetPromise = undefined;
 			this._mergeTargetFetchedFor = undefined;
 			this._mergeTargetLoading = false;
+			this._wipDetailsRequestedFor = undefined;
+		}
+		// When the wip prop replaces (push notification or post-fetch merge) and the rich hover is
+		// already open, ensure the detailed breakdown gets re-requested so the open hover stays
+		// accurate. `maybeRequestWipDetails` short-circuits when we already have detailed data.
+		if (changed.has('wip')) {
+			this.maybeRequestWipDetails();
 		}
 	}
 

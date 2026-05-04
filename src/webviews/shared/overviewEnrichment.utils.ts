@@ -201,6 +201,66 @@ export async function getPullRequestInfo(
 	};
 }
 
+/**
+ * Lightweight wip lookup — uses `git diff --quiet` (binary clean/dirty) plus a paused-op probe.
+ * Avoids `getStatus`'s full file enumeration, which is what the eager overview load needs to
+ * render a dirty indicator. The full breakdown shown in the rich hover is fetched separately via
+ * {@link getOverviewWip}.
+ */
+export async function getOverviewWipBasic(
+	container: Container,
+	branches: Iterable<GitBranch>,
+	worktreesByBranch: ReadonlyMap<string, GitWorktree>,
+	branchIds: string[],
+	options?: { signal?: AbortSignal },
+): Promise<GetOverviewWipResponse> {
+	if (branchIds.length === 0) return {};
+
+	const signal = options?.signal;
+
+	const branchesById = new Map<string, GitBranch>();
+	for (const branch of branches) {
+		if (branch.remote) continue;
+		branchesById.set(branch.id, branch);
+	}
+
+	const result: GetOverviewWipResponse = {};
+
+	await Promise.allSettled(
+		branchIds.map(async branchId => {
+			const branch = branchesById.get(branchId);
+			if (branch == null) return;
+
+			const wt = worktreesByBranch.get(branchId);
+			// Mirror getOverviewWip's branch-selection logic — only branches with a working tree
+			// (current branch in main repo or any worktree-backed branch) have wip to inspect.
+			if (wt == null && !branch.current) return;
+
+			const isActive = branch.current || wt?.opened === true;
+			const repoPath = wt?.path ?? branch.repoPath;
+			const svc = container.git.getRepositoryService(repoPath);
+
+			const [hasChangesResult, pausedOpStatusResult] = await Promise.allSettled([
+				svc.status.hasWorkingChanges(undefined, signal),
+				isActive ? svc.pausedOps?.getPausedOperationStatus?.(signal) : undefined,
+			]);
+
+			const hasChanges = getSettledValue(hasChangesResult) ?? false;
+			const pausedOpStatus = getSettledValue(pausedOpStatusResult);
+
+			if (hasChanges || pausedOpStatus != null) {
+				result[branchId] = {
+					hasChanges: hasChanges,
+					pausedOpStatus: pausedOpStatus,
+				};
+			}
+		}),
+	);
+
+	options?.signal?.throwIfAborted();
+	return result;
+}
+
 export async function getOverviewWip(
 	container: Container,
 	branches: Iterable<GitBranch>,
@@ -250,8 +310,13 @@ export async function getOverviewWip(
 			const pausedOpStatus = getSettledValue(pausedOpStatusResult);
 
 			if (status != null || pausedOpStatus != null) {
+				const workingTreeState = status?.diffStatus;
+				const hasChanges =
+					workingTreeState != null &&
+					workingTreeState.added + workingTreeState.changed + workingTreeState.deleted > 0;
 				result[branchId] = {
-					workingTreeState: status?.diffStatus,
+					hasChanges: hasChanges,
+					workingTreeState: workingTreeState,
 					hasConflicts: status?.hasConflicts,
 					conflictsCount: status?.conflicts.length,
 					pausedOpStatus: pausedOpStatus,

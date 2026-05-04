@@ -199,7 +199,7 @@ import { createSharedServices, proxyServices } from '../../rpc/services/common.j
 import type { BranchAndTargetRefs, BranchRef } from '../../shared/branchRefs.js';
 import type { GetOverviewEnrichmentResponse, GetOverviewWipResponse } from '../../shared/overviewBranches.js';
 import { getBranchOverviewType, toOverviewBranch } from '../../shared/overviewBranches.js';
-import { getOverviewEnrichment, getOverviewWip } from '../../shared/overviewEnrichment.utils.js';
+import { getOverviewEnrichment, getOverviewWip, getOverviewWipBasic } from '../../shared/overviewEnrichment.utils.js';
 import type { WebviewHost, WebviewProvider, WebviewShowingArgs } from '../../webviewProvider.js';
 import type { WebviewPanelShowCommandArgs, WebviewShowOptions } from '../../webviewsController.js';
 import { isSerializedState } from '../../webviewsController.js';
@@ -316,6 +316,7 @@ import {
 	GetMoreRowsCommand,
 	GetOverviewEnrichmentRequest,
 	GetOverviewRequest,
+	GetOverviewWipDetailedRequest,
 	GetOverviewWipRequest,
 	GetRowHoverRequest,
 	getSecondaryWipPath,
@@ -1953,6 +1954,23 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@ipcRequest(GetOverviewWipRequest)
 	private async onGetOverviewWip(params: IpcParams<typeof GetOverviewWipRequest>): Promise<GetOverviewWipResponse> {
+		if (params.branchIds.length === 0 || this._graph == null || this.repository == null) return {};
+
+		// Default eager path uses the lightweight clean/dirty probe — full add/changed/deleted
+		// breakdown is fetched on demand by the rich hover via `GetOverviewWipDetailedRequest`.
+		const data = this._graph;
+		return getOverviewWipBasic(
+			this.container,
+			data.branches.values(),
+			data.worktreesByBranch ?? new Map(),
+			params.branchIds,
+		);
+	}
+
+	@ipcRequest(GetOverviewWipDetailedRequest)
+	private async onGetOverviewWipDetailed(
+		params: IpcParams<typeof GetOverviewWipDetailedRequest>,
+	): Promise<GetOverviewWipResponse> {
 		if (params.branchIds.length === 0 || this._graph == null || this.repository == null) return {};
 
 		const data = this._graph;

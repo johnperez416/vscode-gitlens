@@ -95,6 +95,13 @@ export type GetOverviewWipResponse = Record<string, OverviewBranchWip | undefine
 
 /** Lightweight overview WIP data — sourced from local git status only. */
 export interface OverviewBranchWip {
+	/**
+	 * Cheap clean/dirty signal sourced from `git diff --quiet` + an untracked-files probe. Set on
+	 * the default overview load so the card can render a presence-only indicator without paying
+	 * for a full status. `workingTreeState` (the full add/changed/deleted breakdown) is fetched
+	 * on demand when the rich hover opens.
+	 */
+	hasChanges?: boolean;
 	workingTreeState?: GitDiffFileStats;
 	hasConflicts?: boolean;
 	conflictsCount?: number;

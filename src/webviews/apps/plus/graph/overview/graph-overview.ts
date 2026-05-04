@@ -13,6 +13,7 @@ import type {
 import {
 	GetOverviewEnrichmentRequest,
 	GetOverviewRequest,
+	GetOverviewWipDetailedRequest,
 	GetOverviewWipRequest,
 } from '../../../../plus/graph/protocol.js';
 import type { OverviewBranch } from '../../../../shared/overviewBranches.js';
@@ -121,9 +122,14 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	private _lastOverview: GraphOverviewData | undefined;
 	private _lastOverviewFingerprint: string | undefined;
 	private _lastPushedWip: GetOverviewWipResponse | undefined;
+	// Branch ids with an in-flight detailed-wip fetch — guards against duplicate requests when
+	// the user re-hovers before the prior fetch resolves.
+	private readonly _pendingWipDetails = new Set<string>();
 
 	override connectedCallback(): void {
 		super.connectedCallback?.();
+
+		this.addEventListener('gl-graph-overview-card-request-wip-details', this.onWipDetailsRequested);
 
 		if (this._state.overview == null) {
 			void this._ipc.sendRequest(GetOverviewRequest, undefined);
@@ -132,14 +138,55 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		}
 	}
 
+	override disconnectedCallback(): void {
+		this.removeEventListener('gl-graph-overview-card-request-wip-details', this.onWipDetailsRequested);
+		super.disconnectedCallback?.();
+	}
+
 	refresh(): void {
 		this._lastOverview = undefined;
 		this._lastOverviewFingerprint = undefined;
 		this._lastPushedWip = undefined;
 		this._wipData = {};
 		this._enrichmentData = {};
+		this._pendingWipDetails.clear();
 		this._state.overviewEnrichment = undefined;
 		void this._ipc.sendRequest(GetOverviewRequest, undefined);
+	}
+
+	private readonly onWipDetailsRequested = (e: Event) => {
+		const branchId = (e as CustomEvent<{ branchId: string }>).detail?.branchId;
+		if (!branchId) return;
+		if (this._pendingWipDetails.has(branchId)) return;
+		void this.fetchWipDetailsForBranch(branchId);
+	};
+
+	private async fetchWipDetailsForBranch(branchId: string): Promise<void> {
+		this._pendingWipDetails.add(branchId);
+		try {
+			const result = await this._ipc.sendRequest(GetOverviewWipDetailedRequest, { branchIds: [branchId] });
+			const detailed = result?.[branchId];
+			if (detailed == null) return;
+			// Drop the result if the branch is no longer in the overview (e.g. checked out away
+			// while the fetch was in flight).
+			const overview = this._state.overview;
+			const stillPresent =
+				overview != null &&
+				(overview.active.some(b => b.id === branchId) || overview.recent.some(b => b.id === branchId));
+			if (!stillPresent) return;
+
+			// Merge into the existing entry (preserving any fields the basic load set, e.g.
+			// `pausedOpStatus`) rather than replacing wholesale.
+			this._wipData = {
+				...this._wipData,
+				[branchId]: { ...this._wipData[branchId], ...detailed },
+			};
+		} catch {
+			// Swallow — the rich hover falls back to the basic dirty indicator if detailed never
+			// arrives, and the next popover-show will retry once the request slot clears.
+		} finally {
+			this._pendingWipDetails.delete(branchId);
+		}
 	}
 
 	override updated(_changedProperties: Map<string, unknown>): void {

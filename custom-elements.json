@@ -19574,6 +19574,24 @@
               }
             },
             {
+              "kind": "method",
+              "name": "ensureOverviewBranchMergeTarget",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "Promise<void>"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "branchId",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
               "kind": "field",
               "name": "fallbackRepoPath",
               "type": {
@@ -25115,7 +25133,40 @@
           "members": [
             {
               "kind": "field",
+              "name": "_graphState",
+              "type": {
+                "text": "AppState | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
               "name": "_hoverShown",
+              "type": {
+                "text": "boolean"
+              },
+              "privacy": "private",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "_mergeTarget",
+              "type": {
+                "text": "OverviewBranchMergeTarget | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_mergeTargetFetchedFor",
+              "type": {
+                "text": "string | undefined"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_mergeTargetLoading",
               "type": {
                 "text": "boolean"
               },
@@ -25132,9 +25183,9 @@
             },
             {
               "kind": "field",
-              "name": "_mergeTargetPromiseFor",
+              "name": "_services",
               "type": {
-                "text": "OverviewBranchMergeTarget | undefined"
+                "text": "Remote<GraphServices> | undefined | undefined"
               },
               "privacy": "private"
             },
@@ -25143,6 +25194,14 @@
               "name": "_webview",
               "type": {
                 "text": "WebviewContext"
+              },
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "_wipDetailsRequestedFor",
+              "type": {
+                "text": "OverviewBranchWip | undefined"
               },
               "privacy": "private"
             },
@@ -25215,11 +25274,11 @@
             },
             {
               "kind": "method",
-              "name": "getMergeTargetPromise",
+              "name": "ensureMergeTargetFetched",
               "privacy": "private",
               "return": {
                 "type": {
-                  "text": "Promise<OverviewBranchMergeTarget | undefined> | undefined"
+                  "text": "Promise<void>"
                 }
               }
             },
@@ -25245,6 +25304,16 @@
               "name": "launchpadGrouping",
               "privacy": "private",
               "readonly": true
+            },
+            {
+              "kind": "method",
+              "name": "maybeRequestWipDetails",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
             },
             {
               "kind": "method",
@@ -25449,6 +25518,12 @@
               "type": {
                 "text": "CustomEvent"
               }
+            },
+            {
+              "name": "gl-graph-overview-card-request-wip-details",
+              "type": {
+                "text": "CustomEvent"
+              }
             }
           ],
           "attributes": [
@@ -25568,6 +25643,13 @@
             },
             {
               "kind": "field",
+              "name": "_pendingWipDetails",
+              "privacy": "private",
+              "readonly": true,
+              "default": "new Set<string>()"
+            },
+            {
+              "kind": "field",
               "name": "_state",
               "type": {
                 "text": "AppState"
@@ -25593,6 +25675,24 @@
                   "name": "overview",
                   "type": {
                     "text": "GraphOverviewData"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "fetchWipDetailsForBranch",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "Promise<void>"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "branchId",
+                  "type": {
+                    "text": "string"
                   }
                 }
               ]
@@ -25632,6 +25732,12 @@
                   }
                 }
               ]
+            },
+            {
+              "kind": "field",
+              "name": "onWipDetailsRequested",
+              "privacy": "private",
+              "readonly": true
             },
             {
               "kind": "method",
@@ -26766,6 +26872,30 @@
               "type": {
                 "text": "boolean | undefined | undefined"
               }
+            },
+            {
+              "kind": "method",
+              "name": "mergeMergeTargetIntoEnrichment",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "branchId",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "mergeTarget",
+                  "type": {
+                    "text": "OverviewBranchMergeTarget | undefined"
+                  }
+                }
+              ],
+              "description": "Merge a lazily-fetched merge-target into `overviewEnrichment` for the given branchId. The graph\noverview's enrichment IPC opts out of eager merge-target fetching (`skipMergeTarget: true`); the\ncard and click-to-scope paths fetch via `BranchesService.getMergeTargetStatus` and call this to\npublish the result so the existing `reconcileScopeMergeTarget` hook backfills the scope's tip SHA."
             },
             {
               "kind": "field",

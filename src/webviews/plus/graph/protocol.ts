@@ -556,6 +556,19 @@ export const GetOverviewWipRequest = new IpcRequest<GetOverviewWipParams, GetOve
 	'overview/wip/get',
 );
 
+export interface GetOverviewWipDetailedParams {
+	branchIds: string[];
+}
+/**
+ * On-demand fetch of the full wip breakdown (add/changed/deleted) for the given branches. Driven
+ * by the rich hover so the eager overview load can stay on the cheap clean/dirty path
+ * ({@link GetOverviewWipRequest}).
+ */
+export const GetOverviewWipDetailedRequest = new IpcRequest<GetOverviewWipDetailedParams, GetOverviewWipResponse>(
+	scope,
+	'overview/wip/detailed/get',
+);
+
 export interface GetOverviewEnrichmentParams {
 	branchIds: string[];
 }
