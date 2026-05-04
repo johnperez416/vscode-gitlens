@@ -321,7 +321,7 @@ suite('DetailsWorkflowController.toggleMode — stale-on-re-entry', () => {
 });
 
 suite('DetailsActions.clearEnrichmentCaches', () => {
-	test('aborts in-flight branch-commits and enrichment controllers', () => {
+	test('aborts in-flight branch-commits controllers but leaves enrichment controller alone', () => {
 		const state = createDetailsState();
 		const actions = new DetailsActions(state, createServices(), createResources());
 
@@ -336,7 +336,11 @@ suite('DetailsActions.clearEnrichmentCaches', () => {
 
 		assert.strictEqual(branchCommits.signal.aborted, true);
 		assert.strictEqual(branchLoadMore.signal.aborted, true);
-		assert.strictEqual(enrichment.signal.aborted, true);
+		// _enrichmentController is intentionally NOT aborted — see clearEnrichmentCaches doc.
+		// fetchDetails's resetEnrichment aborts the prior controller when a new selection
+		// arrives, and the WIP enrichment legs are guarded by enrichmentGuard + signal checks.
+		// Aborting here can race with a freshly-created controller for the new selection.
+		assert.strictEqual(enrichment.signal.aborted, false);
 	});
 
 	test('clears both LRU caches', () => {

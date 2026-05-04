@@ -232,22 +232,28 @@ export class DetailsActions {
 	}
 
 	/**
-	 * Drops the webview-side enrichment caches and aborts in-flight fetches keyed to the
-	 * prior repo. Called by {@link DetailsWorkflowController} when the host's render target
-	 * (`repoPath`) changes so cross-repo state doesn't linger.
+	 * Drops the webview-side enrichment caches and aborts in-flight branch-commits fetches
+	 * keyed to the prior repo. Called by {@link DetailsWorkflowController} when the host's
+	 * render target (`repoPath`) changes so cross-repo state doesn't linger.
 	 *
 	 * The cache LRU keys already include `repoPath`, so there is no value-collision risk —
-	 * the clear is memory hygiene. The aborts matter more: `_lastFetchedKey` already gates
-	 * stale writes for single-commit / WIP enrichment, but `fetchBranchCommits` and the
-	 * enrichment batch don't have an equivalent post-resolve key gate. Without abort, a
-	 * slow response from the prior repo could land and write into state for the new one.
+	 * the clear is memory hygiene. The branch-commits aborts matter because those fetches
+	 * have no post-resolve key gate, so a slow response from the prior repo could land and
+	 * write into state for the new one.
+	 *
+	 * NOT aborting `_enrichmentController` here: WIP-row-to-WIP-row transitions can fire
+	 * `hostUpdate` (which calls this) AFTER `willUpdate` has already triggered fetchDetails
+	 * for the new selection — aborting then would kill the fresh enrichment controller before
+	 * its fetch even runs. The WIP enrichment legs are protected against stale writes by
+	 * {@link enrichmentGuard} (resource generation ID) plus inner `signal.aborted` checks,
+	 * and {@link DetailsActions.fetchDetails} via {@link resetEnrichment} aborts the prior
+	 * controller when a new selection's fetch starts.
 	 */
 	clearEnrichmentCaches(): void {
 		this._wipEnrichmentCache.clear();
 		this._commitEnrichmentCache.clear();
 		this._branchCommitsController?.abort();
 		this._branchCommitsLoadMoreController?.abort();
-		this._enrichmentController?.abort();
 	}
 
 	/**
