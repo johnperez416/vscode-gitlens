@@ -3,6 +3,7 @@ import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { GitCommitStats } from '@gitlens/git/models/commit.js';
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
+import { isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
 import type { Preferences } from '../../../../commitDetails/protocol.js';
 import type { OpenMultipleChangesArgs } from '../../actions/file.js';
 import { renderCommitStatsIcons } from '../commit/commit-stats.js';
@@ -14,6 +15,21 @@ import '../button.js';
 import '../code-icon.js';
 
 type Files = Mutable<FileItem[]>;
+
+/** Stable partition: conflicts first, others in original order. Used in checkbox mode where
+ * grouping is suppressed so a flat list still surfaces unresolved conflicts at the top. */
+function sortConflictsToTop(files: Files): Files {
+	const conflicts: Files = [];
+	const rest: Files = [];
+	for (const f of files) {
+		if (isConflictStatus(f.status)) {
+			conflicts.push(f);
+		} else {
+			rest.push(f);
+		}
+	}
+	return conflicts.length === 0 ? files : [...conflicts, ...rest];
+}
 
 @customElement('gl-wip-tree-pane')
 export class GlWipTreePane extends LitElement {
@@ -123,7 +139,7 @@ export class GlWipTreePane extends LitElement {
 			const dedup = this.deduplicateFiles(files);
 			const deduped = dedup.deduped;
 			mixedPaths = dedup.mixedPaths;
-			effectiveFiles = deduped;
+			effectiveFiles = sortConflictsToTop(deduped);
 
 			// Merge computed mixed states into caller-provided checkableStates
 			if (mixedPaths.size > 0 || this.checkableStates) {
@@ -149,12 +165,15 @@ export class GlWipTreePane extends LitElement {
 				}
 			}
 		} else {
-			// Non-checkbox mode: group by staged/unstaged
+			// Non-checkbox mode: group conflicts above staged/unstaged so unresolved files
+			// surface at the top.
 			effectiveFiles = files;
 			effectiveStates = this.checkableStates;
 			grouping = {
-				getGroup: (file: FileItem) => (file.staged ? 'staged' : 'unstaged'),
+				getGroup: (file: FileItem) =>
+					isConflictStatus(file.status) ? 'conflicts' : file.staged ? 'staged' : 'unstaged',
 				groups: [
+					{ key: 'conflicts', label: 'Conflicts', actions: [] },
 					{ key: 'staged', label: 'Staged Changes', actions: this.getStagedActions() },
 					{ key: 'unstaged', label: 'Unstaged Changes', actions: this.getUnstagedActions() },
 				],
@@ -197,6 +216,7 @@ export class GlWipTreePane extends LitElement {
 			.checkableStateDefault=${this.checkableStateDefault}
 			.buttons=${buttons}
 			selection-badge-label="Staged"
+			selection-action="file-open"
 			check-verb="Stage"
 			uncheck-verb="Unstage"
 			@gl-check-all=${this.onCheckAll}

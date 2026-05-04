@@ -271,13 +271,23 @@ export interface WipStatus {
 }
 
 /**
+ * WIP file change — extends `GitFileChangeShape` with the unresolved conflict-marker count
+ * (when the file is conflicted and the count is known).
+ */
+export interface WipFileChange extends GitFileChangeShape {
+	conflictMarkers?: number;
+}
+
+/**
  * WIP change — branch + repository + changed files.
  * Used by Commit Details for WIP display, and by DraftsService for patch creation.
  */
 export interface WipChange {
 	branchName: string;
 	repository: { name: string; path: string; uri: string };
-	files: GitFileChangeShape[];
+	files: WipFileChange[];
+	hasConflicts?: boolean;
+	pausedOpStatus?: GitPausedOperationStatus;
 }
 
 // ============================================================

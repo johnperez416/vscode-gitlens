@@ -7,6 +7,7 @@ import type { BranchMergeTargetStatus } from '../../../../rpc/services/branches.
 import type { OverviewBranchIssue } from '../../../../shared/overviewBranches.js';
 import { elementBase, metadataBarVarsBase } from '../../../shared/components/styles/lit/base.css.js';
 import { detailsWipHeaderStyles } from './gl-details-wip-header.css.js';
+import '../../shared/components/merge-rebase-status.js';
 import '../../shared/components/merge-target-status.js';
 import '../../../shared/components/chips/action-chip.js';
 import '../../../shared/components/chips/autolink-chip.js';
@@ -119,7 +120,7 @@ export class GlDetailsWipHeader extends LitElement {
 								></gl-action-chip>
 							</div>
 						</div>
-						${!isModeActive ? this.renderIssuesRow() : nothing}`
+						${!isModeActive ? this.renderIssuesRow() : nothing}${this.renderPausedOpStatus()}`
 				: nothing}
 		</gl-details-header>`;
 	}
@@ -188,6 +189,18 @@ export class GlDetailsWipHeader extends LitElement {
 			overlay="tooltip"
 			@click=${() => this.emit('fetch')}
 		></gl-action-chip>`;
+	}
+
+	private renderPausedOpStatus() {
+		const pausedOpStatus = this.wip?.changes?.pausedOpStatus;
+		if (pausedOpStatus == null) return nothing;
+
+		return html`<div slot="secondary" class="graph-details-header__paused-op">
+			<gl-merge-rebase-status
+				?conflicts=${this.wip?.changes?.hasConflicts ?? false}
+				.pausedOpStatus=${pausedOpStatus}
+			></gl-merge-rebase-status>
+		</div>`;
 	}
 
 	private renderMergeTargetStatus() {

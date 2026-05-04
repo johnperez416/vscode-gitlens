@@ -136,6 +136,21 @@ export const detailsWipPanelStyles = css`
 		max-width: 20rem;
 	}
 
+	.paused-op {
+		display: flex;
+		align-items: center;
+		padding: 0.4rem 1rem;
+	}
+
+	:host([variant='embedded']) .header .paused-op {
+		padding: 0.2rem 1rem 0.6rem 1.2rem;
+	}
+
+	.paused-op > gl-merge-rebase-status {
+		flex: 1;
+		min-width: 0;
+	}
+
 	/* ── Bottom section (split panel end slot) ── */
 	:host([variant='embedded']) .bottom-section {
 		display: flex;

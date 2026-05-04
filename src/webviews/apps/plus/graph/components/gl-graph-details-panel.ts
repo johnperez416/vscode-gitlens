@@ -542,6 +542,8 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 											@file-open=${this.handleFileOpen}
 											@file-compare-working=${this.handleFileCompareWorking}
 											@file-compare-previous=${this.handleFileComparePrevious}
+											@file-open-current=${this.handleFileOpenConflictCurrent}
+											@file-open-incoming=${this.handleFileOpenConflictIncoming}
 											@file-more-actions=${this.handleFileMoreActions}
 											@file-stage=${this.handleFileStage}
 											@file-unstage=${this.handleFileUnstage}
@@ -1163,6 +1165,14 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	private handleFileMoreActions = (e: CustomEvent<FileChangeListItemDetail>) => {
 		this._actions.executeFileAction(e.detail, this.sha);
+	};
+
+	private handleFileOpenConflictCurrent = (e: CustomEvent<FileChangeListItemDetail>) => {
+		this._actions.openConflictChanges(e.detail, 'current');
+	};
+
+	private handleFileOpenConflictIncoming = (e: CustomEvent<FileChangeListItemDetail>) => {
+		this._actions.openConflictChanges(e.detail, 'incoming');
 	};
 
 	private handleFileStage = (e: CustomEvent<FileChangeListItemDetail>) => {

@@ -33,6 +33,7 @@ import {
 } from '@gitlens/git/utils/branch.utils.js';
 import { splitCommitMessage } from '@gitlens/git/utils/commit.utils.js';
 import { getLastFetchedUpdateInterval } from '@gitlens/git/utils/fetch.utils.js';
+import { isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
 import {
 	getComparisonRefsForPullRequest,
 	getRepositoryIdentityForPullRequest,
@@ -143,6 +144,7 @@ import {
 	isCommitSigned,
 } from '../../../git/utils/-webview/commit.utils.js';
 import { getRemoteIconUri } from '../../../git/utils/-webview/icons.js';
+import { countConflictMarkers } from '../../../git/utils/-webview/mergeConflicts.utils.js';
 import { getReferenceFromBranch } from '../../../git/utils/-webview/reference.utils.js';
 import {
 	getRemoteIntegration,
@@ -245,7 +247,6 @@ import type {
 	GraphColumnName,
 	GraphColumnsConfig,
 	GraphColumnsSettings,
-	GraphCommitContextValue,
 	GraphComponentConfig,
 	GraphExcludedRef,
 	GraphExcludeRefs,
@@ -820,18 +821,43 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					if (repo == null) return undefined;
 
 					const svc = this.container.git.getRepositoryService(repoPath);
-					const status = await svc.status.getStatus();
+					const [statusResult, pausedOpStatusResult] = await Promise.allSettled([
+						svc.status.getStatus(),
+						svc.pausedOps?.getPausedOperationStatus?.(),
+					]);
+					const status = getSettledValue(statusResult);
 					if (status == null) return undefined;
+					signal?.throwIfAborted();
+
+					const pausedOpStatus = getSettledValue(pausedOpStatusResult);
+
+					const conflictMarkerCounts = new Map<string, number>();
+					if (status.hasConflicts) {
+						const conflictedPaths = status.files.filter(f => isConflictStatus(f.status)).map(f => f.path);
+						if (conflictedPaths.length > 0) {
+							const counts = await Promise.allSettled(
+								conflictedPaths.map(p => countConflictMarkers(Uri.joinPath(repo.uri, p))),
+							);
+							conflictedPaths.forEach((p, i) => {
+								const c = getSettledValue(counts[i]);
+								if (c != null) {
+									conflictMarkerCounts.set(p, c);
+								}
+							});
+						}
+					}
 					signal?.throwIfAborted();
 
 					const files: GitFileChangeShape[] = [];
 					for (const file of status.files) {
+						const conflictMarkers = conflictMarkerCounts.get(file.path);
 						const change = {
 							repoPath: file.repoPath,
 							path: file.path,
 							status: file.status,
 							originalPath: file.originalPath,
 							staged: file.staged,
+							conflictMarkers: conflictMarkers,
 						};
 						files.push(change);
 						if (file.staged && file.wip) {
@@ -861,6 +887,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							repository: { name: repo.name, path: repo.path, uri: repo.uri.toString() },
 							branchName: status.branch,
 							files: files,
+							hasConflicts: status.hasConflicts,
+							pausedOpStatus: pausedOpStatus,
 						},
 						repositoryCount: this.container.git.openRepositoryCount,
 						branch: branchShape,

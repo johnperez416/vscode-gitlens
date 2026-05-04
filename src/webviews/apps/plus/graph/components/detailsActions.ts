@@ -1583,6 +1583,10 @@ export class DetailsActions {
 		this._pendingStagingOp = this.runStagingOp(this.services.repository.stageFile(detail));
 	}
 
+	openConflictChanges(detail: FileChangeListItemDetail, side: 'current' | 'incoming'): void {
+		void this.services.repository.openConflictChanges(detail, side);
+	}
+
 	unstageFile(detail: FileChangeListItemDetail): void {
 		this.optimisticallyUpdateFileStaged(detail.path, false);
 		this._pendingStagingOp = this.runStagingOp(this.services.repository.unstageFile(detail));

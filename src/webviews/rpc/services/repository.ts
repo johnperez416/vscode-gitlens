@@ -8,7 +8,7 @@
  * - Per-repo change events (working tree FS changes, filtered repository changes)
  */
 
-import { Disposable, Uri } from 'vscode';
+import { Disposable, Uri, window } from 'vscode';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange, GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
@@ -17,12 +17,21 @@ import { repositoryChanges } from '@gitlens/git/models/repository.js';
 import type { CommitSignature } from '@gitlens/git/models/signature.js';
 import type { GitStatusFile } from '@gitlens/git/models/statusFile.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
+import { isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
+import { getConflictIncomingRef, resolveConflictFilePaths } from '@gitlens/git/utils/pausedOperationStatus.utils.js';
+import { Logger } from '@gitlens/utils/logger.js';
+import { normalizePath } from '@gitlens/utils/path.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';
+import { pluralize } from '@gitlens/utils/string.js';
+import type { DiffWithCommandArgs } from '../../../commands/diffWith.js';
 import type { Container } from '../../../container.js';
 import type { FeatureAccess, PlusFeatures } from '../../../features.js';
 import * as BranchActions from '../../../git/actions/branch.js';
 import * as RepoActions from '../../../git/actions/repository.js';
+import { GitUri } from '../../../git/gitUri.js';
 import { getCommitSignature } from '../../../git/utils/-webview/commit.utils.js';
+import { countConflictMarkers } from '../../../git/utils/-webview/mergeConflicts.utils.js';
+import { executeCommand, executeCoreCommand } from '../../../system/-webview/command.js';
 import { serialize } from '../../../system/serialize.js';
 import type { EventVisibilityBuffer, SubscriptionTracker } from '../eventVisibilityBuffer.js';
 import { bufferEventHandler } from '../eventVisibilityBuffer.js';
@@ -182,9 +191,17 @@ export class RepositoryService {
 	// ============================================================
 
 	/**
-	 * Stage a file.
+	 * Stage a file. When the file is conflicted and still contains conflict markers, prompts
+	 * the user before staging so they don't accidentally commit unresolved markers.
 	 */
 	async stageFile(file: GitFileChangeShape): Promise<void> {
+		if (isConflictStatus(file.status)) {
+			const uri = Uri.joinPath(Uri.file(file.repoPath), file.path);
+			const markers = await countConflictMarkers(uri);
+			if (markers > 0 && !(await this.confirmStageWithConflictMarkers(uri, file.path, markers))) {
+				return;
+			}
+		}
 		await this.container.git.getRepositoryService(file.repoPath).staging?.stageFile(file.path);
 	}
 
@@ -196,10 +213,104 @@ export class RepositoryService {
 	}
 
 	/**
-	 * Stage all working tree changes.
+	 * Open the rebase-editor-style conflict changes diff for a paused-operation conflicted file.
+	 * `side='current'` shows the user's working-tree side vs the merge-base; `side='incoming'`
+	 * shows the incoming (theirs) side vs the merge-base.
+	 */
+	async openConflictChanges(file: GitFileChangeShape, side: 'current' | 'incoming'): Promise<void> {
+		const normalizedPath = normalizePath(file.path);
+		const svc = this.container.git.getRepositoryService(file.repoPath);
+		const pausedStatus = await svc.pausedOps?.getPausedOperationStatus?.();
+		if (pausedStatus?.mergeBase == null) {
+			Logger.warn('openConflictChanges: paused-operation status or merge-base unavailable');
+			void window.showWarningMessage('Unable to open conflict changes — operation status unavailable');
+			return;
+		}
+
+		const incomingRef = getConflictIncomingRef(pausedStatus) ?? pausedStatus.HEAD.ref;
+		const mergeBase = pausedStatus.mergeBase;
+
+		// Resolve rename-aware paths (mirrors mergeConflictFileNode.ts pattern)
+		const [currentFilesResult, incomingFilesResult] = await Promise.allSettled([
+			svc.diff.getDiffStatus(mergeBase, 'HEAD', { renameLimit: 0 }),
+			svc.diff.getDiffStatus(mergeBase, incomingRef, { renameLimit: 0 }),
+		]);
+		const currentFiles = getSettledValue(currentFilesResult);
+		const incomingFiles = getSettledValue(incomingFilesResult);
+
+		let lhsPath: string;
+		let rhsPath: string;
+		if (side === 'current') {
+			({ lhsPath, rhsPath } = resolveConflictFilePaths(currentFiles, incomingFiles, normalizedPath));
+		} else {
+			// Swap: when viewing incoming changes, "my side" is the incoming ref
+			({ lhsPath, rhsPath } = resolveConflictFilePaths(incomingFiles, currentFiles, normalizedPath));
+		}
+
+		const ref = side === 'current' ? 'HEAD' : incomingRef;
+
+		await executeCommand<DiffWithCommandArgs>('gitlens.diffWith', {
+			lhs: {
+				sha: mergeBase,
+				uri: GitUri.fromFile(lhsPath, file.repoPath, mergeBase),
+				title: `${lhsPath} (merge-base)`,
+			},
+			rhs: {
+				sha: ref,
+				uri: GitUri.fromFile(rhsPath, file.repoPath, ref),
+				title: `${rhsPath} (${side === 'current' ? 'current' : 'incoming'})`,
+			},
+			repoPath: file.repoPath,
+			showOptions: { preserveFocus: false, preview: true },
+		});
+	}
+
+	/**
+	 * Stage all working tree changes. When any conflicted file still contains conflict markers,
+	 * prompts the user once before staging the batch.
 	 */
 	async stageAll(repoPath: string): Promise<void> {
-		await this.container.git.getRepositoryService(repoPath).staging?.stageAll();
+		const svc = this.container.git.getRepositoryService(repoPath);
+		const status = await svc.status.getStatus();
+		if (status?.hasConflicts) {
+			const conflictedPaths = status.files.filter(f => isConflictStatus(f.status)).map(f => f.path);
+			if (conflictedPaths.length > 0) {
+				const counts = await Promise.allSettled(
+					conflictedPaths.map(p => countConflictMarkers(Uri.joinPath(Uri.file(repoPath), p))),
+				);
+				const filesWithMarkers = conflictedPaths.filter((_, i) => (getSettledValue(counts[i]) ?? 0) > 0).length;
+				if (filesWithMarkers > 0 && !(await this.confirmStageAllWithConflictMarkers(filesWithMarkers))) {
+					return;
+				}
+			}
+		}
+		await svc.staging?.stageAll();
+	}
+
+	private async confirmStageWithConflictMarkers(uri: Uri, path: string, markers: number): Promise<boolean> {
+		const stage = 'Stage Anyway';
+		const open = 'Open File';
+		const choice = await window.showWarningMessage(
+			`"${path}" still contains ${pluralize('unresolved conflict marker', markers)}. Staging will commit them as-is.`,
+			{ modal: true },
+			stage,
+			open,
+		);
+		if (choice === open) {
+			await executeCoreCommand('vscode.open', uri);
+			return false;
+		}
+		return choice === stage;
+	}
+
+	private async confirmStageAllWithConflictMarkers(fileCount: number): Promise<boolean> {
+		const stage = 'Stage All Anyway';
+		const choice = await window.showWarningMessage(
+			`${pluralize('file', fileCount)} still ${fileCount === 1 ? 'contains' : 'contain'} unresolved conflict markers. Staging will commit them as-is.`,
+			{ modal: true },
+			stage,
+		);
+		return choice === stage;
 	}
 
 	/**

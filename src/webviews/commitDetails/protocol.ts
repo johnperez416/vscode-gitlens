@@ -17,7 +17,7 @@ import type { FileShowOptions, WipChange } from '../rpc/services/types.js';
 
 export type { FileShowOptions } from '../rpc/services/types.js';
 // Re-export from shared types — canonical definition is in rpc/services/types.ts
-export type { CommitSignatureShape, WipChange } from '../rpc/services/types.js';
+export type { CommitSignatureShape, WipChange, WipFileChange } from '../rpc/services/types.js';
 
 export const scope: IpcScope = 'commitDetails';
 export const messageHeadlineSplitterToken = '\x00\n\x00';
@@ -35,7 +35,7 @@ export interface CommitSummary {
 	stashOnRef?: string;
 }
 
-export type CommitFileChange = GitFileChangeShape & { stats?: GitFileChangeStats };
+export type CommitFileChange = GitFileChangeShape & { stats?: GitFileChangeStats; conflictMarkers?: number };
 
 export interface CommitDetails extends CommitSummary {
 	files?: readonly CommitFileChange[];

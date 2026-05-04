@@ -23,6 +23,26 @@ export const detailsWipHeaderStyles = css`
 		white-space: nowrap;
 	}
 
+	.graph-details-header__paused-op {
+		display: flex;
+		align-items: center;
+		padding: 0.4rem var(--gl-panel-padding-right, 1rem) 0.4rem var(--gl-panel-padding-left, 1.2rem);
+		background-color: var(--gl-metadata-bar-bg);
+		border-bottom: 1px solid var(--gl-metadata-bar-border);
+	}
+
+	.graph-details-header__paused-op > gl-merge-rebase-status {
+		flex: 1;
+		min-width: 0;
+	}
+
+	/* The paused-op row trails the metadata strip; drop the prior row's bottom border so the
+	   chunk reads as one tinted strip with paused-op carrying the trailing border. */
+	.graph-details-header__branch-row:has(+ .graph-details-header__paused-op),
+	.graph-details-header__issues:has(+ .graph-details-header__paused-op) {
+		border-bottom: 0;
+	}
+
 	/* Secondary row beneath the WIP title — branch name, tracking pill, and branch ops.
 	   Visually matches the metadata bar in single/multi-commit details so the panel chrome
 	   reads as one piece (background, top/bottom borders). The shared CSS variables come
@@ -118,8 +138,9 @@ export const detailsWipHeaderStyles = css`
 		--gl-chip-overflow-gap: 0.4rem;
 	}
 
-	/* When no issues row follows, the branch row owns the trailing border instead. */
-	.graph-details-header__branch-row:not(:has(+ .graph-details-header__issues)) {
+	/* When no issues row and no paused-op row follow, the branch row owns the trailing
+	   border instead. */
+	.graph-details-header__branch-row:not(:has(+ .graph-details-header__issues, + .graph-details-header__paused-op)) {
 		border-bottom: 1px solid var(--gl-metadata-bar-border);
 	}
 

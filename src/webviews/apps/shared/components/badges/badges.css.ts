@@ -24,4 +24,16 @@ export const badgeBase = css`
 		padding: 0.2rem 0.4rem;
 		border-radius: 0.4rem;
 	}
+
+	:host([appearance='warning']) .badge {
+		background-color: var(--vscode-gitDecoration-conflictingResourceForeground);
+		color: var(--vscode-button-foreground, #fff);
+		border: none;
+		font-weight: 500;
+		line-height: 1;
+		min-width: 1.6rem;
+		justify-content: center;
+		padding: 0.2rem 0.4rem;
+		border-radius: 0.4rem;
+	}
 `;

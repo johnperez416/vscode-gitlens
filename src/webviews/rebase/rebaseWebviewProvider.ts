@@ -29,6 +29,7 @@ import {
 	formatIdentityDisplayName,
 	getCommitFormattedDate,
 } from '../../git/utils/-webview/commit.utils.js';
+import { countConflictMarkers } from '../../git/utils/-webview/mergeConflicts.utils.js';
 import { processRebaseEntries, readAndParseRebaseDoneFile } from '../../git/utils/-webview/rebase.parsing.utils.js';
 import { reopenRebaseTodoEditor } from '../../git/utils/-webview/rebase.utils.js';
 import type { Subscription } from '../../plus/gk/models/subscription.js';
@@ -955,29 +956,8 @@ export class RebaseWebviewProvider implements Disposable {
 		};
 	}
 
-	private static readonly conflictMarkerPattern = /^<{7}(?=[ \t\n\r])/gm;
-
-	private async countConflictMarkers(uri: Uri): Promise<number> {
-		try {
-			const stat = await workspace.fs.stat(uri);
-
-			const maxConflictFileSize = 5 * 1024 * 1024; // 5 MB
-			if (stat.size > maxConflictFileSize) return 0;
-
-			const key = uri.fsPath;
-			const cached = this._conflictMarkerCache.get(key);
-			if (cached?.mtime === stat.mtime) {
-				return cached.count;
-			}
-			const content = await workspace.fs.readFile(uri);
-			const text = new TextDecoder().decode(content);
-			const count = text.match(RebaseWebviewProvider.conflictMarkerPattern)?.length ?? 0;
-			this._conflictMarkerCache.set(key, { mtime: stat.mtime, count: count });
-			return count;
-		} catch (ex) {
-			Logger.debug(ex, 'countConflictMarkers');
-			return 0;
-		}
+	private countConflictMarkers(uri: Uri): Promise<number> {
+		return countConflictMarkers(uri, this._conflictMarkerCache);
 	}
 
 	private notifyDidChangeAvatars(): void {

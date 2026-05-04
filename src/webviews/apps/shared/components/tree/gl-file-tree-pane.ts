@@ -3,7 +3,10 @@ import { html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import type { GitFileChangeShape, GitFileChangeStats } from '@gitlens/git/models/fileChange.js';
+import type { GitFileConflictStatus } from '@gitlens/git/models/fileStatus.js';
 import type { GitCommitSearchContext } from '@gitlens/git/models/search.js';
+import { isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
+import { pluralize } from '@gitlens/utils/string.js';
 import type { ViewFilesLayout, ViewsFilesConfig } from '../../../../../config.js';
 import type { FileShowOptions } from '../../../../commitDetails/protocol.js';
 import { elementBase } from '../styles/lit/base.css.js';
@@ -16,6 +19,7 @@ import type {
 	TreeItemSelectionDetail,
 	TreeModel,
 } from './base.js';
+import { getConflictDecorations, getConflictTooltip } from './conflictRendering.js';
 import type { FileGroup } from './file-tree-utils.js';
 import {
 	buildFileTooltip,
@@ -36,7 +40,7 @@ import '../checkbox/checkbox.js';
 import '../overlays/tooltip.js';
 import './tree-view.js';
 
-export type FileItem = GitFileChangeShape & { stats?: GitFileChangeStats };
+export type FileItem = GitFileChangeShape & { stats?: GitFileChangeStats; conflictMarkers?: number };
 type Files = Mutable<FileItem[]>;
 
 // Can only import types from 'vscode'
@@ -153,6 +157,14 @@ export class GlFileTreePane extends LitElement {
 	 */
 	@property({ attribute: 'selection-badge-label' })
 	selectionBadgeLabel?: string;
+
+	/**
+	 * Event name dispatched when a file row is selected (default click).
+	 * Defaults to `'file-compare-previous'` to preserve historical SCM-style behavior.
+	 * Consumers like the WIP tree pass `'file-open'` so a row click opens the file directly.
+	 */
+	@property({ attribute: 'selection-action' })
+	selectionAction: 'file-open' | 'file-compare-previous' = 'file-compare-previous';
 
 	@state() private _filterMode: 'off' | 'mixed' | 'matched' = 'mixed';
 	@state() private _showFilter = false;
@@ -349,13 +361,29 @@ export class GlFileTreePane extends LitElement {
 		const noneChecked = checkedCount === 0 && mixedCount === 0;
 		const indeterminate = !allChecked && !noneChecked;
 
+		// Conflicted files take precedence over the selection-badge — when the user has
+		// unresolved conflicts that's the most important number to surface.
+		let conflictCount = 0;
+		if (this.files) {
+			const seenConflicts = new Set<string>();
+			for (const file of this.files) {
+				if (!isConflictStatus(file.status) || seenConflicts.has(file.path)) continue;
+				seenConflicts.add(file.path);
+				conflictCount++;
+			}
+		}
+
 		// In selection-badge mode, surface "x of y" while only a subset is checked so users see
 		// the running selection size without opening the tree. Once everything is checked, fall
 		// back to the simple total (or "y <label>" if a label is set so the count keeps its
 		// semantic identity). Mixed (partially staged) files count as checked for this display
 		// so the count tracks what an "include all" action would actually act on.
 		let effectiveBadge = badge;
-		if (this.selectionBadge && this.checkable && totalFiles > 0) {
+		let badgeAppearance: 'filled' | 'warning' = 'filled';
+		if (conflictCount > 0) {
+			effectiveBadge = pluralize('conflict', conflictCount);
+			badgeAppearance = 'warning';
+		} else if (this.selectionBadge && this.checkable && totalFiles > 0) {
 			const selected = checkedCount + mixedCount;
 			const label = this.selectionBadgeLabel;
 			if (selected < totalFiles) {
@@ -397,7 +425,7 @@ export class GlFileTreePane extends LitElement {
 			effectiveBadge == null
 				? html`<span class="checkbox-header__title">${this.header}</span>`
 				: html`<span class="checkbox-header__title">${this.header}</span>
-						<gl-badge appearance="filled"
+						<gl-badge appearance=${badgeAppearance}
 							><span class="checkbox-header__badge-text">${effectiveBadge}</span></gl-badge
 						>`;
 
@@ -448,6 +476,19 @@ export class GlFileTreePane extends LitElement {
 	private getFileDecorations(file: FileItem): TreeItemDecoration[] {
 		const decorations: TreeItemDecoration[] = [];
 
+		// Rich conflict rendering — status code + "Modified (Both)" muted label + warning + count.
+		// Mirrors the rebase editor's treatment via the shared conflictRendering helpers.
+		// Surfaced regardless of `showFileIcons` so unresolved conflicts are always visible.
+		if (isConflictStatus(file.status)) {
+			const conflictDecorations = getConflictDecorations(
+				file.status as GitFileConflictStatus,
+				file.conflictMarkers,
+			);
+			if (conflictDecorations != null) {
+				decorations.push(...conflictDecorations);
+			}
+		}
+
 		// Stats decorations (additions/deletions)
 		if (file.stats) {
 			decorations.push(
@@ -466,8 +507,9 @@ export class GlFileTreePane extends LitElement {
 			);
 		}
 
-		// Status letter decoration (when using file icons)
-		if (this.showFileIcons) {
+		// Status letter decoration (when using file icons). Skipped for conflicts — those
+		// already get the richer status-code decoration above.
+		if (this.showFileIcons && !isConflictStatus(file.status)) {
 			const statusInfo = getStatusDecoration(file.status);
 			if (statusInfo != null) {
 				decorations.push({
@@ -526,6 +568,16 @@ export class GlFileTreePane extends LitElement {
 			};
 		}
 
+		const conflicted = isConflictStatus(file.status);
+		const icon = conflicted
+			? { type: 'status' as const, name: file.status }
+			: this.showFileIcons
+				? { type: 'file-icon' as const, filename: fileName }
+				: undefined;
+		const tooltip = conflicted
+			? getConflictTooltip(file.status as GitFileConflictStatus, file.conflictMarkers)
+			: buildFileTooltip(file);
+
 		return {
 			branch: false,
 			expanded: true,
@@ -533,10 +585,10 @@ export class GlFileTreePane extends LitElement {
 			level: 1,
 			checkable: this.checkable,
 			checked: false,
-			icon: this.showFileIcons ? { type: 'file-icon' as const, filename: fileName } : undefined,
+			icon: icon,
 			label: fileName,
 			description: `${flat === true ? filePath : ''}${file.status === 'R' ? ` ← ${file.originalPath}` : ''}`,
-			tooltip: buildFileTooltip(file),
+			tooltip: tooltip,
 			context: [file],
 			actions: actions,
 			decorations: decorations.length > 0 ? decorations : undefined,
@@ -594,7 +646,7 @@ export class GlFileTreePane extends LitElement {
 	private onTreeItemSelected(e: CustomEvent<TreeItemSelectionDetail>): void {
 		if (!e.detail.context) return;
 
-		this.dispatchFileEvent('file-compare-previous', e.detail.context[0], e.detail);
+		this.dispatchFileEvent(this.selectionAction, e.detail.context[0], e.detail);
 	}
 
 	private dispatchFileEvent(name: string, file: FileItem, e?: { dblClick?: boolean; altKey?: boolean }): void {

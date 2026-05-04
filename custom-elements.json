@@ -2893,7 +2893,7 @@
         {
           "kind": "variable",
           "name": "detailsWipPanelStyles",
-          "default": "css` :host([variant='embedded']) { --gl-tree-view-margin-top: -0.2rem; --gl-tree-view-filterable-margin-top: -0.4rem; } /* Split panel layout */ :host([variant='embedded']) .split { flex: 1; min-height: 200px; overflow: hidden; --gl-split-panel-divider-width: 12px; } :host([variant='embedded']) .split--auto-size:not([dragging]) { --gl-split-panel-start-size: fit-content(var(--_start-size, 25%)); } :host([variant='embedded']) .msg-slot { height: 100%; min-height: 4.4rem; overflow: hidden; display: flex; flex-direction: column; } /* File list wrapper */ :host([variant='embedded']) .files { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; margin-top: 0.4rem; padding-left: 0.6rem; padding-right: 0.6rem; } /* Explain input override */ :host([variant='embedded']) .explain-input { flex: 1; width: 0; min-width: 0; max-width: none; margin: 0; padding: 0.4rem 0.7rem; font-size: var(--vscode-font-size); font-family: var(--vscode-font-family); color: var(--vscode-input-foreground); background: transparent; border: none !important; outline: none; } :host([variant='embedded']) .explain-input::placeholder { color: var(--vscode-input-placeholderForeground); } /* Child Shadow DOM component overrides */ :host([variant='embedded']) webview-pane::part(header) { border-top: none; padding-right: calc(var(--gl-panel-padding-right) - 0.4rem); background-color: inherit; } :host([variant='embedded']) webview-pane [slot='title'] { display: inline-flex; align-items: center; gap: 0.6rem; } /* ── WIP-specific embedded header ── */ :host([variant='embedded']) .header { display: flex; flex-direction: column; flex: none; background-color: var(--vscode-sideBarSectionHeader-background, var(--color-background--level-05)); } :host([variant='embedded']) .header__identity { display: flex; align-items: center; padding: 0.8rem var(--gl-panel-padding-right) 0.4rem var(--gl-panel-padding-left); gap: 0.6rem; } :host([variant='embedded']) .header__wip-icon { --code-icon-size: 24px; width: 3.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--color-foreground--50); } :host([variant='embedded']) .header__wip-title { font-weight: 500; font-size: var(--gl-font-base); color: var(--vscode-gitlens-decorations-worktreeUncommittedForeground, #e2c08d); } :host([variant='embedded']) .header__wip-subtitle { font-size: var(--gl-font-sm); color: var(--color-foreground--50); display: flex; align-items: center; gap: 0.3rem; } :host([variant='embedded']) .header__identity-left { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; } :host([variant='embedded']) .header__identity-right { display: flex; align-items: center; gap: 0.2rem; flex-shrink: 0; } :host([variant='embedded']) .header__branch-row { display: flex; align-items: center; justify-content: space-between; padding: 0.2rem 1rem 0.6rem 1.2rem; gap: 0.6rem; } :host([variant='embedded']) .header__branch-pill { font-size: var(--gl-font-base); max-width: 20rem; } /* ── Bottom section (split panel end slot) ── */ :host([variant='embedded']) .bottom-section { display: flex; flex-direction: column; height: 100%; min-height: 120px; overflow: hidden; } /* Split panel divider */ :host([variant='embedded']) .split::part(divider) { background-color: transparent !important; display: flex; align-items: center; justify-content: center; padding: 0.4rem 0; } `"
+          "default": "css` :host([variant='embedded']) { --gl-tree-view-margin-top: -0.2rem; --gl-tree-view-filterable-margin-top: -0.4rem; } /* Split panel layout */ :host([variant='embedded']) .split { flex: 1; min-height: 200px; overflow: hidden; --gl-split-panel-divider-width: 12px; } :host([variant='embedded']) .split--auto-size:not([dragging]) { --gl-split-panel-start-size: fit-content(var(--_start-size, 25%)); } :host([variant='embedded']) .msg-slot { height: 100%; min-height: 4.4rem; overflow: hidden; display: flex; flex-direction: column; } /* File list wrapper */ :host([variant='embedded']) .files { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; margin-top: 0.4rem; padding-left: 0.6rem; padding-right: 0.6rem; } /* Explain input override */ :host([variant='embedded']) .explain-input { flex: 1; width: 0; min-width: 0; max-width: none; margin: 0; padding: 0.4rem 0.7rem; font-size: var(--vscode-font-size); font-family: var(--vscode-font-family); color: var(--vscode-input-foreground); background: transparent; border: none !important; outline: none; } :host([variant='embedded']) .explain-input::placeholder { color: var(--vscode-input-placeholderForeground); } /* Child Shadow DOM component overrides */ :host([variant='embedded']) webview-pane::part(header) { border-top: none; padding-right: calc(var(--gl-panel-padding-right) - 0.4rem); background-color: inherit; } :host([variant='embedded']) webview-pane [slot='title'] { display: inline-flex; align-items: center; gap: 0.6rem; } /* ── WIP-specific embedded header ── */ :host([variant='embedded']) .header { display: flex; flex-direction: column; flex: none; background-color: var(--vscode-sideBarSectionHeader-background, var(--color-background--level-05)); } :host([variant='embedded']) .header__identity { display: flex; align-items: center; padding: 0.8rem var(--gl-panel-padding-right) 0.4rem var(--gl-panel-padding-left); gap: 0.6rem; } :host([variant='embedded']) .header__wip-icon { --code-icon-size: 24px; width: 3.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--color-foreground--50); } :host([variant='embedded']) .header__wip-title { font-weight: 500; font-size: var(--gl-font-base); color: var(--vscode-gitlens-decorations-worktreeUncommittedForeground, #e2c08d); } :host([variant='embedded']) .header__wip-subtitle { font-size: var(--gl-font-sm); color: var(--color-foreground--50); display: flex; align-items: center; gap: 0.3rem; } :host([variant='embedded']) .header__identity-left { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; } :host([variant='embedded']) .header__identity-right { display: flex; align-items: center; gap: 0.2rem; flex-shrink: 0; } :host([variant='embedded']) .header__branch-row { display: flex; align-items: center; justify-content: space-between; padding: 0.2rem 1rem 0.6rem 1.2rem; gap: 0.6rem; } :host([variant='embedded']) .header__branch-pill { font-size: var(--gl-font-base); max-width: 20rem; } .paused-op { display: flex; align-items: center; padding: 0.4rem 1rem; } :host([variant='embedded']) .header .paused-op { padding: 0.2rem 1rem 0.6rem 1.2rem; } .paused-op > gl-merge-rebase-status { flex: 1; min-width: 0; } /* ── Bottom section (split panel end slot) ── */ :host([variant='embedded']) .bottom-section { display: flex; flex-direction: column; height: 100%; min-height: 120px; overflow: hidden; } /* Split panel divider */ :host([variant='embedded']) .split::part(divider) { background-color: transparent !important; display: flex; align-items: center; justify-content: center; padding: 0.4rem 0; } `"
         }
       ],
       "exports": [
@@ -3415,6 +3415,11 @@
             {
               "kind": "method",
               "name": "renderPatchCreation",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderPausedOpStatus",
               "privacy": "private"
             },
             {
@@ -11654,6 +11659,29 @@
             },
             {
               "kind": "method",
+              "name": "openConflictChanges",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "detail",
+                  "type": {
+                    "text": "FileChangeListItemDetail"
+                  }
+                },
+                {
+                  "name": "side",
+                  "type": {
+                    "text": "'current' | 'incoming'"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
               "name": "openFile",
               "return": {
                 "type": {
@@ -17386,7 +17414,7 @@
         {
           "kind": "variable",
           "name": "detailsWipHeaderStyles",
-          "default": "css` :host { display: contents; } .graph-details-header__title-group { display: flex; align-items: center; gap: 1.2rem; min-width: 0; flex: 1; } .graph-details-header__wip-title { min-width: 0; font-weight: 500; font-size: var(--gl-font-base); flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* Secondary row beneath the WIP title — branch name, tracking pill, and branch ops. Visually matches the metadata bar in single/multi-commit details so the panel chrome reads as one piece (background, top/bottom borders). The shared CSS variables come from gl-details-base.css.ts. */ .graph-details-header__branch-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.2rem var(--gl-panel-padding-right, 1rem) 0.6rem var(--gl-panel-padding-left, 1.2rem); min-height: var(--gl-metadata-bar-min-height, 3.2rem); background-color: var(--gl-metadata-bar-bg); border-top: 1px solid var(--gl-metadata-bar-border); } /* When the issues row follows, drop the branch row's bottom border so the two rows read as a single tinted strip; the issues row carries the trailing border. */ .graph-details-header__branch-row:has(+ .graph-details-header__issues) { padding-bottom: 0.4rem; } .branch-identity, .branch-ops { display: flex; align-items: center; gap: 0.6rem; min-height: 2.4rem; } .branch-identity { flex: 1 1 auto; min-width: 0; } /* The branch-name is wrapped in a gl-tooltip that defaults to display:block, preventing the chip from shrinking at narrow panel widths. */ .branch-identity > gl-tooltip { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; } .branch-ops { flex: 0 0 auto; margin-left: auto; } .no-changes { min-width: 0; flex: 0 1 auto; color: var(--color-foreground--50); font-size: var(--gl-font-base); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .graph-details-header__branch-link { display: inline-flex; align-items: center; text-decoration: none; color: inherit; min-width: 0; } .graph-details-header__branch { min-width: 0; max-width: 20rem; flex: 0 1 auto; } .graph-details-header__merge-target { display: inline-flex; align-items: center; } .graph-details-header__merge-target-slot { display: inline-flex; align-items: center; min-width: 3.9rem; min-height: 2.4rem; } .graph-details-header__issues { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem var(--gl-panel-padding-right, 1rem) 0.4rem var(--gl-panel-padding-left, 1.2rem); min-width: 0; font-size: var(--gl-font-sm); background-color: var(--gl-metadata-bar-bg); border-bottom: 1px solid var(--gl-metadata-bar-border); --gl-chip-overflow-gap: 0.4rem; } /* When no issues row follows, the branch row owns the trailing border instead. */ .graph-details-header__branch-row:not(:has(+ .graph-details-header__issues)) { border-bottom: 1px solid var(--gl-metadata-bar-border); } .graph-details-header__issues-chips { flex: 1 1 auto; min-width: 0; } .issue-chip-group { display: inline-flex; align-items: center; min-width: 0; border-radius: 0.5rem; transition: background-color 150ms ease-out; } .issue-chip-group:hover, .issue-chip-group:focus-within { background-color: var(--vscode-toolbar-hoverBackground); } .issue-chip-group gl-autolink-chip { min-width: 0; } .issue-chip-group__remove { display: inline-flex; align-items: center; justify-content: center; height: 2rem; background: none; border: none; padding: 0 0.4rem; margin-left: -0.2rem; color: var(--color-foreground--50); cursor: pointer; border-radius: 0 0.5rem 0.5rem 0; opacity: 0; transition: opacity 150ms ease-out, color 150ms ease-out; } .issue-chip-group:hover .issue-chip-group__remove, .issue-chip-group:focus-within .issue-chip-group__remove { opacity: 1; } .issue-chip-group__remove:hover, .issue-chip-group__remove:focus-visible { color: var(--vscode-errorForeground); outline: none; } .associate-issue-action { flex-shrink: 0; color: var(--color-foreground--65); } .associate-issue-action--trailing { margin-left: auto; } `"
+          "default": "css` :host { display: contents; } .graph-details-header__title-group { display: flex; align-items: center; gap: 1.2rem; min-width: 0; flex: 1; } .graph-details-header__wip-title { min-width: 0; font-weight: 500; font-size: var(--gl-font-base); flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .graph-details-header__paused-op { display: flex; align-items: center; padding: 0.4rem var(--gl-panel-padding-right, 1rem) 0.4rem var(--gl-panel-padding-left, 1.2rem); background-color: var(--gl-metadata-bar-bg); border-bottom: 1px solid var(--gl-metadata-bar-border); } .graph-details-header__paused-op > gl-merge-rebase-status { flex: 1; min-width: 0; } /* The paused-op row trails the metadata strip; drop the prior row's bottom border so the chunk reads as one tinted strip with paused-op carrying the trailing border. */ .graph-details-header__branch-row:has(+ .graph-details-header__paused-op), .graph-details-header__issues:has(+ .graph-details-header__paused-op) { border-bottom: 0; } /* Secondary row beneath the WIP title — branch name, tracking pill, and branch ops. Visually matches the metadata bar in single/multi-commit details so the panel chrome reads as one piece (background, top/bottom borders). The shared CSS variables come from gl-details-base.css.ts. */ .graph-details-header__branch-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.2rem var(--gl-panel-padding-right, 1rem) 0.6rem var(--gl-panel-padding-left, 1.2rem); min-height: var(--gl-metadata-bar-min-height, 3.2rem); background-color: var(--gl-metadata-bar-bg); border-top: 1px solid var(--gl-metadata-bar-border); } /* When the issues row follows, drop the branch row's bottom border so the two rows read as a single tinted strip; the issues row carries the trailing border. */ .graph-details-header__branch-row:has(+ .graph-details-header__issues) { padding-bottom: 0.4rem; } .branch-identity, .branch-ops { display: flex; align-items: center; gap: 0.6rem; min-height: 2.4rem; } .branch-identity { flex: 1 1 auto; min-width: 0; } /* The branch-name is wrapped in a gl-tooltip that defaults to display:block, preventing the chip from shrinking at narrow panel widths. */ .branch-identity > gl-tooltip { display: flex; align-items: center; min-width: 0; flex: 0 1 auto; } .branch-ops { flex: 0 0 auto; margin-left: auto; } .no-changes { min-width: 0; flex: 0 1 auto; color: var(--color-foreground--50); font-size: var(--gl-font-base); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .graph-details-header__branch-link { display: inline-flex; align-items: center; text-decoration: none; color: inherit; min-width: 0; } .graph-details-header__branch { min-width: 0; max-width: 20rem; flex: 0 1 auto; } .graph-details-header__merge-target { display: inline-flex; align-items: center; } .graph-details-header__merge-target-slot { display: inline-flex; align-items: center; min-width: 3.9rem; min-height: 2.4rem; } .graph-details-header__issues { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem var(--gl-panel-padding-right, 1rem) 0.4rem var(--gl-panel-padding-left, 1.2rem); min-width: 0; font-size: var(--gl-font-sm); background-color: var(--gl-metadata-bar-bg); border-bottom: 1px solid var(--gl-metadata-bar-border); --gl-chip-overflow-gap: 0.4rem; } /* When no issues row and no paused-op row follow, the branch row owns the trailing border instead. */ .graph-details-header__branch-row:not(:has(+ .graph-details-header__issues, + .graph-details-header__paused-op)) { border-bottom: 1px solid var(--gl-metadata-bar-border); } .graph-details-header__issues-chips { flex: 1 1 auto; min-width: 0; } .issue-chip-group { display: inline-flex; align-items: center; min-width: 0; border-radius: 0.5rem; transition: background-color 150ms ease-out; } .issue-chip-group:hover, .issue-chip-group:focus-within { background-color: var(--vscode-toolbar-hoverBackground); } .issue-chip-group gl-autolink-chip { min-width: 0; } .issue-chip-group__remove { display: inline-flex; align-items: center; justify-content: center; height: 2rem; background: none; border: none; padding: 0 0.4rem; margin-left: -0.2rem; color: var(--color-foreground--50); cursor: pointer; border-radius: 0 0.5rem 0.5rem 0; opacity: 0; transition: opacity 150ms ease-out, color 150ms ease-out; } .issue-chip-group:hover .issue-chip-group__remove, .issue-chip-group:focus-within .issue-chip-group__remove { opacity: 1; } .issue-chip-group__remove:hover, .issue-chip-group__remove:focus-visible { color: var(--vscode-errorForeground); outline: none; } .associate-issue-action { flex-shrink: 0; color: var(--color-foreground--65); } .associate-issue-action--trailing { margin-left: auto; } `"
         }
       ],
       "exports": [
@@ -17575,6 +17603,11 @@
             {
               "kind": "method",
               "name": "renderMergeTargetStatus",
+              "privacy": "private"
+            },
+            {
+              "kind": "method",
+              "name": "renderPausedOpStatus",
               "privacy": "private"
             },
             {
@@ -17988,6 +18021,16 @@
             {
               "kind": "field",
               "name": "handleFileOpen",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "handleFileOpenConflictCurrent",
+              "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "handleFileOpenConflictIncoming",
               "privacy": "private"
             },
             {
@@ -45470,7 +45513,7 @@
         {
           "kind": "variable",
           "name": "badgeBase",
-          "default": "css` .badge { display: inline-flex; font-size: var(--gl-badge-font-size, x-small); font-variant: all-small-caps; font-weight: 600; color: var(--gl-badge-color, var(--color-foreground--50)); border: currentColor 1px solid; border-radius: 1rem; padding: 0 0.8rem 0.1rem; white-space: nowrap; } :host([appearance='filled']) .badge { background-color: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border: none; font-weight: 500; line-height: 1; min-width: 1.6rem; justify-content: center; padding: 0.2rem 0.4rem; border-radius: 0.4rem; } `"
+          "default": "css` .badge { display: inline-flex; font-size: var(--gl-badge-font-size, x-small); font-variant: all-small-caps; font-weight: 600; color: var(--gl-badge-color, var(--color-foreground--50)); border: currentColor 1px solid; border-radius: 1rem; padding: 0 0.8rem 0.1rem; white-space: nowrap; } :host([appearance='filled']) .badge { background-color: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border: none; font-weight: 500; line-height: 1; min-width: 1.6rem; justify-content: center; padding: 0.2rem 0.4rem; border-radius: 0.4rem; } :host([appearance='warning']) .badge { background-color: var(--vscode-gitDecoration-conflictingResourceForeground); color: var(--vscode-button-foreground, #fff); border: none; font-weight: 500; line-height: 1; min-width: 1.6rem; justify-content: center; padding: 0.2rem 0.4rem; border-radius: 0.4rem; } `"
         }
       ],
       "exports": [
@@ -59173,6 +59216,138 @@
     },
     {
       "kind": "javascript-module",
+      "path": "src/webviews/apps/shared/components/tree/conflictRendering.ts",
+      "declarations": [
+        {
+          "kind": "variable",
+          "name": "conflictActions",
+          "type": {
+            "text": "Record<string, { label: string; kind: TreeItemDecorationKind }>"
+          },
+          "default": "{ A: { label: 'Added', kind: 'added' }, D: { label: 'Deleted', kind: 'deleted' }, U: { label: 'Modified', kind: 'modified' }, }"
+        },
+        {
+          "kind": "function",
+          "name": "getConflictDecorations",
+          "return": {
+            "type": {
+              "text": "TreeItemDecoration[] | undefined"
+            }
+          },
+          "parameters": [
+            {
+              "name": "conflictStatus",
+              "type": {
+                "text": "GitFileConflictStatus"
+              }
+            },
+            {
+              "name": "conflictCount",
+              "type": {
+                "text": "number | undefined"
+              }
+            },
+            {
+              "name": "branchName",
+              "optional": true,
+              "type": {
+                "text": "string"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "getConflictStatusInfo",
+          "return": {
+            "type": {
+              "text": "{ label: string; kind: TreeItemDecorationKind; description: string } | undefined"
+            }
+          },
+          "parameters": [
+            {
+              "name": "status",
+              "type": {
+                "text": "GitFileConflictStatus"
+              }
+            },
+            {
+              "name": "branchName",
+              "optional": true,
+              "type": {
+                "text": "string"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
+          "name": "getConflictTooltip",
+          "return": {
+            "type": {
+              "text": "string"
+            }
+          },
+          "parameters": [
+            {
+              "name": "conflictStatus",
+              "type": {
+                "text": "GitFileConflictStatus"
+              }
+            },
+            {
+              "name": "conflictCount",
+              "type": {
+                "text": "number | undefined"
+              }
+            },
+            {
+              "name": "branchName",
+              "optional": true,
+              "type": {
+                "text": "string"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "conflictActions",
+          "declaration": {
+            "name": "conflictActions",
+            "module": "src/webviews/apps/shared/components/tree/conflictRendering.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "getConflictDecorations",
+          "declaration": {
+            "name": "getConflictDecorations",
+            "module": "src/webviews/apps/shared/components/tree/conflictRendering.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "getConflictStatusInfo",
+          "declaration": {
+            "name": "getConflictStatusInfo",
+            "module": "src/webviews/apps/shared/components/tree/conflictRendering.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "getConflictTooltip",
+          "declaration": {
+            "name": "getConflictTooltip",
+            "module": "src/webviews/apps/shared/components/tree/conflictRendering.ts"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
       "path": "src/webviews/apps/shared/components/tree/file-tree-utils.ts",
       "declarations": [
         {
@@ -60063,6 +60238,16 @@
             },
             {
               "kind": "field",
+              "name": "selectionAction",
+              "type": {
+                "text": "'file-open' | 'file-compare-previous'"
+              },
+              "default": "'file-compare-previous'",
+              "description": "Event name dispatched when a file row is selected (default click).\nDefaults to `'file-compare-previous'` to preserve historical SCM-style behavior.\nConsumers like the WIP tree pass `'file-open'` so a row click opens the file directly.",
+              "attribute": "selection-action"
+            },
+            {
+              "kind": "field",
               "name": "selectionBadge",
               "type": {
                 "text": "boolean"
@@ -60206,6 +60391,15 @@
                 "text": "GitCommitSearchContext | undefined"
               },
               "fieldName": "searchContext"
+            },
+            {
+              "name": "selection-action",
+              "type": {
+                "text": "'file-open' | 'file-compare-previous'"
+              },
+              "default": "'file-compare-previous'",
+              "description": "Event name dispatched when a file row is selected (default click).\nDefaults to `'file-compare-previous'` to preserve historical SCM-style behavior.\nConsumers like the WIP tree pass `'file-open'` so a row click opens the file directly.",
+              "fieldName": "selectionAction"
             },
             {
               "name": "selection-badge",

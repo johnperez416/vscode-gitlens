@@ -5,6 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { when } from 'lit/directives/when.js';
 import type { PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import { uncommitted } from '@gitlens/git/models/revision.js';
+import { isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
 import { equalsIgnoreCase } from '@gitlens/utils/string.js';
 import type { Draft } from '../../../../plus/drafts/models/drafts.js';
 import { createCommandLink } from '../../../../system/commands.js';
@@ -28,6 +29,7 @@ import '../../shared/components/chips/action-chip.js';
 import '../../shared/components/commit/commit-stats.js';
 import '../../shared/components/pills/tracking.js';
 import '../../shared/components/tree/gl-wip-tree-pane.js';
+import '../../plus/shared/components/merge-rebase-status.js';
 import './gl-inspect-patch.js';
 
 @customElement('gl-details-wip-panel')
@@ -411,12 +413,24 @@ export class GlDetailsWipPanel extends GlDetailsBase {
 		}
 
 		return html`
-			${this.renderActions()}
+			${this.renderActions()} ${this.renderPausedOpStatus()}
 			<webview-pane-group flexible>
 				${this.renderPullRequest()}
 				${when(this.inReview === false, () => this.renderChangedFiles('wip'))}${this.renderPatchCreation()}
 			</webview-pane-group>
 		`;
+	}
+
+	private renderPausedOpStatus() {
+		const pausedOpStatus = this.wip?.changes?.pausedOpStatus;
+		if (pausedOpStatus == null) return nothing;
+
+		return html`<div class="paused-op">
+			<gl-merge-rebase-status
+				?conflicts=${this.wip?.changes?.hasConflicts ?? false}
+				.pausedOpStatus=${pausedOpStatus}
+			></gl-merge-rebase-status>
+		</div>`;
 	}
 
 	private renderEmbedded() {
@@ -526,28 +540,34 @@ export class GlDetailsWipPanel extends GlDetailsBase {
 					? html`<commit-stats modified="${filesCount}" symbol="icons" appearance="pill"></commit-stats>`
 					: nothing}
 			</div>
+			${this.renderPausedOpStatus()}
 		</div>`;
 	}
 
 	override getFileActions(file: File, options?: Partial<TreeItemBase>): TreeItemAction[] {
-		const openFile = {
-			icon: 'go-to-file',
-			label: 'Open File',
-			action: 'file-open',
-		};
+		// Conflicted files get rebase-editor-style "Open Current/Incoming Changes" — these
+		// replace the generic Open File button (the row click already opens the file).
+		if (isConflictStatus(file.status)) {
+			return [
+				{ icon: 'gl-diff-left', label: 'Open Current Changes', action: 'file-open-current' },
+				{ icon: 'gl-diff-right', label: 'Open Incoming Changes', action: 'file-open-incoming' },
+			];
+		}
 
-		if (this.checkboxMode) return [openFile];
+		// Non-conflicted files: row click opens, so no Open File button. Checkbox mode handles
+		// staging via the row checkbox; non-checkbox mode shows Stage/Unstage buttons.
+		if (this.checkboxMode) return [];
 
 		const stage = { icon: 'plus', label: 'Stage Changes', action: 'file-stage' };
 		const unstage = { icon: 'remove', label: 'Unstage Changes', action: 'file-unstage' };
 
 		if (options?.mixed) {
-			return [openFile, stage, unstage];
+			return [stage, unstage];
 		}
 		if (file.staged === true) {
-			return [openFile, unstage];
+			return [unstage];
 		}
-		return [openFile, stage];
+		return [stage];
 	}
 
 	override getFileContext(file: File): string | undefined {

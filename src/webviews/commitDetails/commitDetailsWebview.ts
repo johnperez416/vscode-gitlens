@@ -1,10 +1,11 @@
 import type { TextDocumentShowOptions } from 'vscode';
-import { Disposable, EventEmitter, window } from 'vscode';
+import { Disposable, EventEmitter, Uri, window } from 'vscode';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
-import type { GitFileChange, GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
+import type { GitFileChange } from '@gitlens/git/models/fileChange.js';
 import type { GitRevisionReference } from '@gitlens/git/models/reference.js';
 import type { Repository } from '@gitlens/git/models/repository.js';
+import { isConflictStatus } from '@gitlens/git/utils/fileStatus.utils.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import { isUncommitted, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { MRU } from '@gitlens/utils/mru.js';
@@ -26,6 +27,7 @@ import {
 	getCommitAuthorAvatarUri,
 	getCommitCommitterAvatarUri,
 } from '../../git/utils/-webview/commit.utils.js';
+import { countConflictMarkers } from '../../git/utils/-webview/mergeConflicts.utils.js';
 import { getReferenceFromRevision } from '../../git/utils/-webview/reference.utils.js';
 import { executeCommand, executeCoreCommand, registerWebviewCommand } from '../../system/-webview/command.js';
 import { getWebviewCommand } from '../../system/decorators/command.js';
@@ -57,6 +59,7 @@ import type {
 	State,
 	Wip,
 	WipChange,
+	WipFileChange,
 } from './protocol.js';
 import { messageHeadlineSplitterToken } from './protocol.js';
 import type { CommitDetailsWebviewShowingArgs } from './registration.js';
@@ -572,18 +575,52 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 		return { navigationStack: this.getNavigationStack(), selectedCommit: selectedCommit };
 	}
 
+	private _wipConflictMarkerCache = new Map<string, { mtime: number; count: number }>();
+
 	private async getWipChange(repository: GlRepository): Promise<WipChange | undefined> {
-		const status = await this.container.git.getRepositoryService(repository.path).status.getStatus();
+		const svc = this.container.git.getRepositoryService(repository.path);
+		const [statusResult, pausedOpStatusResult] = await Promise.allSettled([
+			svc.status.getStatus(),
+			svc.pausedOps?.getPausedOperationStatus?.(),
+		]);
+
+		const status = getSettledValue(statusResult);
 		if (status == null) return undefined;
 
-		const files: GitFileChangeShape[] = [];
+		const pausedOpStatus = getSettledValue(pausedOpStatusResult);
+
+		const conflictMarkerCounts = new Map<string, number>();
+		if (status.hasConflicts) {
+			const conflictedPaths = new Set<string>();
+			for (const file of status.files) {
+				if (isConflictStatus(file.status)) {
+					conflictedPaths.add(file.path);
+				}
+			}
+			if (conflictedPaths.size > 0) {
+				const paths = [...conflictedPaths];
+				const counts = await Promise.allSettled(
+					paths.map(p => countConflictMarkers(Uri.joinPath(repository.uri, p), this._wipConflictMarkerCache)),
+				);
+				paths.forEach((p, i) => {
+					const count = getSettledValue(counts[i]);
+					if (count != null) {
+						conflictMarkerCounts.set(p, count);
+					}
+				});
+			}
+		}
+
+		const files: WipFileChange[] = [];
 		for (const file of status.files) {
-			const change = {
+			const conflictMarkers = conflictMarkerCounts.get(file.path);
+			const change: WipFileChange = {
 				repoPath: file.repoPath,
 				path: file.path,
 				status: file.status,
 				originalPath: file.originalPath,
 				staged: file.staged,
+				conflictMarkers: conflictMarkers,
 			};
 
 			files.push(change);
@@ -600,6 +637,8 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 			},
 			branchName: status.branch,
 			files: files,
+			hasConflicts: status.hasConflicts,
+			pausedOpStatus: pausedOpStatus,
 		};
 	}
 
