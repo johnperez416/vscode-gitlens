@@ -1073,6 +1073,18 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			if ('error' in result && result.error) {
 				panel?.setFocusAreaError(focusAreaId);
 			} else if ('result' in result && result.result) {
+				const reviewResource = this._actions.resources.review;
+				const current = reviewResource.value.get();
+				if (current != null && 'result' in current) {
+					reviewResource.mutate({
+						result: {
+							...current.result,
+							focusAreas: current.result.focusAreas.map(area =>
+								area.id === focusAreaId ? { ...area, findings: result.result.findings } : area,
+							),
+						},
+					});
+				}
 				panel?.updateFocusAreaFindings(focusAreaId, result.result);
 			}
 		} catch {

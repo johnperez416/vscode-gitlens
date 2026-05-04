@@ -572,9 +572,12 @@ export class GlDetailsReviewModePanel extends LitElement {
 		const isExpanded = this._expandedAreas.has(area.id);
 		const isLoading = this._loadingAreas.has(area.id);
 		const hasError = this._errorAreas.has(area.id);
-		const hasFindings = area.findings != null && area.findings.length > 0;
+		// `findings == null` means the area hasn't been analyzed yet (two-pass pass 2 not run);
+		// `findings.length === 0` means it was analyzed and the AI found no issues here.
+		const isAnalyzed = area.findings != null;
+		const hasFindings = isAnalyzed && area.findings.length > 0;
 		const isTwoPass = this.result?.mode === 'two-pass';
-		const needsAnalyze = isTwoPass && !hasFindings && !isLoading && !hasError;
+		const needsAnalyze = isTwoPass && !isAnalyzed && !isLoading && !hasError;
 
 		return html`<div class="review-area ${isExpanded ? 'review-area--expanded' : ''}">
 			<button
@@ -634,7 +637,14 @@ export class GlDetailsReviewModePanel extends LitElement {
 									</button>
 								</div>`
 							: nothing}
-						${hasFindings ? this.renderFindings(area.findings) : nothing}
+						${hasFindings
+							? this.renderFindings(area.findings)
+							: isAnalyzed && !isLoading && !hasError
+								? html`<div class="review-area__clean">
+										<code-icon icon="pass"></code-icon>
+										No issues found in these files.
+									</div>`
+								: nothing}
 					</div>`
 				: nothing}
 		</div>`;

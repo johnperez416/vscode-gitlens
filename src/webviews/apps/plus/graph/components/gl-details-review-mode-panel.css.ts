@@ -355,7 +355,8 @@ export const reviewModePanelStyles = css`
 	}
 
 	.review-area__loading,
-	.review-area__error {
+	.review-area__error,
+	.review-area__clean {
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
@@ -366,6 +367,10 @@ export const reviewModePanelStyles = css`
 
 	.review-area__error {
 		color: var(--vscode-editorError-foreground);
+	}
+
+	.review-area__clean {
+		color: var(--vscode-charts-green, #4ec9b0);
 	}
 
 	.review-area__retry-btn {
