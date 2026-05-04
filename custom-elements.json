@@ -11724,6 +11724,13 @@
                   "type": {
                     "text": "string | undefined"
                   }
+                },
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "{ lhs?: string; rhs?: string; line?: number; lineEnd?: number }"
+                  }
                 }
               ]
             },
@@ -12430,6 +12437,23 @@
         },
         {
           "kind": "function",
+          "name": "getReviewDiffEndpoints",
+          "return": {
+            "type": {
+              "text": "{ lhs: string; rhs: string } | undefined"
+            }
+          },
+          "parameters": [
+            {
+              "name": "scope",
+              "type": {
+                "text": "ScopeSelection | undefined"
+              }
+            }
+          ]
+        },
+        {
+          "kind": "function",
           "name": "scopeSelectionEqual",
           "return": {
             "type": {
@@ -12459,6 +12483,14 @@
           "name": "DetailsActions",
           "declaration": {
             "name": "DetailsActions",
+            "module": "src/webviews/apps/plus/graph/components/detailsActions.ts"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "getReviewDiffEndpoints",
+          "declaration": {
+            "name": "getReviewDiffEndpoints",
             "module": "src/webviews/apps/plus/graph/components/detailsActions.ts"
           }
         },

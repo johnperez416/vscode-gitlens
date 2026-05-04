@@ -14,7 +14,7 @@ import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
 import { ContextMenuProxyController } from '../../../shared/controllers/context-menu-proxy.js';
 import { graphServicesContext, graphStateContext } from '../context.js';
 import type { DetailsActions } from './detailsActions.js';
-import { scopeSelectionEqual } from './detailsActions.js';
+import { getReviewDiffEndpoints, scopeSelectionEqual } from './detailsActions.js';
 import { detailsActionsContext, detailsStateContext, detailsWorkflowContext } from './detailsContext.js';
 import { resolveDetailsActions } from './detailsResolver.js';
 import type { DetailsContext, DetailsState } from './detailsState.js';
@@ -965,8 +965,15 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				);
 			}}
 			@review-analyze-area=${(e: CustomEvent<ReviewAnalyzeAreaDetail>) => this.handleReviewAnalyzeArea(e)}
-			@review-open-file=${(e: CustomEvent<ReviewOpenFileDetail>) =>
-				this._actions.openFileByPath(e.detail.filePath, this.effectiveRepoPath)}
+			@review-open-file=${(e: CustomEvent<ReviewOpenFileDetail>) => {
+				const endpoints = getReviewDiffEndpoints(this._state.scope.get());
+				if (!endpoints) return;
+				this._actions.openFileByPath(e.detail.filePath, this.effectiveRepoPath, {
+					lhs: endpoints.lhs,
+					rhs: endpoints.rhs,
+					line: e.detail.line,
+				});
+			}}
 			@review-back=${() => this._workflow.review.back()}
 			@review-forward=${() => this._workflow.review.forward()}
 			@review-forward-invalidate=${() => this._workflow.review.invalidateSnapshot()}
@@ -999,10 +1006,13 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 	}
 
 	private handleReviewFileOpen = (e: CustomEvent<FileChangeListItemDetail>) => {
-		const scope = this._state.scope.get();
-		// Compare/commit scopes carry a real ref; wip scope is uncommitted (no ref).
-		const ref = scope?.type === 'commit' ? scope.sha : scope?.type === 'compare' ? scope.toSha : undefined;
-		this._actions.openFile(e.detail, ref);
+		// Open in a diff editor matching the review's reference frame, mirroring the AI link path.
+		const endpoints = getReviewDiffEndpoints(this._state.scope.get());
+		if (!endpoints) return;
+		this._actions.openFileByPath(e.detail.path, this.effectiveRepoPath, {
+			lhs: endpoints.lhs,
+			rhs: endpoints.rhs,
+		});
 	};
 
 	private handleComposeFileOpen = (e: CustomEvent<FileChangeListItemDetail>) => {

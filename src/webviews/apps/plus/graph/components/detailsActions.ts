@@ -19,7 +19,7 @@ import type { GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
 import type { IssueOrPullRequest } from '@gitlens/git/models/issueOrPullRequest.js';
 import type { PullRequestShape } from '@gitlens/git/models/pullRequest.js';
 import type { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
-import { uncommitted } from '@gitlens/git/models/revision.js';
+import { uncommitted, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import { areEqual } from '@gitlens/utils/array.js';
 import { LruMap } from '@gitlens/utils/lruMap.js';
@@ -74,6 +74,22 @@ export function scopeSelectionEqual(a: ScopeSelection | undefined, b: ScopeSelec
 		);
 	}
 	return false;
+}
+
+export function getReviewDiffEndpoints(scope: ScopeSelection | undefined): { lhs: string; rhs: string } | undefined {
+	if (scope == null) return undefined;
+	if (scope.type === 'commit') return { lhs: `${scope.sha}^`, rhs: scope.sha };
+	if (scope.type === 'compare') return { lhs: scope.fromSha, rhs: scope.toSha };
+	// wip — match scope inputs as closely as possible with a single range
+	const hasShas = (scope.includeShas?.length ?? 0) > 0;
+	if (scope.includeUnstaged && !scope.includeStaged && !hasShas) {
+		return { lhs: uncommittedStaged, rhs: uncommitted };
+	}
+	if (!scope.includeUnstaged && scope.includeStaged && !hasShas) {
+		return { lhs: 'HEAD', rhs: uncommittedStaged };
+	}
+	// Default wip → HEAD ↔ working tree (covers includeUnstaged+staged and includeShas variants)
+	return { lhs: 'HEAD', rhs: uncommitted };
 }
 
 type ResolvedSubService<K extends keyof GraphServices> = Awaited<Remote<GraphServices>[K]>;
@@ -1464,10 +1480,16 @@ export class DetailsActions {
 		return current;
 	}
 
-	openFileByPath(filePath: string, repoPath: string | undefined): void {
-		if (!repoPath) return;
-		const file = { repoPath: repoPath, path: filePath, status: 'M' as const };
-		void this.services.files.openFile(file);
+	openFileByPath(
+		filePath: string,
+		repoPath: string | undefined,
+		options?: { lhs?: string; rhs?: string; line?: number; lineEnd?: number },
+	): void {
+		if (!repoPath || !options?.lhs || !options.rhs) return;
+		void this.services.files.openFileChanges(repoPath, filePath, options.lhs, options.rhs, {
+			line: options.line,
+			lineEnd: options.lineEnd,
+		});
 	}
 
 	async composeCommitAll(

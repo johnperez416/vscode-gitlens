@@ -12,6 +12,8 @@
 
 import type { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange, GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
+import type { DiffRange } from '@gitlens/git/providers/types.js';
+import type { DiffWithCommandArgs } from '../../../commands/diffWith.js';
 import type { Container } from '../../../container.js';
 import {
 	openChanges,
@@ -110,6 +112,43 @@ export class FilesService {
 			lhs: { sha: lhsRef, uri: lhsUri },
 			rhs: { sha: rhsRef, uri: rhsUri },
 			showOptions: { preserveFocus: true, preview: true, ...showOptions },
+		});
+	}
+
+	/**
+	 * Open a file's changes between two refs as a diff editor, scrolled to a specific line on the rhs.
+	 *
+	 * `line` and `lineEnd` are 1-based to match the AI's diff line numbers; the resulting
+	 * selection is anchored on the rhs (the AI's "after" reference frame).
+	 */
+	// eslint-disable-next-line @typescript-eslint/require-await
+	async openFileChanges(
+		repoPath: string,
+		path: string,
+		lhsRef: string,
+		rhsRef: string,
+		options?: { line?: number; lineEnd?: number; showOptions?: FileShowOptions },
+	): Promise<void> {
+		const svc = this.container.git.getRepositoryService(repoPath);
+		const fileUri = svc.getAbsoluteUri(path, repoPath);
+
+		const range: DiffRange | undefined =
+			options?.line != null && options.line > 0
+				? {
+						startLine: options.line,
+						startCharacter: 1,
+						endLine: options.lineEnd ?? options.line,
+						endCharacter: 1,
+						active: 'start',
+					}
+				: undefined;
+
+		void executeCommand<DiffWithCommandArgs>('gitlens.diffWith', {
+			repoPath: repoPath,
+			lhs: { sha: lhsRef, uri: fileUri },
+			rhs: { sha: rhsRef, uri: fileUri },
+			range: range,
+			showOptions: { preserveFocus: true, preview: true, ...options?.showOptions },
 		});
 	}
 
