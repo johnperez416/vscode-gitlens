@@ -5236,6 +5236,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			queueMicrotask(async () => {
 				try {
 					const data = await dataPromise;
+					if (cancellation.token.isCancellationRequested || this._graphLoading !== dataPromise) return;
+
 					this.setGraph(data);
 
 					// Don't override selection if user selected something in the last 500ms
@@ -5733,7 +5735,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			this.resetSearchState();
 			this.cancelOperation('computeIncludedRefs');
 		} else {
-			void graph.rowsStatsDeferred?.promise.then(() => void this.notifyDidChangeRowsStats(graph));
+			void graph.rowsStatsDeferred?.promise.then(() => {
+				if (this._graph !== graph) return;
+				void this.notifyDidChangeRowsStats(graph);
+			});
 			void this.notifyDidChangeOverview();
 		}
 	}

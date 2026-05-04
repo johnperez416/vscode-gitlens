@@ -6,6 +6,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { when } from 'lit/directives/when.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
+import { Logger } from '@gitlens/utils/logger.js';
 import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type {
 	GetOverviewEnrichmentResponse,
@@ -336,7 +337,9 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		const fingerprint = this.getOverviewFingerprint(overview);
 		if (fingerprint !== this._lastOverviewFingerprint) {
 			this._lastOverviewFingerprint = fingerprint;
-			void this.fetchOverviewData(overview);
+			void this.fetchOverviewData(overview, fingerprint).catch((ex: unknown) => {
+				Logger.error(ex, 'GraphOverview: Failed to fetch overview data');
+			});
 		}
 		this._lastOverview = overview;
 	}
@@ -346,7 +349,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		return ids.sort().join(',');
 	}
 
-	private async fetchOverviewData(overview: GraphOverviewData) {
+	private async fetchOverviewData(overview: GraphOverviewData, fingerprint: string) {
 		const allBranches = [...overview.active, ...overview.recent];
 		if (allBranches.length === 0) return;
 
@@ -366,6 +369,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 				? Promise.resolve(sharedEnrichment)
 				: this._ipc.sendRequest(GetOverviewEnrichmentRequest, { branchIds: allIds }),
 		]);
+		if (this._lastOverviewFingerprint !== fingerprint) return;
 
 		// Prune entries for branches no longer in the overview so stale data doesn't linger.
 		this._wipData = wipResult ? filterToKeys(wipResult, keep) : {};
