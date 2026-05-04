@@ -271,7 +271,9 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		const selectedShas = new Set<string>(
 			this._state.selectedRows != null ? Object.keys(this._state.selectedRows) : [],
 		);
-		if (activeRowSha) selectedShas.add(activeRowSha);
+		if (activeRowSha) {
+			selectedShas.add(activeRowSha);
+		}
 		if (selectedShas.size === 0) {
 			if (this._selectionContainsByRepo.size > 0) {
 				this._selectionContainsByRepo = new Map();
@@ -321,7 +323,9 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 				bucket = new Set();
 				next.set(repoPath, bucket);
 			}
-			for (const name of names) bucket.add(name);
+			for (const name of names) {
+				bucket.add(name);
+			}
 		}
 		this._selectionContainsByRepo = next;
 	}
