@@ -447,6 +447,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		sessionId?: string;
 	};
 	private _computeWorktreeChangesPromise?: Promise<void>;
+	private _pendingWorktreeChanges?: Parameters<typeof getWorktreeHasWorkingChanges>[1][];
 	private _hoverCache = new Map<string, Promise<string>>();
 	private static readonly _diffCacheCap = 4;
 	/** LRU-capped per-AI-request diff cache. Cap is small because only one review and one
@@ -4272,9 +4273,18 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	private computeWorktreeChanges(worktrees: Parameters<typeof getWorktreeHasWorkingChanges>[1][]) {
-		// Deduplicate — skip if a computation is already in flight
-		this._computeWorktreeChangesPromise ??= this.doComputeWorktreeChanges(worktrees).finally(() => {
+		if (this._computeWorktreeChangesPromise != null) {
+			this._pendingWorktreeChanges = worktrees;
+			return;
+		}
+
+		this._computeWorktreeChangesPromise = this.doComputeWorktreeChanges(worktrees).finally(() => {
 			this._computeWorktreeChangesPromise = undefined;
+			const pending = this._pendingWorktreeChanges;
+			this._pendingWorktreeChanges = undefined;
+			if (pending != null) {
+				this.computeWorktreeChanges(pending);
+			}
 		});
 	}
 
