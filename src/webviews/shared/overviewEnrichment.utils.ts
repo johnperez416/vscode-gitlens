@@ -90,8 +90,15 @@ export async function getBranchMergeTargetStatusInfo(
 	branch: GitBranch,
 	cancellation?: AbortSignal,
 ): Promise<OverviewBranchMergeTarget | undefined> {
+	// Forward cancellation and bound the PR-based merge-target lookup. Without these the
+	// integration call (e.g. GitHub PR fetch) can take seconds-to-indefinite when slow,
+	// stranding the webview's mergeTarget loading flag because the RPC promise never settles.
+	// On timeout, getBranchMergeTargetInfo's paused result is ignored below and we fall through
+	// to baseBranch/defaultBranch — a usable answer instead of a stuck spinner.
 	const info = await getBranchMergeTargetInfo(container, branch, {
 		associatedPullRequest: getBranchAssociatedPullRequest(container, branch),
+		cancellation: cancellation,
+		timeout: 5000,
 	});
 
 	let targetResult;

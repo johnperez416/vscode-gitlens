@@ -22,11 +22,8 @@ import type { Autolink, EnrichedAutolink, MaybeEnrichedAutolink } from '../../..
 import { serializeAutolink } from '../../../autolinks/utils/-webview/autolinks.utils.js';
 import type { Container } from '../../../container.js';
 import { CommitFormatter } from '../../../git/formatters/commitFormatter.js';
-import { getBranchEnrichedAutolinks } from '../../../git/utils/-webview/branch.utils.js';
 import { getCommitEnrichedAutolinks } from '../../../git/utils/-webview/commit.utils.js';
 import { getBestRemoteWithIntegration } from '../../../git/utils/-webview/remote.utils.js';
-import type { OverviewBranchIssue } from '../../shared/overviewBranches.js';
-import { getAutolinkIssuesInfo } from '../../shared/overviewEnrichment.utils.js';
 
 // ============================================================
 // Result Types
@@ -202,27 +199,6 @@ export class AutolinksService {
 			}
 		}
 		return issues;
-	}
-
-	/**
-	 * Get enriched autolinks derived from a branch's name.
-	 * Resolves each matched issue/PR via integration APIs and returns the
-	 * serialized `OverviewBranchIssue[]` shape that webviews already consume.
-	 */
-	async getBranchAutolinks(
-		repoPath: string,
-		branchName: string,
-		signal?: AbortSignal,
-	): Promise<OverviewBranchIssue[]> {
-		signal?.throwIfAborted();
-		const svc = this.container.git.getRepositoryService(repoPath);
-		const branch = await svc.branches.getBranch(branchName);
-		signal?.throwIfAborted();
-		if (branch == null) return [];
-
-		const enriched = await getBranchEnrichedAutolinks(this.container, branch);
-		signal?.throwIfAborted();
-		return getAutolinkIssuesInfo(enriched);
 	}
 
 	/**

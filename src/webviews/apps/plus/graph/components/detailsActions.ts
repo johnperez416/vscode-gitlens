@@ -574,43 +574,79 @@ export class DetailsActions {
 			this.state.wipMergeTargetLoading.set(true);
 		}
 
-		guardedEnrich(
-			this.resources.wip,
-			signal,
-			() => s.autolinks.getBranchAutolinks(repoPath, branchName, signal),
-			autolinks => {
-				this._wipEnrichmentCache.update(cacheKey, { autolinks: autolinks });
-				this.state.wipAutolinks.set(autolinks);
-			},
-		);
+		// Single RPC, three deferred legs. The outer Promise resolves once the host has the
+		// branch + worktree-aware shape (cheap); each leg below settles on its own roundtrip
+		// so autolinks/issues don't wait on the slower mergeTargetStatus integration call.
+		// Belt-and-suspenders: clear the spinner if the merge-target leg hasn't settled in 10s.
+		// Set up before the outer .then so it covers the outer-rejection path too. The host
+		// already times out the PR-based merge-target lookup at 5s — this is a final safety
+		// net for transport stalls or future regressions in uncancellable subcalls.
+		const maxWaitTimer = setTimeout(() => {
+			if (signal.aborted) return;
+			this.state.wipMergeTargetLoading.set(false);
+		}, 10_000);
 
-		guardedEnrich(
-			this.resources.wip,
-			signal,
-			() => s.branches.getAssociatedIssues(repoPath, branchName, signal),
-			issues => {
-				this._wipEnrichmentCache.update(cacheKey, { issues: issues });
-				this.state.wipIssues.set(issues);
-			},
-		);
-
-		void s.branches
-			.getMergeTargetStatus(repoPath, branchName, signal)
-			.then(
-				enrichmentGuard(this.resources.wip, status => {
-					if (signal.aborted) return;
-					this._wipEnrichmentCache.update(cacheKey, { mergeTarget: status, hasMergeTarget: true });
-					this.state.wipMergeTarget.set(status);
-				}),
-				noopUnlessReal,
-			)
-			.finally(() => {
-				// Always clear the loading flag for THIS batch unless a newer batch has taken over
-				// (signaled by abort). Without the abort gate, the prior `guard()`-wrapped clear
-				// would skip on stale generations and leave the flag stuck at `true`.
+		void s.branches.getBranchEnrichment(repoPath, branchName, signal).then(
+			enrichmentGuard(this.resources.wip, enrichment => {
 				if (signal.aborted) return;
-				this.state.wipMergeTargetLoading.set(false);
-			});
+				if (enrichment == null) {
+					clearTimeout(maxWaitTimer);
+					this.state.wipMergeTargetLoading.set(false);
+					return;
+				}
+
+				void enrichment.autolinks.then(
+					enrichmentGuard(this.resources.wip, autolinks => {
+						if (signal.aborted) return;
+						this._wipEnrichmentCache.update(cacheKey, { autolinks: autolinks });
+						this.state.wipAutolinks.set(autolinks);
+					}),
+					noopUnlessReal,
+				);
+
+				void enrichment.issues.then(
+					enrichmentGuard(this.resources.wip, issues => {
+						if (signal.aborted) return;
+						this._wipEnrichmentCache.update(cacheKey, { issues: issues });
+						this.state.wipIssues.set(issues);
+					}),
+					noopUnlessReal,
+				);
+
+				void enrichment.mergeTargetStatus
+					.then(
+						enrichmentGuard(this.resources.wip, mergeTarget => {
+							if (signal.aborted) return;
+							const status: BranchMergeTargetStatus = {
+								branch: enrichment.branch,
+								mergeTarget: mergeTarget,
+							};
+							this._wipEnrichmentCache.update(cacheKey, {
+								mergeTarget: status,
+								hasMergeTarget: true,
+							});
+							this.state.wipMergeTarget.set(status);
+						}),
+						noopUnlessReal,
+					)
+					.finally(() => {
+						clearTimeout(maxWaitTimer);
+						// Always clear the loading flag for THIS batch unless a newer batch has
+						// taken over (signaled by abort). Without the abort gate, the prior
+						// `guard()`-wrapped clear would skip on stale generations and leave the
+						// flag stuck at `true`.
+						if (signal.aborted) return;
+						this.state.wipMergeTargetLoading.set(false);
+					});
+			}),
+			(e: unknown) => {
+				clearTimeout(maxWaitTimer);
+				if (!signal.aborted) {
+					this.state.wipMergeTargetLoading.set(false);
+				}
+				noopUnlessReal(e);
+			},
+		);
 	}
 
 	/** Re-fetch WIP branch enrichment in response to out-of-band git-config changes. */
