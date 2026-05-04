@@ -5695,9 +5695,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (id === ('work-dir-changes' satisfies GitGraphRowType)) {
 			selectedId = uncommitted;
 		}
-		if (this._selectedId === selectedId) return;
-
-		this._selectedId = selectedId;
+		if (this._selectedId !== selectedId) {
+			this._selectedId = selectedId;
+		}
 
 		// _selectedRows should always be a "virtual" row type
 		if (id === uncommitted) {

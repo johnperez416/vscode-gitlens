@@ -215,7 +215,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 		let result: GraphRow[] | undefined;
 		if (rows == null || wipMetadataBySha == null || Object.keys(wipMetadataBySha).length === 0) {
 			// Let the GK component handle the primary WIP auto-inject from workingTreeStats.
-			result = rows;
+			result = rows?.slice();
 		} else {
 			// The GK component mutates the passed array via unshift on each render, so rows[0] may
 			// already be a primary work-dir row from a previous pass. Strip it to avoid duplicates —
@@ -463,11 +463,12 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 		const fallbackRepoPath =
 			(selectedRepoId != null ? repositories?.find(r => r.id === selectedRepoId)?.path : undefined) ??
 			repositories?.[0]?.path;
+		const sourceRowBySha = sourceRows != null ? new Map(sourceRows.map(r => [r.sha, r])) : undefined;
 		let commits: Record<string, CommitDetails> | undefined;
-		if (sourceRows != null) {
+		if (sourceRowBySha != null) {
 			for (const sel of selection) {
 				if (sel.type === ('work-dir-changes' satisfies GitGraphRowType)) continue;
-				const sourceRow = sourceRows.find(r => r.sha === sel.id);
+				const sourceRow = sourceRowBySha.get(sel.id);
 				if (sourceRow == null) continue;
 				const repoPath = sel.repoPath ?? fallbackRepoPath;
 				if (repoPath == null) continue;
@@ -480,11 +481,8 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 		// processed row doesn't preserve custom properties from GitGraphRow)
 		const reachability =
 			focusedRow != null
-				? (
-						sourceRows?.find(r => r.sha === focusedRow.sha) as
-							| { reachability?: GitCommitReachability }
-							| undefined
-					)?.reachability
+				? (sourceRowBySha?.get(focusedRow.sha) as { reachability?: GitCommitReachability } | undefined)
+						?.reachability
 				: undefined;
 
 		this.dispatchEvent(
@@ -496,7 +494,9 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 		// Dedup host RPC: the GK component fires `graph-changeselection` on focus-row changes too, which
 		// can trip during scroll without any real selection change. Skip the IPC when the selection set
 		// (including active/hidden flags) matches what we last sent.
-		const selectionKey = selection.map(s => `${s.id}|${s.active ? 1 : 0}|${s.hidden ? 1 : 0}`).join(',');
+		const selectionKey = selection
+			.map(s => `${s.id}|${s.type}|${s.repoPath ?? ''}|${s.active ? 1 : 0}|${s.hidden ? 1 : 0}`)
+			.join(',');
 		if (selectionKey === this._lastSentSelectionKey) return;
 		this._lastSentSelectionKey = selectionKey;
 
