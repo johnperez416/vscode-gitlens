@@ -532,7 +532,11 @@ export const reviewChanges: PromptTemplate<'review-changes'> = {
 	variables: ['diff', 'message', 'instructions'],
 	template: `You are an expert code reviewer analyzing a set of code changes. Your goal is to identify meaningful issues — bugs, logic errors, security vulnerabilities, missing error handling, and potential regressions — while ignoring style preferences and linter-level concerns. Focus on problems a careful human reviewer would catch.
 
-Examine the following code changes in Git diff format:
+Examine the following code changes in Git diff format. Each non-header line inside a hunk has been annotated with its 1-based new-file line number in a \`[NNNNN]\` block placed immediately after the line-type marker (\` \`, \`+\`, or \`-\`):
+  \` [   42] context line\`     // context: exists in both old and new; number = new-file line
+  \`+[   43] added line\`        // added: only in new file; number = new-file line
+  \`-[     ] removed line\`      // removed: not in new file; brackets are blank
+  \`@@ -10,5 +12,7 @@ ...\`     // hunk header (no annotation; ignore for line citing)
 <~~diff~~>
 \${diff}
 </~~diff~~>
@@ -565,7 +569,7 @@ Guidelines:
 - Group related findings into focus areas by theme, not by file
 - If changes look correct and well-structured, say so in the overview and include zero focus areas
 - 3-5 high-quality findings are better than 15 low-quality ones
-- Reference specific lines from the diff when possible
+- For \`lines="start-end"\`, copy the numbers from the \`[NNNNN]\` annotations of the specific lines your finding concerns. Do not count, infer, or estimate — use only the annotated numbers. Removed lines (blank brackets \`[     ]\`) cannot be cited; pick the nearest surrounding new-file line instead. Anchor the range tightly to the lines the finding actually concerns; do not span an entire hunk.
 - Do not flag style issues, naming preferences, or things a linter would catch
 - Base conclusions only on the code shown — do not speculate about unseen code
 
@@ -630,7 +634,11 @@ Author's description of the changes:
 \${message}
 </~~message~~>
 
-Code changes for the files in this focus area (Git diff format):
+Code changes for the files in this focus area (Git diff format). Each non-header line inside a hunk has been annotated with its 1-based new-file line number in a \`[NNNNN]\` block placed immediately after the line-type marker (\` \`, \`+\`, or \`-\`):
+  \` [   42] context line\`     // context: exists in both old and new; number = new-file line
+  \`+[   43] added line\`        // added: only in new file; number = new-file line
+  \`-[     ] removed line\`      // removed: not in new file; brackets are blank
+  \`@@ -10,5 +12,7 @@ ...\`     // hunk header (no annotation; ignore for line citing)
 <~~diff~~>
 \${diff}
 </~~diff~~>
@@ -646,7 +654,7 @@ Produce detailed findings in the following XML format. Include ONLY the XML tags
 
 Guidelines:
 - Severity: "critical" = bugs, security, data loss; "warning" = logic concerns, error handling, regressions; "suggestion" = improvements, maintainability
-- Reference specific line numbers from the diff
+- For \`lines="start-end"\`, copy the numbers from the \`[NNNNN]\` annotations of the specific lines your finding concerns. Do not count, infer, or estimate — use only the annotated numbers. Removed lines (blank brackets \`[     ]\`) cannot be cited; pick the nearest surrounding new-file line instead. Anchor the range tightly to the lines the finding actually concerns; do not span an entire hunk.
 - Be concrete — explain what the problem is and how to fix it
 - If the code in this area looks correct, return an empty <findings></findings> block
 - Do not flag style issues or things a linter would catch

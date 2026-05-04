@@ -49,6 +49,7 @@ import { getScopedCounter } from '@gitlens/utils/counter.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
+import { annotateDiffWithNewLineNumbers } from '@gitlens/utils/diff.js';
 import { createDisposable, disposableInterval } from '@gitlens/utils/disposable.js';
 import { count, find, join, last } from '@gitlens/utils/iterable.js';
 import { Logger } from '@gitlens/utils/logger.js';
@@ -7277,7 +7278,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 			const commit = await svc.commits.getCommit(scope.sha);
 			signal?.throwIfAborted();
-			return { diff: diffResult.contents, message: commit?.message ?? '' };
+			return { diff: annotateDiffWithNewLineNumbers(diffResult.contents), message: commit?.message ?? '' };
 		}
 
 		if (scope.type === 'compare') {
@@ -7298,7 +7299,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				}
 				if (!parts.length) return undefined;
 				return {
-					diff: parts.join('\n'),
+					diff: annotateDiffWithNewLineNumbers(parts.join('\n')),
 					message: `Selected commits between ${shortenRevision(scope.fromSha)} and ${shortenRevision(scope.toSha)}:\n\n${messages.join('\n')}`,
 				};
 			}
@@ -7308,7 +7309,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			if (!data) return undefined;
 
 			return {
-				diff: data.diff,
+				diff: annotateDiffWithNewLineNumbers(data.diff),
 				message: `Changes between ${shortenRevision(scope.fromSha)} and ${shortenRevision(scope.toSha)}:\n\n${data.logMessages}`,
 			};
 		}
@@ -7356,7 +7357,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				message += `:\n\n${commitMessages.join('\n')}`;
 			}
 		}
-		return { diff: parts.join('\n'), message: message };
+		return { diff: annotateDiffWithNewLineNumbers(parts.join('\n')), message: message };
 	}
 
 	@command('gitlens.ai.explainCommit:')
