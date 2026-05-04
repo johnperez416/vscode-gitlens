@@ -1540,8 +1540,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					if (workingTreeFiles.length) {
 						commits.push({
 							sha: uncommitted,
-							shortSha: 'WIP',
-							message: 'Working Tree Changes',
+							shortSha: 'Working',
+							message: 'Working Changes',
 							author: '',
 							date: '',
 							files: workingTreeFiles,

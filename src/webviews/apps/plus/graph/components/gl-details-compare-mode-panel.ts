@@ -25,7 +25,6 @@ import {
 	subPanelEnterStyles,
 } from '../../../shared/components/styles/lit/base.css.js';
 import type { TreeItemAction } from '../../../shared/components/tree/base.js';
-import type { FileGroup } from '../../../shared/components/tree/file-tree-utils.js';
 import { compareModePanelStyles } from './gl-details-compare-mode-panel.css.js';
 import './gl-commit-row.js';
 import '../../../shared/components/code-icon.js';
@@ -173,14 +172,6 @@ export class GlDetailsCompareModePanel extends LitElement {
 	 */
 	@state()
 	private _comparisonChanging = false;
-
-	private readonly fileSourceGrouping = {
-		getGroup: (file: BranchComparisonFile) => file.source ?? 'comparison',
-		groups: [
-			{ key: 'comparison', label: 'Comparison Changes' },
-			{ key: 'workingTree', label: 'Working Tree Changes' },
-		] satisfies FileGroup[],
-	};
 
 	override connectedCallback(): void {
 		super.connectedCallback?.();
@@ -445,9 +436,16 @@ export class GlDetailsCompareModePanel extends LitElement {
 		</div>`;
 	}
 
+	/** Ahead tab carries a synthetic WIP row when there are working-tree changes, even when the
+	 *  commit count is 0. Used by `isEmpty` styling and the up-to-date check so the tab isn't
+	 *  grayed out / labeled "up to date" when uncommitted changes are visible inside it. */
+	private get aheadHasWip(): boolean {
+		return this.aheadCommits[0]?.sha === uncommitted;
+	}
+
 	private renderTab(tab: 'all' | 'ahead' | 'behind', icon: string | undefined, label: string, count: number) {
 		const isActive = this.activeTab === tab;
-		const isEmpty = count === 0;
+		const isEmpty = count === 0 && !(tab === 'ahead' && this.aheadHasWip);
 		const classes = [
 			'wip-compare-tab',
 			`wip-compare-tab--${tab}`,
@@ -493,7 +491,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 				></div>`;
 			}
 
-			const isUpToDate = this.aheadCount === 0 && this.behindCount === 0;
+			const isUpToDate = this.aheadCount === 0 && this.behindCount === 0 && !this.aheadHasWip;
 			const rightRef = this.rightRef ?? '';
 			if (isUpToDate) {
 				return html`<div
@@ -604,7 +602,6 @@ export class GlDetailsCompareModePanel extends LitElement {
 			<webview-pane-group flexible>
 				<gl-file-tree-pane
 					.files=${files}
-					.grouping=${this.getFileGrouping(files)}
 					.filesLayout=${this.preferences?.files}
 					.showIndentGuides=${this.preferences?.indentGuides}
 					.collapsable=${false}
@@ -628,26 +625,35 @@ export class GlDetailsCompareModePanel extends LitElement {
 							</div>`
 						: nothing}
 					${isScoped
-						? html`<gl-tooltip slot="header-badge" placement="top">
-								<span class="wip-compare-scope-tag">
-									<code-icon icon="git-commit"></code-icon>
-									${this.selectedCommitSha!.substring(0, 7)}
-									<gl-tooltip placement="bottom">
-										<button
-											class="wip-compare-scope-tag__close"
-											aria-label="Clear commit filter"
-											@click=${(e: MouseEvent) => {
-												e.stopPropagation();
-												this.dispatchSelectCommit(this.selectedCommitSha!);
-											}}
-										>
-											<code-icon icon="close"></code-icon>
-										</button>
-										<span slot="content">Clear Commit Filter</span>
-									</gl-tooltip>
-								</span>
-								<span slot="content">Showing Only Commit Changes</span>
-							</gl-tooltip>`
+						? (() => {
+								const isWipScope = this.selectedCommitSha === uncommitted;
+								const label = isWipScope ? 'Working' : this.selectedCommitSha!.substring(0, 7);
+								const icon = isWipScope ? 'edit' : 'git-commit';
+								const clearLabel = isWipScope ? 'Clear Working Changes Filter' : 'Clear Commit Filter';
+								const headerTooltip = isWipScope
+									? 'Showing Only Working Changes'
+									: 'Showing Only Commit Changes';
+								return html`<gl-tooltip slot="header-badge" placement="top">
+									<span class="wip-compare-scope-tag">
+										<code-icon icon=${icon}></code-icon>
+										${label}
+										<gl-tooltip placement="bottom">
+											<button
+												class="wip-compare-scope-tag__close"
+												aria-label=${clearLabel}
+												@click=${(e: MouseEvent) => {
+													e.stopPropagation();
+													this.dispatchSelectCommit(this.selectedCommitSha!);
+												}}
+											>
+												<code-icon icon="close"></code-icon>
+											</button>
+											<span slot="content">${clearLabel}</span>
+										</gl-tooltip>
+									</span>
+									<span slot="content">${headerTooltip}</span>
+								</gl-tooltip>`;
+							})()
 						: nothing}
 					${stats != null && (stats.additions > 0 || stats.deletions > 0)
 						? html`<span slot="header-badge" class="wip-compare-stats">
@@ -674,10 +680,6 @@ export class GlDetailsCompareModePanel extends LitElement {
 			}
 		}
 		return { additions: additions, deletions: deletions };
-	}
-
-	private getFileGrouping(files: readonly BranchComparisonFile[]) {
-		return files.some(f => f.source === 'workingTree') ? this.fileSourceGrouping : undefined;
 	}
 
 	private _cachedMergedAutolinks?: {

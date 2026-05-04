@@ -369,8 +369,8 @@ export const compareModePanelStyles = css`
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
-		margin: 0.6rem 0.6rem 0 0.6rem;
-		padding: 0 0.3rem 0 0.4rem;
+		margin: 0 0.6rem;
+		padding: 0.1rem 0.3rem 0.1rem 0.4rem;
 		line-height: 1;
 		border-radius: 0.3rem;
 		font-size: 1.2rem;
@@ -407,11 +407,11 @@ export const compareModePanelStyles = css`
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 1.6rem;
-		height: 1.6rem;
+		width: 1.4rem;
+		height: 1.4rem;
 		border: none;
 		border-radius: 0.2rem;
-		margin-left: 0.2rem;
+		margin-left: 0.1rem;
 		background: transparent;
 		color: inherit;
 		opacity: 0.75;

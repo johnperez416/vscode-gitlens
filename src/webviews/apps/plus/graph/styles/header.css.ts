@@ -89,6 +89,24 @@ export const titlebarStyles = css`
 		flex: 0 1 auto;
 		white-space: nowrap;
 	}
+
+	/* Search row uses one group; set per-child shrink priorities so the
+	   search box yields width first, then the scope chip, while dividers
+	   and the button-group stay pinned. */
+	.titlebar__row--search .titlebar__group {
+		min-width: 0;
+	}
+	.titlebar__row--search .titlebar__group > gl-graph-scope-popover {
+		flex: 0 1 auto;
+		min-width: 0;
+	}
+	.titlebar__row--search .titlebar__group > gl-search-box {
+		flex-shrink: 100;
+	}
+	.titlebar__row--search .titlebar__group > .button-group,
+	.titlebar__row--search .titlebar__group > span {
+		flex: none;
+	}
 	/* LEFT floor accommodates the user-facing minimum: repo provider icon + ~3 chars of
 	   repo name + chevron-right separator + branch picker icon + ~3 chars of branch
 	   name + jump-to-ref icon + 3 × 0.5rem inner gaps. */

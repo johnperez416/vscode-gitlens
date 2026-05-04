@@ -106,7 +106,11 @@ export class GlDetailsWipHeader extends LitElement {
 										</gl-tooltip>`
 									: nothing}
 								${ahead > 0 || behind > 0
-									? html`<gl-tracking-pill .ahead=${ahead} .behind=${behind}></gl-tracking-pill>`
+									? html`<gl-tracking-pill
+											.ahead=${ahead}
+											.behind=${behind}
+											colorized
+										></gl-tracking-pill>`
 									: nothing}
 								${this.renderMergeTargetStatus()}
 							</div>

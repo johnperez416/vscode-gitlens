@@ -38,7 +38,8 @@ export class GlSearchBox extends GlElement {
 			align-items: center;
 			gap: 0.8rem;
 			color: var(--color-foreground);
-			flex: auto 1 1;
+			flex: 1 100 auto;
+			min-width: 16rem;
 			position: relative;
 		}
 		:host(:focus) {
@@ -57,10 +58,14 @@ export class GlSearchBox extends GlElement {
 		}
 
 		.count {
-			flex: none;
+			flex: 0 1 auto;
 			margin-right: 0.4rem;
 			font-size: 1.2rem;
-			min-width: 10ch;
+			min-width: 0;
+			max-width: 12ch;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 
 		.count.error {

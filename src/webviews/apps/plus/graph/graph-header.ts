@@ -1181,7 +1181,7 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 		const rowClass = scoped ? 'titlebar__row--scoped' : filtered ? 'titlebar__row--filtered' : '';
 
 		return html`
-			<div class="titlebar__row ${rowClass}">
+			<div class="titlebar__row titlebar__row--search ${rowClass}">
 				<div class="titlebar__group">
 					<gl-graph-scope-popover .repo=${repo}></gl-graph-scope-popover> ${this.renderHiddenRefs(
 						excludeRefs,

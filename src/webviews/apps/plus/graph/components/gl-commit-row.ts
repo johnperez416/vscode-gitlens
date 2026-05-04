@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { Preferences } from '../../../../plus/graph/detailsProtocol.js';
 import { getCommitHeadline } from '../../../shared/components/commit/commit-popover-content.js';
 import '../../../shared/components/avatar/avatar.js';
@@ -37,6 +38,11 @@ export class GlCommitRow extends LitElement {
 			min-width: 0;
 			padding: 0.2rem 0;
 			line-height: 1.35;
+		}
+
+		/* WIP rows have no meta line — collapse the grid to a single row so the message centers. */
+		.row--wip {
+			grid-template-areas: 'avatar message';
 		}
 
 		.avatar {
@@ -150,25 +156,30 @@ export class GlCommitRow extends LitElement {
 		if (!commit) return nothing;
 
 		const headline = getCommitHeadline(commit.message);
+		// WIP rows have no author/sha/date to show; suppress the meta line so the row is a single
+		// line of just the working-tree label, instead of a stacked "Working Tree Changes" / "WIP".
+		const isWip = commit.sha === uncommitted;
 
-		return html`<div class="row">
+		return html`<div class="row ${isWip ? 'row--wip' : ''}">
 			${commit.avatarUrl ? html`<gl-avatar class="avatar" .src=${commit.avatarUrl}></gl-avatar>` : nothing}
 			<span class="msg">${headline}</span>
-			<span class="meta">
-				<span class="sha">${commit.shortSha}</span>
-				<span class="dot" aria-hidden="true">·</span>
-				<span class="author">${commit.author}</span>
-				<span class="trailing">
-					<span class="dot dot--before-date" aria-hidden="true">·</span>
-					<formatted-date
-						class="date"
-						.date=${new Date(commit.date)}
-						.format=${this.preferences?.dateFormat}
-						.dateStyle=${this.preferences?.dateStyle ?? 'relative'}
-					></formatted-date>
-					${this.renderStats(commit)}
-				</span>
-			</span>
+			${isWip
+				? nothing
+				: html`<span class="meta">
+						<span class="sha">${commit.shortSha}</span>
+						<span class="dot" aria-hidden="true">·</span>
+						<span class="author">${commit.author}</span>
+						<span class="trailing">
+							<span class="dot dot--before-date" aria-hidden="true">·</span>
+							<formatted-date
+								class="date"
+								.date=${new Date(commit.date)}
+								.format=${this.preferences?.dateFormat}
+								.dateStyle=${this.preferences?.dateStyle ?? 'relative'}
+							></formatted-date>
+							${this.renderStats(commit)}
+						</span>
+					</span>`}
 		</div>`;
 	}
 

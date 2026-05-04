@@ -245,7 +245,9 @@ export class PushPullButton extends LitElement {
 			}
 
 			.pill {
-				display: inline-block;
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
 				padding: 0.2rem 0.5rem;
 				border-radius: 0.5rem;
 				font-size: 1rem;
@@ -254,6 +256,11 @@ export class PushPullButton extends LitElement {
 				text-transform: uppercase;
 				color: var(--vscode-foreground);
 				background-color: var(--vscode-editorWidget-background);
+			}
+			.pill > span {
+				display: inline-flex;
+				align-items: center;
+				gap: 0;
 			}
 			.pill code-icon {
 				font-size: inherit !important;
@@ -348,20 +355,10 @@ export class PushPullButton extends LitElement {
 					<span>
 						<span class="pill action-button__pill">
 							${this.isBehind
-								? html`
-										<span>
-											${this.branchState.behind}
-											<code-icon icon="arrow-down"></code-icon>
-										</span>
-									`
+								? html`<span>${this.branchState.behind}<code-icon icon="arrow-down"></code-icon></span>`
 								: ''}
 							${this.isAhead
-								? html`
-										<span>
-											${this.isBehind ? html`&nbsp;&nbsp;` : ''} ${this.branchState.ahead}
-											<code-icon icon="arrow-up"></code-icon>
-										</span>
-									`
+								? html`<span>${this.branchState.ahead}<code-icon icon="arrow-up"></code-icon></span>`
 								: ''}
 						</span>
 					</span>

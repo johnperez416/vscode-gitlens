@@ -200,10 +200,12 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 		// tree retain focus, scroll position, and expansion state.
 		const hasSubPanel = this.subPanelContent != null && this.subPanelContent !== nothing;
 
-		// Compose mode replaces the comparison metadata strip with its own plan UI; every
-		// other mode (including Review and the implicit no-mode/Compare) shares the same
-		// comparison context and should keep the metadata bar visible above the sub-panel.
-		const showMetadataBar = this.activeMode !== 'compose';
+		// Compose mode replaces the comparison metadata strip with its own plan UI, and
+		// Compare mode's sub-panel already renders its own comparison bar with the left/right
+		// refs — so the host's metadata bar would just duplicate that framing. Review mode and
+		// the implicit no-mode default share the same comparison context as the host and keep
+		// the metadata bar visible above the sub-panel.
+		const showMetadataBar = this.activeMode !== 'compose' && this.activeMode !== 'compare';
 
 		return html`
 			${isInitialLoad

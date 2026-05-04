@@ -104,7 +104,7 @@ export const detailsCommitPanelStyles = css`
 		border-bottom: 1px solid var(--gl-metadata-bar-border);
 	}
 	:host([variant='embedded']) .metadata-bar:has(+ .reachability) {
-		border-bottom: none;
+		border-bottom-color: transparent;
 	}
 
 	:host([variant='embedded']) .metadata-bar__left {
