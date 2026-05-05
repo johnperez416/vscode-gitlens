@@ -321,6 +321,13 @@ export class GlGraphOverviewCard extends LitElement {
 			color: var(--vscode-descriptionForeground);
 		}
 
+		.branch-item__active-agents {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 0.4rem;
+		}
+
 		.branch-item__date {
 			margin-inline-end: auto;
 		}
@@ -609,7 +616,7 @@ export class GlGraphOverviewCard extends LitElement {
 							<span class="branch-item__name">${this.branch.name}</span>
 							${this.renderInlineActions()}
 						</p>
-						${this.renderMeta()}
+						${this.renderMeta()} ${this.renderActiveAgentPills()}
 					</div>
 				</gl-card>
 				<div slot="content" class="hover">${when(this._hoverShown, () => this.renderHoverContent())}</div>
@@ -896,6 +903,21 @@ export class GlGraphOverviewCard extends LitElement {
 			>
 			<span slot="content">${pluralize('agent session', sessions.length)}</span></gl-tooltip
 		>`;
+	}
+
+	private renderActiveAgentPills() {
+		// Surface waiting-phase pills on the card itself so the user sees actionable agent
+		// states without opening the rich hover. Working/idle sessions stay quiet here and
+		// continue to render in `renderHoverAgents()`.
+		const sessions = this.agentSessions;
+		if (sessions == null || sessions.length === 0) return nothing;
+
+		const active = sessions.filter(s => s.phase === 'waiting');
+		if (active.length === 0) return nothing;
+
+		return html`<div class="branch-item__active-agents">
+			${active.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
+		</div>`;
 	}
 
 	private renderInlineActions() {
