@@ -28270,7 +28270,7 @@
 		"prepare": "husky"
 	},
 	"dependencies": {
-		"@awesome.me/webawesome": "3.5.0",
+		"@awesome.me/webawesome": "3.6.0",
 		"@eamodio/supertalk": "0.0.7",
 		"@eamodio/supertalk-core": "0.0.6",
 		"@eamodio/supertalk-signals": "0.0.6",
@@ -28316,7 +28316,7 @@
 	},
 	"devDependencies": {
 		"@custom-elements-manifest/analyzer": "0.11.0",
-		"@e18e/eslint-plugin": "0.3.0",
+		"@e18e/eslint-plugin": "0.4.1",
 		"@eamodio/eslint-lite-webpack-plugin": "0.5.0",
 		"@eslint/compat": "2.0.5",
 		"@eslint/js": "10.0.1",
@@ -28324,7 +28324,7 @@
 		"@playwright/test": "1.59.1",
 		"@prettier/plugin-oxc": "0.1.4",
 		"@profoundlogic/hogan": "3.0.4",
-		"@swc/core": "1.15.30",
+		"@swc/core": "1.15.32",
 		"@types/mocha": "catalog:",
 		"@types/node": "20.16.15",
 		"@types/react": "19.2.14",
@@ -28333,7 +28333,7 @@
 		"@types/slug": "5.0.9",
 		"@types/sortablejs": "1.15.9",
 		"@types/vscode": "1.101.0",
-		"@typescript-eslint/parser": "8.59.0",
+		"@typescript-eslint/parser": "8.59.1",
 		"@vscode/test-cli": "0.0.12",
 		"@vscode/test-electron": "2.5.2",
 		"@vscode/test-web": "0.0.80",
@@ -28350,7 +28350,7 @@
 		"esbuild-loader": "4.4.3",
 		"esbuild-node-externals": "1.22.0",
 		"esbuild-sass-plugin": "3.7.0",
-		"eslint": "10.2.1",
+		"eslint": "10.3.0",
 		"eslint-import-resolver-typescript": "4.4.4",
 		"eslint-plugin-anti-trojan-source": "1.1.2",
 		"eslint-plugin-import-x": "4.16.2",
@@ -28379,17 +28379,17 @@
 		"sharp": "0.34.5",
 		"sinon": "catalog:",
 		"svgo": "4.0.1",
-		"terser-webpack-plugin": "5.4.0",
+		"terser-webpack-plugin": "5.5.0",
 		"tinybench": "catalog:",
 		"ts-loader": "9.5.7",
 		"typescript": "catalog:",
-		"typescript-eslint": "8.59.0",
+		"typescript-eslint": "8.59.1",
 		"webpack": "5.106.2",
 		"webpack-bundle-analyzer": "5.3.0",
 		"webpack-cli": "7.0.2",
 		"webpack-node-externals": "3.0.0",
 		"webpack-require-from": "1.8.6",
-		"zod": "4.3.6"
+		"zod": "4.4.3"
 	},
 	"pnpm": {
 		"packageExtensions": {

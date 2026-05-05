@@ -8,7 +8,7 @@ catalog:
     '@types/sinon': 21.0.1
     mocha: 11.7.5
     sinon: 21.1.2
-    tinybench: 6.0.0
+    tinybench: 6.0.1
     tsx: 4.21.0
     typescript: 6.0.3
 
@@ -35,6 +35,9 @@ minimumReleaseAgeExclude:
     - '@eamodio/*'
     - '@gitkraken/*'
     - '@vscode/*'
+    - '@awesome.me/webawesome@3.6.0'
+    - 'eslint@10.3.0'
+    - 'zod@4.4.3'
 
 patchedDependencies:
     fantasticon@4.1.0: patches/fantasticon@4.1.0.patch

@@ -6,8 +6,8 @@
  * Tests realistic Git command streaming scenarios with various chunk sizes.
  */
 
-import { iterateAsyncByDelimiter } from '@gitlens/utils/string.js';
 import { Bench } from 'tinybench';
+import { iterateAsyncByDelimiter } from '@gitlens/utils/string.js';
 import {
 	consumeAsyncIterator,
 	displayAnalysisHeader,
