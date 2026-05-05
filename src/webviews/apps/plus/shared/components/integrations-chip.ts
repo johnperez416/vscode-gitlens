@@ -121,7 +121,8 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 				padding-top: 0.6rem;
 			}
 
-			.integration-row--mcp {
+			.integration-row--mcp,
+			.integration-row--hooks {
 				padding-top: 0;
 			}
 
@@ -263,7 +264,9 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 			<span slot="anchor" class="chip" tabindex="0"
 				>${!anyConnected ? html`<span class="chip__label">Connect</span>` : ''}${this.integrations
 					.filter(statusFilter)
-					.map(i => this.renderIntegrationStatus(i))}${this.renderAIStatus()}${this.renderMcpStatus()}</span
+					.map(i =>
+						this.renderIntegrationStatus(i),
+					)}${this.renderAIStatus()}${this.renderMcpStatus()}${this.renderHooksStatus()}</span
 			>
 			<div slot="content" class="content">
 				<div class="header">
@@ -312,7 +315,7 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 									>
 								</button-container>`
 						: this.integrations.map(i => this.renderIntegrationRow(i))
-				}${this.renderAIRow()}${this.renderMcpRow()}</div>
+				}${this.renderAIRow()}${this.renderMcpRow()}${this.renderHooksRow()}</div>
 			</div>
 		</gl-popover>`;
 	}
@@ -568,6 +571,42 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 									><code-icon icon="unlock"></code-icon
 								></gl-button>
 							</span>`}
+		</div>`;
+	}
+
+	private renderHooksStatus() {
+		if (!this.aiEnabled || !this.ai.hooks.canInstallClaudeHook) return nothing;
+		return html`<span class="integration status--disconnected" slot="anchor">
+			<code-icon icon="hubot"></code-icon>
+		</span>`;
+	}
+
+	private renderHooksRow() {
+		if (!this.aiEnabled) return nothing;
+		if (!this.ai.hooks.canInstallClaudeHook) return nothing;
+
+		return html`<div class="integration-row integration-row--hooks status--disconnected">
+			<span class="integration__icon"><code-icon icon="hubot"></code-icon></span>
+			<span class="integration__content">
+				<span class="integration__title">GitKraken Claude Code Hooks</span>
+				<span class="integration__details">Configure Claude to surface agent status</span>
+			</span>
+			<span class="integration__actions">
+				<gl-button
+					appearance="toolbar"
+					href="${createCommandLink('gitlens.agents.installClaudeHook')}"
+					tooltip="Install Claude Hook"
+					aria-label="Install Claude Hook"
+					><code-icon icon="plug"></code-icon
+				></gl-button>
+				<gl-button
+					appearance="toolbar"
+					href="${createCommandLink('gitlens.agents.uninstallClaudeHook')}"
+					tooltip="Uninstall Claude Hook"
+					aria-label="Uninstall Claude Hook"
+					><code-icon icon="trash"></code-icon
+				></gl-button>
+			</span>
 		</div>`;
 	}
 }
