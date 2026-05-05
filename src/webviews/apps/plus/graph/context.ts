@@ -18,6 +18,7 @@ export interface AppState extends State {
 	isBusy: boolean;
 	loading: boolean;
 	mcpBannerCollapsed?: boolean | undefined;
+	hooksBannerCollapsed?: boolean | undefined;
 	canInstallClaudeHook?: boolean | undefined;
 	navigating: 'next' | 'previous' | false;
 	overviewWip?: GetOverviewWipResponse;

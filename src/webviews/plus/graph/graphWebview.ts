@@ -161,7 +161,7 @@ import type { OnboardingChangeEvent } from '../../../onboarding/onboardingServic
 import { shouldUseSinglePass } from '../../../plus/ai/actions/reviewChanges.js';
 import { prepareCompareDataForAIRequest } from '../../../plus/ai/utils/-webview/ai.utils.js';
 import type { FeaturePreviewChangeEvent, SubscriptionChangeEvent } from '../../../plus/gk/subscriptionService.js';
-import { isMcpBannerEnabled } from '../../../plus/gk/utils/-webview/mcp.utils.js';
+import { isHooksBannerEnabled, isMcpBannerEnabled } from '../../../plus/gk/utils/-webview/mcp.utils.js';
 import { isSubscriptionTrialOrPaidFromState } from '../../../plus/gk/utils/subscription.utils.js';
 import type { ConnectionStateChangeEvent } from '../../../plus/integrations/integrationService.js';
 import { getPullRequestBranchDeepLink } from '../../../plus/launchpad/launchpadProvider.js';
@@ -289,6 +289,7 @@ import {
 	DidChangeCanInstallClaudeHook,
 	DidChangeColumnsNotification,
 	DidChangeGraphConfigurationNotification,
+	DidChangeHooksBanner,
 	DidChangeMcpBanner,
 	DidChangeNotification,
 	DidChangeOrgSettings,
@@ -2687,6 +2688,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private onOnboardingChanged(e: OnboardingChangeEvent) {
 		if (e.key === 'mcp:banner') {
 			this.onMcpBannerChanged();
+			// Dismissing the MCP banner can newly enable the hooks banner — refresh both.
+			this.onHooksBannerChanged();
+		} else if (e.key === 'hooks:banner') {
+			this.onHooksBannerChanged();
 		}
 	}
 
@@ -2696,8 +2701,18 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		void this.host.notify(DidChangeMcpBanner, this.getMcpBannerCollapsed());
 	}
 
+	private onHooksBannerChanged() {
+		if (!this.host.visible) return;
+
+		void this.host.notify(DidChangeHooksBanner, this.getHooksBannerCollapsed());
+	}
+
 	private getMcpBannerCollapsed() {
 		return !isMcpBannerEnabled(this.container);
+	}
+
+	private getHooksBannerCollapsed() {
+		return !isHooksBannerEnabled(this.container);
 	}
 
 	private onThemeChanged(theme: ColorTheme) {
@@ -5407,6 +5422,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			orgSettings: this.getOrgSettings(),
 			overview: this.getOverviewData(),
 			mcpBannerCollapsed: this.getMcpBannerCollapsed(),
+			hooksBannerCollapsed: this.getHooksBannerCollapsed(),
 			canInstallClaudeHook: getContext('gitlens:agents:enabled', false) && (await isClaudeAvailable()),
 			searchRequest: searchRequest,
 			detailsVisible: storedPanels?.details?.visible ?? true,

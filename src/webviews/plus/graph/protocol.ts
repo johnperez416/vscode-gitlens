@@ -205,6 +205,7 @@ export interface State extends WebviewState<'gitlens.graph' | 'gitlens.views.gra
 	orgSettings?: { ai: boolean; drafts: boolean };
 	overview?: GraphOverviewData;
 	mcpBannerCollapsed?: boolean;
+	hooksBannerCollapsed?: boolean;
 	canInstallClaudeHook?: boolean;
 
 	// Persisted UI state (from `graph:state` workspace memento)
@@ -785,6 +786,8 @@ export interface DidChangeAvatarsParams {
 export const DidChangeAvatarsNotification = new IpcNotification<DidChangeAvatarsParams>(scope, 'avatars/didChange');
 
 export const DidChangeMcpBanner = new IpcNotification<boolean>(scope, 'mcp/didChange');
+
+export const DidChangeHooksBanner = new IpcNotification<boolean>(scope, 'hooks/didChange');
 
 export const DidChangeCanInstallClaudeHook = new IpcNotification<boolean>(
 	scope,

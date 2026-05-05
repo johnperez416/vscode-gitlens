@@ -13,6 +13,13 @@ export function isMcpBannerEnabled(container: Container, showAutoRegistration = 
 	return !container.onboarding.isDismissed('mcp:banner');
 }
 
+export function isHooksBannerEnabled(container: Container): boolean {
+	if (isWeb) return false;
+	// MCP takes precedence — only surface the hooks prompt when the MCP one isn't competing for attention.
+	if (isMcpBannerEnabled(container)) return false;
+	return !container.onboarding.isDismissed('hooks:banner');
+}
+
 const supportedApps = ['Visual Studio Code', 'Visual Studio Code - Insiders', 'Visual Studio Code - Exploration'];
 export function supportsMcpExtensionRegistration(): boolean {
 	if (!supportedApps.includes(env.appName)) {

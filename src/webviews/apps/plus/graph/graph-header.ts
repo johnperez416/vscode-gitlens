@@ -126,15 +126,18 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 				top: 0;
 			}
 
-			.mcp-tooltip::part(body) {
+			.mcp-tooltip::part(body),
+			.hooks-tooltip::part(body) {
 				--max-width: 320px;
 			}
 
-			.mcp-tooltip__content a {
+			.mcp-tooltip__content a,
+			.hooks-tooltip__content a {
 				color: var(--vscode-textLink-foreground);
 			}
 
-			.action-button--mcp {
+			.action-button--mcp,
+			.action-button--hooks {
 				background: linear-gradient(135deg, #a100ff1a 0%, #255ed11a 100%);
 				border: 1px solid var(--vscode-panel-border);
 			}
@@ -1007,11 +1010,41 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 									() => html`
 										<br /><br />
 										<a href=${createCommandLink('gitlens.agents.installClaudeHook')}
-											>Install Claude Hook</a
+											>Install Claude Code Hooks</a
 										>
 										to let GitLens intercept Claude Code permission requests.
 									`,
 								)}
+							</div>
+						</gl-popover>
+					`,
+				)}
+				${when(
+					(state.mcpBannerCollapsed ?? true) &&
+						(state.canInstallClaudeHook ?? false) &&
+						!(state.hooksBannerCollapsed ?? true),
+					() => html`
+						<gl-popover class="hooks-tooltip" placement="bottom" trigger="click focus hover">
+							<a
+								class="action-button action-button--hooks"
+								href=${createCommandLink('gitlens.agents.installClaudeHook')}
+								slot="anchor"
+							>
+								<code-icon class="action-button__icon" icon="hubot"></code-icon>
+							</a>
+							<div class="hooks-tooltip__content" slot="content">
+								<strong>Install Claude Code Hooks</strong><br />
+								Configure Claude to send status updates to GitLens so you can see and manage your agents
+								here.
+								<br /><br />
+								<a href=${createCommandLink('gitlens.agents.uninstallClaudeHook')}>Uninstall</a>
+								&middot;
+								<a
+									href=${createCommandLink('gitlens.onboarding.dismiss', {
+										id: 'hooks:banner',
+									})}
+									>Dismiss</a
+								>
 							</div>
 						</gl-popover>
 					`,

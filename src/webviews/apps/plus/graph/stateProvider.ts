@@ -16,6 +16,7 @@ import {
 	DidChangeCanInstallClaudeHook,
 	DidChangeColumnsNotification,
 	DidChangeGraphConfigurationNotification,
+	DidChangeHooksBanner,
 	DidChangeMcpBanner,
 	DidChangeNotification,
 	DidChangeOrgSettings,
@@ -292,6 +293,7 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	private _enrichmentFingerprint: string | undefined;
 
 	mcpBannerCollapsed?: boolean | undefined;
+	hooksBannerCollapsed?: boolean | undefined;
 	canInstallClaudeHook?: boolean | undefined;
 
 	constructor(
@@ -674,6 +676,10 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 
 			case DidChangeMcpBanner.is(msg):
 				this.updateState({ mcpBannerCollapsed: msg.params });
+				break;
+
+			case DidChangeHooksBanner.is(msg):
+				this.updateState({ hooksBannerCollapsed: msg.params });
 				break;
 
 			case DidChangeCanInstallClaudeHook.is(msg):
