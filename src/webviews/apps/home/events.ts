@@ -151,6 +151,8 @@ export function setupSubscriptions(
 					state.onboarding.banners.integrationBanner = !e.dismissed;
 				} else if (e.key === 'mcp:banner') {
 					state.onboarding.banners.mcpBanner = !e.dismissed;
+				} else if (e.key === 'hooks:banner') {
+					state.onboarding.banners.hooksBanner = !e.dismissed;
 				}
 			}),
 
