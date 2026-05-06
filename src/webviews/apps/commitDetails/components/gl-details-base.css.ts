@@ -69,7 +69,7 @@ export const detailsBaseStyles = [
 		.message-block {
 			position: relative;
 			font-size: var(--gl-font-base);
-			border: 1px solid var(--vscode-input-border);
+			border: 1px solid var(--vscode-input-border, transparent);
 			background: var(--vscode-input-background);
 			padding: 0.5rem;
 			border-radius: 0.2rem 0.2rem 0 0;

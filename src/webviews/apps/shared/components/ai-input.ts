@@ -32,7 +32,7 @@ export class GlAiInput extends LitElement {
 			align-items: stretch;
 			min-width: 0;
 			background: var(--vscode-input-background);
-			border: 1px solid var(--vscode-input-border);
+			border: 1px solid var(--vscode-input-border, transparent);
 			border-radius: 0.6rem;
 			z-index: 1;
 			transition:
@@ -50,15 +50,15 @@ export class GlAiInput extends LitElement {
 			align-items: center;
 			justify-content: flex-start;
 			gap: 0.4rem;
-			margin-top: -0.3rem;
-			padding: 0.5rem 0.4rem 0.2rem 0.4rem;
+			padding: 0.1rem;
 			min-height: 0px;
-			background: var(--vscode-input-background);
-			border-bottom: 1px solid var(--vscode-input-border);
-			border-right: 1px solid var(--vscode-input-border);
-			border-left: 1px solid var(--vscode-input-border);
-			border-radius: 0 0 0.6rem 0.6rem;
+			/* background: var(--vscode-input-background); */
+			border-bottom: 1px solid var(--vscode-input-border, transparent);
+			border-right: 1px solid var(--vscode-input-border, transparent);
+			border-left: 1px solid var(--vscode-input-border, transparent);
+			border-radius: 0px 0px 0.6rem 0.6rem;
 			color: var(--vscode-descriptionForeground);
+			margin-inline: 0.5rem;
 		}
 
 		:host([has-footer]) .ai-input__footer {

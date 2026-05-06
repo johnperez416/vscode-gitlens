@@ -79,7 +79,7 @@ export class GlSearchInput extends GlElement {
 		:host {
 			--gl-search-input-background: var(--vscode-input-background);
 			--gl-search-input-foreground: var(--vscode-input-foreground);
-			--gl-search-input-border: var(--vscode-input-border);
+			--gl-search-input-border: var(--vscode-input-border, transparent);
 			--gl-search-input-placeholder: var(
 				--vscode-editor-placeholder\\\.foreground,
 				var(--vscode-input-placeholderForeground)

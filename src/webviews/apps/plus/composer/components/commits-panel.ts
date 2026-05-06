@@ -299,7 +299,7 @@ export class CommitsPanel extends LitElement {
 			.auto-compose__instructions-input {
 				width: 100%;
 				padding: 0.5rem;
-				border: 1px solid var(--vscode-input-border);
+				border: 1px solid var(--vscode-input-border, transparent);
 				border-radius: 3px;
 				background: var(--vscode-input-background);
 				color: var(--vscode-input-foreground);

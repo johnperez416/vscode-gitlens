@@ -120,7 +120,7 @@ export const commitBoxStyles = css`
 		max-height: 12rem;
 		resize: none;
 		background: var(--vscode-input-background);
-		border: 1px solid var(--vscode-input-border);
+		border: 1px solid var(--vscode-input-border, transparent);
 		border-radius: 0.4rem;
 		color: var(--vscode-input-foreground);
 		font-family: inherit;
