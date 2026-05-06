@@ -105,7 +105,7 @@ export class DiffGitSubProvider implements GitDiffSubProvider {
 			return stat;
 		} catch (ex) {
 			const msg: string = ex?.toString() ?? '';
-			if (GitErrors.noMergeBase.test(msg)) {
+			if (GitErrors.noMergeBase.test(msg) || GitErrors.badRevision.test(msg)) {
 				return undefined;
 			}
 
