@@ -47,6 +47,17 @@ suite('timelineData Test Suite', () => {
 			assert.strictEqual(m.max, 50);
 			assert.ok(m.p99 >= 40, `p99 should sit near the max for smooth data, got ${m.p99}`);
 		});
+
+		test('zero-total entries do not collapse p99 on sparse datasets', () => {
+			// Regression: 1 real commit + the empty Working-Tree placeholder used to land p99 on
+			// the zero entry (Math.floor((2-1) * 0.99) = 0), short-circuiting bubbleMagnitude to
+			// 0 and rendering every real bubble at radiusMin.
+			const placeholder = day(0, { sha: '', additions: 0, deletions: 0 });
+			const real = day(1, { additions: 60, deletions: 0 });
+			const m = computeBubbleMetrics([placeholder, real]);
+			assert.strictEqual(m.max, 60);
+			assert.strictEqual(m.p99, 60, `p99 should track the real commit's magnitude, got ${m.p99}`);
+		});
 	});
 
 	suite('bubbleRadius', () => {

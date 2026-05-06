@@ -187,38 +187,52 @@ function expandRows(
 export function computeBubbleMetrics(dataset: readonly TimelineDatum[]): BubbleMetrics {
 	if (dataset.length === 0) return { p99: 0, max: 0 };
 
+	// Only non-zero totals contribute to the percentile — the empty Working-Tree placeholder
+	// (sha = '', 0 additions/deletions) and any genuine zero-change commits would otherwise
+	// drag p99 to 0 on tiny datasets (e.g. 1 real commit + the placeholder makes p99Index = 0,
+	// which lands on the zero entry and collapses every real bubble to `radiusMin`).
 	const sums = new Float32Array(dataset.length);
 	let max = 0;
+	let n = 0;
 	for (let i = 0; i < dataset.length; i++) {
 		const total = (dataset[i].additions ?? 0) + (dataset[i].deletions ?? 0);
-		sums[i] = total;
+		if (total > 0) {
+			sums[n++] = total;
+		}
 		if (total > max) {
 			max = total;
 		}
 	}
 
-	if (max === 0) return { p99: 0, max: 0 };
+	if (max === 0 || n === 0) return { p99: 0, max: 0 };
 
-	sums.sort();
-	const p99Index = Math.min(sums.length - 1, Math.floor((sums.length - 1) * 0.99));
-	return { p99: sums[p99Index], max: max };
+	const populated = sums.subarray(0, n);
+	populated.sort();
+	const p99Index = Math.min(n - 1, Math.floor((n - 1) * 0.99));
+	return { p99: populated[p99Index], max: max };
 }
 
 function computeBinMetrics(bins: readonly { additions: number; deletions: number }[]): BubbleMetrics {
 	if (bins.length === 0) return { p99: 0, max: 0 };
+	// Mirrors `computeBubbleMetrics` — bins whose only contents are the zero-total Working-Tree
+	// placeholder would otherwise pull p99 to 0 on sparse-bin datasets.
 	const sums = new Float32Array(bins.length);
 	let max = 0;
+	let n = 0;
 	for (let i = 0; i < bins.length; i++) {
 		const total = bins[i].additions + bins[i].deletions;
-		sums[i] = total;
+		if (total > 0) {
+			sums[n++] = total;
+		}
 		if (total > max) {
 			max = total;
 		}
 	}
-	if (max === 0) return { p99: 0, max: 0 };
-	sums.sort();
-	const p99Index = Math.min(sums.length - 1, Math.floor((sums.length - 1) * 0.99));
-	return { p99: sums[p99Index], max: max };
+	if (max === 0 || n === 0) return { p99: 0, max: 0 };
+	const populated = sums.subarray(0, n);
+	populated.sort();
+	const p99Index = Math.min(n - 1, Math.floor((n - 1) * 0.99));
+	return { p99: populated[p99Index], max: max };
 }
 
 /**
