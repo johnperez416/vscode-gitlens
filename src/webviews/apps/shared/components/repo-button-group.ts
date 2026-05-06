@@ -53,6 +53,10 @@ export class GlRepoButtonGroup extends GlElement {
 				min-width: 3rem;
 			}
 
+			:host([icons='2']) {
+				grid-template-columns: auto auto minmax(0, 1fr);
+			}
+
 			.indicator-dot {
 				--gl-indicator-color: green;
 				--gl-indicator-size: 0.4rem;
