@@ -34,7 +34,7 @@ export class GlCommitBox extends LitElement {
 	@property({ type: Boolean })
 	amend = false;
 
-	@property({ type: Boolean })
+	@property({ type: Boolean, reflect: true })
 	generating = false;
 
 	@property()
@@ -87,6 +87,12 @@ export class GlCommitBox extends LitElement {
 
 		return html`
 			<div class="message">
+				${this.aiEnabled
+					? html`<svg class="working-ring" aria-hidden="true">
+							<rect class="working-ring-base" pathLength="100"></rect>
+							<rect class="working-ring-highlight" pathLength="100"></rect>
+						</svg>`
+					: nothing}
 				<textarea
 					class="textarea"
 					.value=${this.message}

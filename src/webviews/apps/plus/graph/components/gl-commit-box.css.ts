@@ -7,6 +7,12 @@ export const commitBoxStyles = css`
 		initial-value: transparent;
 	}
 
+	@keyframes gl-input-ring-trace {
+		to {
+			stroke-dashoffset: -100;
+		}
+	}
+
 	:host {
 		display: flex;
 		flex-direction: column;
@@ -14,6 +20,7 @@ export const commitBoxStyles = css`
 		padding: 0.6rem 1.2rem 0.8rem;
 		gap: 0.4rem;
 		border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
+		--gl-input-working-border-color: var(--vscode-charts-purple, #7c3aed);
 	}
 
 	.options {
@@ -52,6 +59,58 @@ export const commitBoxStyles = css`
 	:host(:focus-within) .message {
 		--gl-textarea-thumb-color: var(--vscode-scrollbarSlider-background);
 		transition: none;
+	}
+
+	/* Animated "AI working" border ring — SVG <rect> with stroke-dasharray + pathLength
+	   gives uniform-speed perimeter motion regardless of the input's aspect ratio
+	   (a conic-gradient on a wide rect visibly compresses on long edges). */
+	.working-ring {
+		position: absolute;
+		inset: -1px;
+		display: block;
+		width: calc(100% + 2px);
+		height: calc(100% + 2px);
+		opacity: 0;
+		pointer-events: none;
+		overflow: visible;
+		transition: opacity 0.35s ease;
+		z-index: 2;
+	}
+
+	:host([generating]) .working-ring {
+		opacity: 1;
+	}
+
+	.working-ring rect {
+		x: 1px;
+		y: 1px;
+		width: calc(100% - 2px);
+		height: calc(100% - 2px);
+		rx: 0.5rem;
+		ry: 0.5rem;
+		fill: none;
+		stroke-width: 1.5;
+	}
+
+	.working-ring-base {
+		stroke: color-mix(in srgb, var(--gl-input-working-border-color) 14%, transparent);
+	}
+
+	.working-ring-highlight {
+		stroke: var(--gl-input-working-border-color);
+		stroke-dasharray: 18 82;
+		stroke-linecap: round;
+		filter: drop-shadow(0 0 2px var(--gl-input-working-border-color));
+	}
+
+	:host([generating]) .working-ring-highlight {
+		animation: gl-input-ring-trace 2s linear infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		:host([generating]) .working-ring-highlight {
+			animation: none;
+		}
 	}
 
 	.textarea {
