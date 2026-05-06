@@ -161,7 +161,7 @@ suite('CommitsSubProvider.getLog with stashes after rebase', () => {
 			assert.ok(log, 'Expected a log result');
 
 			// Walk the result map (preserves insertion order) and assert ordering: C → stash → B
-			const order = [...log.commits.values()].map(c => ({ sha: c.sha, isStash: c.refType === 'stash' }));
+			const order = Array.from(log.commits.values(), c => ({ sha: c.sha, isStash: c.refType === 'stash' }));
 			const cIdx = order.findIndex(e => e.sha === shaC);
 			const bIdx = order.findIndex(e => e.sha === shaB);
 			const stashIdx = order.findIndex(e => e.isStash);

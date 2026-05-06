@@ -431,6 +431,8 @@ function getExtensionConfig(target, mode, env) {
 		ignoreWarnings: [
 			// Ignore dynamic require warning for platform-agnostic async_hooks detection
 			{ module: /packages[\\/]utils[\\/]src[\\/]logScope\.ts/, message: /Critical dependency/ },
+			// Ignore dynamic require warning from protobufjs's optional-peer resolver (used by @opentelemetry/otlp-transformer)
+			{ module: /[\\/]@protobufjs[\\/]inquire[\\/]/, message: /Critical dependency/ },
 		],
 		plugins: plugins,
 		infrastructureLogging: mode === 'production' ? undefined : { level: 'log' }, // enables logging required for problem matchers
@@ -471,7 +473,8 @@ function getUnitTestConfig(_target, mode, env) {
 		mode: mode,
 		plugins: plugins,
 		infrastructureLogging: mode === 'production' ? undefined : { level: 'log' },
-		stats: 'none',
+		// Surface ESLint errors/warnings from the lint plugin (esbuild handles asset output separately)
+		stats: { preset: 'errors-warnings', colors: true, errorsCount: true, warningsCount: true },
 	};
 }
 
