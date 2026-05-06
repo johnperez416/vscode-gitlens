@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { TestRepo } from './helpers.js';
-import { createStash, createTestRepo } from './helpers.js';
+import { addCommit, createStash, createTestRepo, getHeadSha } from './helpers.js';
 
 suite('StashSubProvider', () => {
 	let repo: TestRepo;
@@ -90,6 +90,88 @@ suite('StashSubProvider.applyStash (by SHA)', () => {
 			assert.ok(result, 'Expected a result');
 			assert.strictEqual(result.conflicted, false);
 			assert.strictEqual(readFileSync(join(r.path, 'applied.txt'), 'utf-8'), 'applied content\n');
+		} finally {
+			r.cleanup();
+		}
+	});
+});
+
+suite('CommitsSubProvider.getLog with stashes after rebase', () => {
+	test('does not include pre-rebase commits anchored only by the stash', async () => {
+		// Regression: a stash on a branch was anchoring its parent chain into the branch
+		// log via `git log <ref> --stdin <stash> <stash^2>`, leaking commits no longer
+		// reachable from the branch tip after a rebase / reset.
+		const r = createTestRepo();
+		try {
+			// Layout:
+			//   A (initial) - B - C   <- stash created on top of C
+			// After reset:
+			//   A - D                 <- main now; B and C unreachable from main
+			const shaA = getHeadSha(r.path);
+			addCommit(r.path, 'b.txt', 'b\n', 'Commit B', { date: '2024-01-02T00:00:00Z' });
+			const shaB = getHeadSha(r.path);
+			addCommit(r.path, 'c.txt', 'c\n', 'Commit C', { date: '2024-01-03T00:00:00Z' });
+			const shaC = getHeadSha(r.path);
+
+			createStash(r.path, 'wip');
+
+			execFileSync('git', ['reset', '--hard', shaA], { cwd: r.path, stdio: 'pipe' });
+			addCommit(r.path, 'd.txt', 'd\n', 'Commit D', { date: '2024-01-04T00:00:00Z' });
+			const shaD = getHeadSha(r.path);
+
+			// Use 'main' (not 'HEAD') so `getStash({reachableFrom})` matches `stashOnRef`
+			// (parsed from the `On main: …` stash subject) and the stash actually reaches
+			// the merge step — otherwise the leak path isn't exercised.
+			const log = await r.provider.commits.getLog(r.path, 'main', { stashes: true, limit: 50 });
+			assert.ok(log, 'Expected a log result');
+
+			const shas = new Set(log.commits.keys());
+			assert.ok(shas.has(shaA), 'Branch tip ancestor A must be present');
+			assert.ok(shas.has(shaD), 'New tip D must be present');
+			assert.strictEqual(shas.has(shaB), false, 'Pre-reset commit B must not leak via stash');
+			assert.strictEqual(shas.has(shaC), false, 'Pre-reset commit C must not leak via stash');
+
+			// The stash's first parent (C) was reset away, so the stash has no anchor in the
+			// branch result and is dropped. The dedicated Stashes view still surfaces it.
+			const stashCount = [...log.commits.values()].filter(c => c.refType === 'stash').length;
+			assert.strictEqual(stashCount, 0, 'Stash without a reachable parent should not appear in this view');
+		} finally {
+			r.cleanup();
+		}
+	});
+
+	test('places a stash directly above its parent commit when the parent is in the branch', async () => {
+		// Layout:
+		//   A - B - C   <- stash created on top of B (not C)
+		// Branch is unchanged. The stash's parent (B) is still reachable, so the stash should
+		// sit immediately above B in the result, not be ordered purely by date.
+		const r = createTestRepo();
+		try {
+			addCommit(r.path, 'b.txt', 'b\n', 'Commit B', { date: '2024-01-02T00:00:00Z' });
+			const shaB = getHeadSha(r.path);
+
+			// Create the stash on top of B (parent[0] = B)
+			createStash(r.path, 'wip-on-b');
+
+			// Now add C on top of B (after stash, but C has a more recent date than the stash)
+			addCommit(r.path, 'c.txt', 'c\n', 'Commit C', { date: '2024-12-31T00:00:00Z' });
+			const shaC = getHeadSha(r.path);
+
+			const log = await r.provider.commits.getLog(r.path, 'main', { stashes: true, limit: 50 });
+			assert.ok(log, 'Expected a log result');
+
+			// Walk the result map (preserves insertion order) and assert ordering: C → stash → B
+			const order = [...log.commits.values()].map(c => ({ sha: c.sha, isStash: c.refType === 'stash' }));
+			const cIdx = order.findIndex(e => e.sha === shaC);
+			const bIdx = order.findIndex(e => e.sha === shaB);
+			const stashIdx = order.findIndex(e => e.isStash);
+
+			assert.ok(cIdx >= 0 && bIdx >= 0 && stashIdx >= 0, 'C, B, and stash must all be present');
+			assert.ok(
+				cIdx < stashIdx && stashIdx < bIdx,
+				`Stash should sit between C and its parent B (got order: C@${cIdx}, stash@${stashIdx}, B@${bIdx}). ` +
+					`Pure date-sorting would have placed C above the stash; parent-matching anchors the stash to B.`,
+			);
 		} finally {
 			r.cleanup();
 		}

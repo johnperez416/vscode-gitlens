@@ -573,24 +573,15 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 				args.push(`-n${isSingleCommit ? 1 : limit + 1}`);
 			}
 
-			let stashes: Map<string, GitStashCommit> | undefined;
-			let stdin: string | undefined;
+			let stashes: ReadonlyMap<string, GitStashCommit> | undefined;
 
-			if (!isSingleCommit) {
-				if (options?.stashes) {
-					// There *HAS* to be a better way to get git log to return stashes, but this is the best we've found
-					({ stdin, stashes } = convertStashesToStdin(
-						typeof options.stashes === 'boolean'
-							? await this.provider.stash?.getStash(repoPath, { reachableFrom: rev }, cancellation)
-							: options.stashes,
-					));
-					if (stashes.size) {
-						rev ??= 'HEAD';
-					}
-				}
-
-				if (stdin) {
-					args.push('--stdin');
+			if (!isSingleCommit && options?.stashes) {
+				stashes =
+					typeof options.stashes === 'boolean'
+						? (await this.provider.stash?.getStash(repoPath, { reachableFrom: rev }, cancellation))?.stashes
+						: options.stashes;
+				if (stashes?.size) {
+					rev ??= 'HEAD';
 				}
 			}
 
@@ -632,20 +623,19 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 				cwd: repoPath,
 				cancellation: cancellation,
 				configs: gitConfigsLogWithFiles,
-				stdin: stdin,
 				// Single-commit log is cheap (typically <50ms) and almost always serves a user-
 				// initiated read (commit details, hover, etc.). Override the inferred 'background'
 				// priority so it doesn't queue behind heavier graph/log work — without this, a click
 				// on a commit while the graph is still loading can wait seconds for files to appear.
 				...(isSingleCommit ? { priority: 'normal' as const } : undefined),
 			};
-			let { commits, count, countStashChildCommits } = await parseCommits(
+			let { commits, count } = await parseCommits(
 				parser,
 				isSingleCommit ? this.git.run(cmdOpts, ...args) : this.git.stream(cmdOpts, ...args),
 				repoPath,
 				pathspec,
 				limit,
-				stashes,
+				undefined,
 				currentUser,
 			);
 
@@ -667,15 +657,57 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 						args.splice(args.length - 1, 1, pathspec);
 					}
 
-					({ commits, count, countStashChildCommits } = await parseCommits(
+					({ commits, count } = await parseCommits(
 						parser,
 						isSingleCommit ? this.git.run(cmdOpts, ...args) : this.git.stream(cmdOpts, ...args),
 						repoPath,
 						pathspec,
 						limit,
-						stashes,
+						undefined,
 						currentUser,
 					));
+				}
+			}
+
+			// Merge stashes in-memory rather than via `git log --stdin <stash>` — git would
+			// walk each stash's parent chains and pull in pre-rebase ancestors that aren't
+			// reachable from <rev>. Slot each stash directly above its first parent; stashes
+			// whose parent isn't in the result (rebased away, or below the current limit) are
+			// dropped — the Stashes view still surfaces them, and they reappear here if the
+			// parent loads via "Load more".
+			if (stashes?.size) {
+				// `stashes` arrives in `git stash list` order (newest @{0} first), so per-parent
+				// groups naturally land newest-first without an explicit sort
+				const stashesByParent = new Map<string, GitStashCommit[]>();
+				for (const stash of stashes.values()) {
+					const parentSha = stash.parents[0];
+					if (parentSha == null || !commits.has(parentSha)) continue;
+
+					const group = stashesByParent.get(parentSha);
+					if (group != null) {
+						group.push(stash);
+					} else {
+						stashesByParent.set(parentSha, [stash]);
+					}
+				}
+
+				if (stashesByParent.size) {
+					const cap = limit > 0 ? limit + 1 : Number.POSITIVE_INFINITY;
+					const merged = new Map<string, GitCommit>();
+					outer: for (const c of commits.values()) {
+						const group = stashesByParent.get(c.sha);
+						if (group != null) {
+							for (const s of group) {
+								if (merged.size >= cap) break outer;
+
+								merged.set(s.sha, s);
+							}
+						}
+						if (merged.size >= cap) break;
+
+						merged.set(c.sha, c);
+					}
+					commits = merged;
 				}
 			}
 
@@ -685,7 +717,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 				sha: isRevisionRange(rev) ? undefined : rev,
 				count: commits.size,
 				limit: limit,
-				hasMore: overrideHasMore ?? count - countStashChildCommits > commits.size,
+				hasMore: overrideHasMore ?? (limit > 0 && count > limit),
 			};
 
 			if (!isSingleCommit) {
