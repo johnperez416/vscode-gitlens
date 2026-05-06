@@ -26,7 +26,7 @@ export function registerTimelineWebviewPanel(
 			type: 'timeline',
 			plusFeature: true,
 			column: ViewColumn.Active,
-			webviewHostOptions: { retainContextWhenHidden: false, enableFindWidget: false },
+			webviewHostOptions: { retainContextWhenHidden: true, enableFindWidget: false },
 			allowMultipleInstances: configuration.get('visualHistory.allowMultiple'),
 		},
 		async (container, host) => {
@@ -50,7 +50,7 @@ export function registerTimelineWebviewView(
 			trackingFeature: 'timelineView',
 			type: 'timeline',
 			plusFeature: true,
-			webviewHostOptions: { retainContextWhenHidden: false },
+			webviewHostOptions: { retainContextWhenHidden: true },
 		},
 		async (container, host) => {
 			const { TimelineWebviewProvider } = await import(

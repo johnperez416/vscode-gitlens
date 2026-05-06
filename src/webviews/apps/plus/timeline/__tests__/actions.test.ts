@@ -78,7 +78,12 @@ suite('TimelineActions', () => {
 				getInitialContext: async () => ({
 					scope: hostScope,
 					configOverrides: undefined,
-					displayConfig: { abbreviatedShaLength: 7, dateFormat: '', shortDateFormat: '' },
+					displayConfig: {
+						abbreviatedShaLength: 7,
+						dateFormat: '',
+						shortDateFormat: '',
+						currentUserNameStyle: 'nameAndYou' as const,
+					},
 				}),
 			} as any,
 			{ onRepositoryWorkingChanged: () => () => {} } as any,
@@ -123,7 +128,12 @@ suite('TimelineActions', () => {
 				getInitialContext: async () => ({
 					scope: undefined,
 					configOverrides: undefined,
-					displayConfig: { abbreviatedShaLength: 7, dateFormat: '', shortDateFormat: '' },
+					displayConfig: {
+						abbreviatedShaLength: 7,
+						dateFormat: '',
+						shortDateFormat: '',
+						currentUserNameStyle: 'nameAndYou' as const,
+					},
 				}),
 			} as any,
 			{ onRepositoryWorkingChanged: () => () => {} } as any,

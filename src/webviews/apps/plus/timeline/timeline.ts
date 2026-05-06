@@ -214,6 +214,11 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 		void this._actions?.choosePath(this.placement === 'view' || e.altKey || e.shiftKey);
 	};
 
+	private onClearScope = (e: MouseEvent) => {
+		e.stopImmediatePropagation();
+		this._actions?.changeScope('repo', null, false);
+	};
+
 	private onChangeScope = (e: MouseEvent) => {
 		const el =
 			(e.target as HTMLElement)?.closest('gl-breadcrumb-item-child') ??
@@ -305,18 +310,34 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 	}
 
 	private renderBreadcrumbs() {
+		const s = this._state;
+		const isEditor = this.placement === 'editor';
+		const canClear = isEditor && s.scope.get()?.type !== 'repo';
 		return html`<gl-breadcrumbs>
 			${this.renderRepositoryBreadcrumbItem()}
 			${this.renderBranchBreadcrumbItem()}${this.renderBreadcrumbPathItems()}
-			${this.placement === 'editor'
-				? html`<gl-button
-						appearance="toolbar"
-						density="compact"
-						@click=${this.onChoosePath}
-						tooltip="Choose File or Folder to Visualize..."
-						aria-label="Choose File or Folder to Visualize..."
-						><code-icon slot="prefix" icon="folder-opened"></code-icon>Choose File / Folder...</gl-button
-					>`
+			${isEditor
+				? html`<span class="breadcrumb-actions">
+						<gl-button
+							appearance="toolbar"
+							density="compact"
+							@click=${this.onChoosePath}
+							tooltip="Choose File or Folder to Visualize..."
+							aria-label="Choose File or Folder to Visualize..."
+							><code-icon slot="prefix" icon="folder-opened"></code-icon>Choose File /
+							Folder...</gl-button
+						>
+						${canClear
+							? html`<gl-button
+									appearance="toolbar"
+									density="compact"
+									@click=${this.onClearScope}
+									tooltip="Clear File / Folder Filter"
+									aria-label="Clear File / Folder Filter"
+									><code-icon icon="close"></code-icon
+								></gl-button>`
+							: nothing}
+					</span>`
 				: nothing}
 		</gl-breadcrumbs>`;
 	}
@@ -471,28 +492,32 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 		const datasetResult = this._datasetResource?.value.get();
 		const dataPromise = this.getChartDataPromise(datasetResult?.dataset);
 
+		const emptySlot = html`<div slot="empty">
+			${s.scope.get() == null
+				? html`<p>Something went wrong</p>
+						<p>Please close this tab and try again</p>`
+				: html`<p>No commits found for the specified time period</p>
+						${this.renderPeriodSelect(s.period.get())}`}
+		</div>`;
+
+		const datasetLoading = this._datasetResource?.loading.get() ?? false;
 		return html`<gl-timeline-chart
 			id="chart"
 			placement="${this.placement}"
+			currentUserNameStyle="${s.displayConfig.get().currentUserNameStyle}"
 			dateFormat="${s.displayConfig.get().dateFormat}"
 			.dataPromise=${dataPromise}
+			?loading=${datasetLoading}
 			head="${s.head.get()?.ref ?? 'HEAD'}"
 			.scope=${s.scope.get()}
 			shortDateFormat="${s.displayConfig.get().shortDateFormat}"
 			sliceBy="${s.effectiveSliceBy.get()}"
 			@gl-commit-select=${this.onChartCommitSelected}
 			@gl-loading=${(e: CustomEvent<Promise<void>>) => {
-				// Chart has its own internal loading state for rendering
 				void e.detail;
 			}}
 		>
-			<div slot="empty">
-				${s.scope.get() == null
-					? html`<p>Something went wrong</p>
-							<p>Please close this tab and try again</p>`
-					: html`<p>No commits found for the specified time period</p>
-							${this.renderPeriodSelect(s.period.get())}`}
-			</div>
+			${emptySlot}
 		</gl-timeline-chart>`;
 	}
 

@@ -7,6 +7,8 @@ import '@awesome.me/webawesome/dist/components/slider/slider.js';
 
 const tagName = 'gl-chart-slider';
 
+type WaTooltipLike = HTMLElement & { open: boolean; popup?: { reposition: () => void } };
+
 @customElement(tagName)
 export class GlChartSlider extends GlElement {
 	static readonly tagName = tagName;
@@ -32,9 +34,9 @@ export class GlChartSlider extends GlElement {
 			background-color: var(--vscode-scrollbarSlider-background);
 		}
 
-		/* Indicator is anchored to max via indicator-offset, so it spans thumb to right edge —
-		   the range from the selected commit to the working tree. Hidden by default (matches
-		   track), revealed in the accent color only while Shift is held. */
+		/* Indicator is anchored to max (= the working tree at the right edge) via indicator-offset,
+		   so it spans the selected commit to the working tree. Hidden by default (matches track),
+		   revealed in the accent color only while Shift is held. */
 		wa-slider::part(indicator) {
 			background-color: transparent;
 		}
@@ -70,6 +72,11 @@ export class GlChartSlider extends GlElement {
 
 		this._min = 0;
 		this._max = (value?.length ?? 1) - 1;
+		// Snap the thumb back to the working tree (right edge / max in oldest-first data) so the
+		// slider's left→right direction matches the chart's X axis (oldest → newest), and so a
+		// dataset swap doesn't leave the thumb wherever the user happened to be in the prior
+		// history. Matches the chart's auto-select on the most recent commit.
+		this._value = this._max;
 	}
 
 	private _shift: boolean = false;
@@ -98,10 +105,13 @@ export class GlChartSlider extends GlElement {
 				.indicatorOffset=${this._max}
 				with-tooltip
 				tooltip-placement="top"
-				.valueFormatter=${(_: number) => `Hold shift to compare with working tree`}
+				.valueFormatter=${(_: number) => `Hold Shift to Compare with Working Tree`}
 				@change=${this.handleSliderInput}
 				@input=${this.handleSliderInput}
 				@click=${this.handleSliderInput}
+				@pointerdown=${this.handleDragStart}
+				@pointerup=${this.handleDragEnd}
+				@pointercancel=${this.handleDragEnd}
 				@pointerenter=${this.handleShowTooltip}
 				@pointermove=${this.handleShowTooltip}
 				@pointerleave=${this.handleHideTooltip}
@@ -109,21 +119,58 @@ export class GlChartSlider extends GlElement {
 		</div>`;
 	}
 
+	// True from `pointerdown` on the thumb until `pointerup`/`pointercancel` — gates `pointerleave`
+	// so the WA tooltip stays pinned even when the cursor drifts off the thumb mid-drag.
+	private _dragging = false;
+
 	// wa-slider's tooltip only opens on focus/drag-start. Add hover triggers by toggling the
 	// internal `wa-tooltip` element directly — `showTooltip`/`hideTooltip` exist at runtime but
 	// are typed `private`, so go through the rendered shadow tree.
+	private getTooltip(): WaTooltipLike | null {
+		return (this._slider?.shadowRoot?.getElementById('tooltip') as WaTooltipLike | null) ?? null;
+	}
+
 	private handleShowTooltip = () => {
-		const tooltip = this._slider?.shadowRoot?.getElementById('tooltip') as { open: boolean } | null;
+		const tooltip = this.getTooltip();
 		if (tooltip != null) {
+			// wa-tooltip clamps its body to var(--max-width) (default 30ch) and wraps anything wider.
+			// Our label is a single short sentence; let it size to its own content instead of wrapping.
+			tooltip.style.setProperty('--max-width', 'none');
 			tooltip.open = true;
 		}
 	};
 
 	private handleHideTooltip = () => {
-		const tooltip = this._slider?.shadowRoot?.getElementById('tooltip') as { open: boolean } | null;
+		// Keep the tooltip pinned through the drag — pointerleave fires the moment the cursor strays
+		// off the thumb, but the user is still scrubbing.
+		if (this._dragging) return;
+
+		const tooltip = this.getTooltip();
 		if (tooltip != null) {
 			tooltip.open = false;
 		}
+	};
+
+	private handleDragStart = () => {
+		this._dragging = true;
+		this.handleShowTooltip();
+	};
+
+	private handleDragEnd = () => {
+		this._dragging = false;
+		// Always emit a final `interim: false` on drag-release. Otherwise, when the user drags
+		// away from a value and back to the same value, the underlying `wa-slider` doesn't fire a
+		// `change` event (its value didn't actually change from press → release), and the chart
+		// stays stuck in scrub-active mode with the hover halo + tooltip pinned to the thumb's
+		// last position. Read from the live `wa-slider`'s value (the source of truth during
+		// drag) — `this._value` only updates via `select()` and lags behind the live thumb.
+		if (!this.data?.length || this._slider == null) return;
+
+		const index = this._slider.value;
+		const datum = this.data[index];
+		if (datum == null) return;
+
+		this.emit('gl-slider-change', { date: new Date(datum.date), shift: this.shift, interim: false });
 	};
 
 	select(id: string): void;
@@ -145,6 +192,14 @@ export class GlChartSlider extends GlElement {
 		if (!this.data?.length) return;
 
 		const index = parseInt((e.target as HTMLInputElement).value);
+
+		// Force the WA tooltip to re-anchor to the thumb on every drag step. WA's tooltip only
+		// repositions on its own internal show/hide flow; once we keep it pinned manually, the
+		// underlying wa-popup needs an explicit reposition each time the thumb moves or it stays
+		// where it was first opened.
+		if (e.type === 'input') {
+			this.getTooltip()?.popup?.reposition();
+		}
 
 		const date = new Date(this.data[index].date);
 		this.emit('gl-slider-change', { date: date, shift: this.shift, interim: e.type === 'input' });

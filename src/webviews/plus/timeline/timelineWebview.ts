@@ -11,6 +11,7 @@ import {
 	isUncommittedStaged,
 	shortenRevision,
 } from '@gitlens/git/utils/revision.utils.js';
+import { getScopedCounter } from '@gitlens/utils/counter.js';
 import { createFromDateDelta } from '@gitlens/utils/date.js';
 import { debounce } from '@gitlens/utils/debounce.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
@@ -20,6 +21,7 @@ import { basename } from '@gitlens/utils/path.js';
 import { batch, getSettledValue } from '@gitlens/utils/promise.js';
 import { SubscriptionManager } from '@gitlens/utils/subscriptionManager.js';
 import { areUrisEqual } from '@gitlens/utils/uri.js';
+import { getAvatarUri, getCachedAvatarUri } from '../../../avatars.js';
 import { proBadge } from '../../../constants.js';
 import type {
 	TimelineShownTelemetryContext,
@@ -37,7 +39,7 @@ import {
 } from '../../../git/actions/commit.js';
 import { ensureWorkingUri } from '../../../git/gitUri.utils.js';
 import type { GlRepository } from '../../../git/models/repository.js';
-import { formatCurrentUserDisplayName, getCommitDate } from '../../../git/utils/-webview/commit.utils.js';
+import { getCommitDate } from '../../../git/utils/-webview/commit.utils.js';
 import { getReference } from '../../../git/utils/-webview/reference.utils.js';
 import { toRepositoryShape } from '../../../git/utils/-webview/repository.utils.js';
 import { getPseudoCommitsWithStats } from '../../../git/utils/-webview/statusFile.utils.js';
@@ -50,7 +52,7 @@ import { executeCommand, registerCommand } from '../../../system/-webview/comman
 import { configuration } from '../../../system/-webview/configuration.js';
 import { isDescendant } from '../../../system/-webview/path.js';
 import { openTextEditor } from '../../../system/-webview/vscode/editors.js';
-import { getTabUri } from '../../../system/-webview/vscode/tabs.js';
+import { getTabUri, tabContainsPath } from '../../../system/-webview/vscode/tabs.js';
 import type { EventVisibilityBuffer, SubscriptionTracker } from '../../rpc/eventVisibilityBuffer.js';
 import { createRpcEventSubscription } from '../../rpc/eventVisibilityBuffer.js';
 import { createSharedServices, proxyServices } from '../../rpc/services/common.js';
@@ -105,6 +107,7 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 	private _disposable: Disposable | undefined;
 	private _repositorySubscription: SubscriptionManager<GlRepository> | undefined;
 	private _tabCloseDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly _tabsChangedSeq = getScopedCounter();
 
 	// --- Data point opening guard ---
 	private _openingDataPoint: SelectDataPointParams | undefined;
@@ -384,6 +387,7 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 			configOverrides: configOverrides,
 			displayConfig: {
 				abbreviatedShaLength: this.container.CommitShaFormatting.length,
+				currentUserNameStyle: configuration.get('defaultCurrentUserNameStyle') ?? 'nameAndYou',
 				dateFormat: configuration.get('defaultDateFormat') ?? 'MMMM Do, YYYY h:mma',
 				shortDateFormat: configuration.get('defaultDateShortFormat') ?? 'short',
 			},
@@ -581,22 +585,38 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 
 	@trace({ args: false })
 	private async onTabsChanged(_e: TabGroupChangeEvent | TabChangeEvent) {
+		const seq = this._tabsChangedSeq.next();
 		if (this._tabCloseDebounceTimer != null) {
 			clearTimeout(this._tabCloseDebounceTimer);
 			this._tabCloseDebounceTimer = undefined;
 		}
 
 		const uri = await ensureWorkingUri(this.container, this.activeTabUri);
+		// A newer invocation is in flight — let it take over so this stale resolution can't blank
+		// the view after a more recent event already fired a valid scope.
+		if (this._tabsChangedSeq.current !== seq) return;
+
 		if (uri == null) {
-			// Tab closed — debounce before firing scope cleared
+			// If the current scope's file is still visible somewhere (e.g. user clicked a commit and
+			// a diff opened, so the active tab is now a gitlens:// revision URI we couldn't resolve
+			// back to a working file), stay put — don't blank the view.
+			if (this.isCurrentScopeVisible()) return;
+
+			// No usable scope and the prior scope is gone too — debounce before firing scope cleared
 			this._tabCloseDebounceTimer = setTimeout(() => {
 				this._tabCloseDebounceTimer = undefined;
+				// Re-check before blanking; state may have changed during the 1s wait
+				if (this._tabsChangedSeq.current !== seq) return;
+				if (this.isCurrentScopeVisible()) return;
 				this._onScopeChanged.fire(undefined);
 				this.host.sendTelemetryEvent('timeline/editor/changed');
 			}, 1000);
 
 			return;
 		}
+
+		// Skip redundant fires when we've already resolved to the same URI as the current scope
+		if (this._currentScope?.uri != null && areUrisEqual(uri, this._currentScope.uri)) return;
 
 		this._onScopeChanged.fire({ uri: uri.toString(), type: 'file' });
 		this.host.sendTelemetryEvent('timeline/editor/changed');
@@ -622,9 +642,26 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 		const uri = await ensureWorkingUri(this.container, this.activeTabUri);
 		if (uri != null) {
 			this._onScopeChanged.fire({ uri: uri.toString(), type: 'file' });
-		} else {
-			this._onScopeChanged.fire(undefined);
+			return;
 		}
+
+		// Only blank the scope when the current scope's file is no longer visible anywhere —
+		// otherwise a re-show triggered while a diff tab is active would clear the view.
+		if (this.isCurrentScopeVisible()) return;
+
+		this._onScopeChanged.fire(undefined);
+	}
+
+	private isCurrentScopeVisible(): boolean {
+		const scopePath = this._currentScope?.uri.path;
+		if (!scopePath) return false;
+
+		for (const group of window.tabGroups.all) {
+			for (const tab of group.tabs) {
+				if (tabContainsPath(tab, scopePath)) return true;
+			}
+		}
+		return false;
 	}
 
 	private fireFileSelected() {
@@ -721,7 +758,6 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 		]);
 
 		const currentUser = getSettledValue(currentUserResult);
-		const currentUserName = formatCurrentUserDisplayName(currentUser?.name ?? '');
 
 		const dataset: TimelineDatum[] = [];
 
@@ -730,9 +766,18 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 			for (const contributor of result.contributors) {
 				if (contributor.contributions == null) continue;
 
+				// Pre-resolve the avatar URI per author once — gravatar lookup is an md5 hash of the
+				// email; binding it once per contributor avoids re-hashing per commit.
+				const email = contributor.email;
+				const avatarUri = email != null ? (getCachedAvatarUri(email) ?? getAvatarUri(email)) : undefined;
+				const avatarUrl = avatarUri instanceof Uri ? avatarUri.toString() : undefined;
+
 				for (const contribution of contributor.contributions) {
 					dataset.push({
-						author: contributor.current ? currentUserName : contributor.name,
+						author: contributor.name,
+						current: contributor.current || undefined,
+						email: email,
+						avatarUrl: avatarUrl,
 						sha: contribution.sha,
 						date: contribution.date.toISOString(),
 						message: contribution.message,
@@ -774,10 +819,16 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 
 		const pseudoCommits = await getPseudoCommitsWithStats(this.container, statusFiles, relativePath, currentUser);
 		if (pseudoCommits?.length) {
-			dataset.splice(0, 0, ...map(pseudoCommits, c => createDatum(c, scope.type, currentUserName)));
+			dataset.splice(0, 0, ...map(pseudoCommits, c => createDatum(c, scope.type)));
 		} else if (dataset.length) {
+			// Attribute the no-changes Working Tree placeholder to the current Git user — these
+			// are the user's *potential* working changes, even when there aren't any. Using
+			// `dataset[0]` here picked an arbitrary recent committer, which mislabeled the empty
+			// placeholder as "+0 lines by Keith Daulton" or whoever happened to commit last.
 			dataset.splice(0, 0, {
-				author: dataset[0].author,
+				author: currentUser?.name ?? dataset[0].author,
+				current: currentUser != null || undefined,
+				email: currentUser?.email,
 				files: 0,
 				additions: 0,
 				deletions: 0,
@@ -866,9 +917,9 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 						{
 							preserveFocus: true,
 							preview: true,
-							title: `Folder Changes in ${shortenRevision(commit.sha, {
+							title: `Folder Changes between ${shortenRevision(commit.sha, {
 								strings: { working: 'Working Tree' },
-							})}`,
+							})} and Working Tree`,
 							...this.getOpenEditorShowOptions(),
 						},
 						type === 'folder' ? getFilesFilter(uri, commit.sha) : undefined,
@@ -911,7 +962,7 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 	}
 }
 
-function createDatum(commit: GitCommit, scopeType: TimelineScopeType, currentUserName: string): TimelineDatum {
+function createDatum(commit: GitCommit, scopeType: TimelineScopeType): TimelineDatum {
 	let additions: number | undefined;
 	let deletions: number | undefined;
 	let files: number | undefined;
@@ -926,8 +977,16 @@ function createDatum(commit: GitCommit, scopeType: TimelineScopeType, currentUse
 		files = getChangedFilesCount(commit.stats.files);
 	}
 
+	const email = commit.author.email;
+	// Prefer the cached avatar URI so we don't pay a remote-provider lookup per commit; the cached
+	// path returns synchronously and the webview falls back to initials if avatarUrl is missing.
+	const avatarUri = email != null ? (getCachedAvatarUri(email) ?? getAvatarUri(email)) : undefined;
+
 	return {
-		author: commit.author.current ? currentUserName : commit.author.name,
+		author: commit.author.name,
+		current: commit.author.current || undefined,
+		email: email,
+		avatarUrl: avatarUri instanceof Uri ? avatarUri.toString() : undefined,
 		files: files,
 		additions: additions,
 		deletions: deletions,

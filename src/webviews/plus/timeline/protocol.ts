@@ -1,5 +1,6 @@
 import type { Uri } from 'vscode';
 import type { GitReference } from '@gitlens/git/models/reference.js';
+import type { CurrentUserNameStyle } from '@gitlens/git/utils/commit.utils.js';
 import type { FeatureAccess } from '../../../features.js';
 import type { RepositoryShape } from '../../../git/models/repositoryShape.js';
 import type { Serialized } from '../../../system/serialize.js';
@@ -21,6 +22,7 @@ export interface State extends WebviewState<'gitlens.timeline' | 'gitlens.views.
 		abbreviatedShaLength: number;
 		dateFormat: string;
 		shortDateFormat: string;
+		currentUserNameStyle: CurrentUserNameStyle;
 	};
 
 	scope: TimelineScopeSerialized | undefined;
@@ -32,7 +34,19 @@ export interface State extends WebviewState<'gitlens.timeline' | 'gitlens.views.
 
 export interface TimelineDatum {
 	sha: string;
+	/** Raw author name (no "(you)" suffix). The webview applies `formatIdentityDisplayName` with
+	 * the current user style at render time so the rail/tooltip text honor the user's setting,
+	 * while initials and avatar lookup keep using the unmodified name. */
 	author: string;
+	/** True when this commit's author is the current Git user. Combined with the raw `author`
+	 * name, the webview formats display strings with `formatIdentityDisplayName`. */
+	current?: boolean;
+	/** Author email — used by the rail to render a gravatar. Optional because synthetic / squashed
+	 * commits surfaced from non-git sources may not carry one. */
+	email?: string;
+	/** Pre-resolved gravatar (or remote provider) avatar URL, computed by the host. The webview
+	 * has no facility to compute it from email alone, so the host does the work. */
+	avatarUrl?: string;
 	date: string;
 	message: string;
 
@@ -101,9 +115,10 @@ export interface TimelineInitialContext {
 	scope: TimelineScopeSerialized | undefined;
 	/** Config overrides from command args (if any). Webview merges with its persisted config. */
 	configOverrides?: Partial<TimelineConfig>;
-	/** Display config from VS Code settings (date formats, sha length). */
+	/** Display config from VS Code settings (date formats, sha length, current-user style). */
 	displayConfig: {
 		abbreviatedShaLength: number;
+		currentUserNameStyle: CurrentUserNameStyle;
 		dateFormat: string;
 		shortDateFormat: string;
 	};

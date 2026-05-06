@@ -116,6 +116,11 @@ export const timelineStyles = css`
 		overflow: hidden;
 	}
 
+	.breadcrumb-actions {
+		display: inline-flex;
+		align-items: center;
+	}
+
 	.details .details__ref,
 	.details .details__timeframe {
 		min-width: 0;

@@ -1,5 +1,6 @@
 import { computed } from '@lit-labs/signals';
 import type { GitReference } from '@gitlens/git/models/reference.js';
+import type { CurrentUserNameStyle } from '@gitlens/git/utils/commit.utils.js';
 import type { FeatureAccess } from '../../../../features.js';
 import type { RepositoryShape } from '../../../../git/models/repositoryShape.js';
 import type { TimelinePeriod, TimelineScopeSerialized, TimelineSliceBy } from '../../../plus/timeline/protocol.js';
@@ -10,12 +11,14 @@ export interface TimelineHostDisplayConfig {
 	abbreviatedShaLength: number;
 	dateFormat: string;
 	shortDateFormat: string;
+	currentUserNameStyle: CurrentUserNameStyle;
 }
 
 const defaultDisplayConfig: TimelineHostDisplayConfig = {
 	abbreviatedShaLength: 7,
 	dateFormat: '',
 	shortDateFormat: '',
+	currentUserNameStyle: 'nameAndYou',
 };
 
 /**

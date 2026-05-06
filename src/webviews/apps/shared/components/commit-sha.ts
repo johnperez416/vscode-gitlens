@@ -1,6 +1,6 @@
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { isUncommitted, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
+import { isUncommitted, isUncommittedStaged, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import './code-icon.js';
 import './copy-container.js';
 
@@ -53,7 +53,15 @@ export class GlCommitSha extends LitElement {
 		if (this.sha == null) return nothing;
 
 		if (!this.sha || isUncommitted(this.sha)) {
-			return html`<span part="label" class="label--uncommitted">${this.label}</span>`;
+			// Reserve the same leading-icon slot as committed shas so consumers that mix the two
+			// (e.g. the timeline footer's slider readout) keep a consistent horizontal offset.
+			// `pencil` for working-tree changes ("you've been editing") and `check` for staged
+			// ("approved/ready for commit") — the two icons read as a natural progression toward
+			// committed state without leaning on the prior `folder` / `folder-active` pair, which
+			// suggested navigation rather than activity.
+			const uncommittedIcon = isUncommittedStaged(this.sha) ? 'check' : 'pencil';
+			return html`<code-icon part="icon" class="icon" icon="${uncommittedIcon}" size="${this.size}"></code-icon
+				><span part="label" class="label--uncommitted">${this.label}</span>`;
 		}
 
 		return html`<code-icon part="icon" class="icon" icon="${this.icon}" size="${this.size}"></code-icon
@@ -95,6 +103,12 @@ export class GlCommitShaCopy extends LitElement {
 
 	override render(): unknown {
 		if (this.sha == null) return nothing;
+
+		// Empty or uncommitted-sentinel shas have nothing meaningful to copy — render the label
+		// directly so consumers (e.g. the timeline's Working Tree placeholder) still see "Working".
+		if (!this.sha || isUncommitted(this.sha)) {
+			return html`<gl-commit-sha .sha=${this.sha} .icon=${this.icon} .size=${this.size}></gl-commit-sha>`;
+		}
 
 		return html`<gl-copy-container
 			.content=${this.sha}

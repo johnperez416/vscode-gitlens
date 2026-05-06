@@ -6153,6 +6153,26 @@
 				}
 			},
 			{
+				"id": "gitlens.timelineAdditionsColor",
+				"description": "Specifies the color of additions in the _Visual History_ volume strip and tooltip",
+				"defaults": {
+					"light": "#2da44e",
+					"highContrastLight": "#2da44e",
+					"dark": "#49be47",
+					"highContrast": "#49be47"
+				}
+			},
+			{
+				"id": "gitlens.timelineDeletionsColor",
+				"description": "Specifies the color of deletions in the _Visual History_ volume strip and tooltip",
+				"defaults": {
+					"light": "#cf222e",
+					"highContrastLight": "#cf222e",
+					"dark": "#c3202d",
+					"highContrast": "#c3202d"
+				}
+			},
+			{
 				"id": "gitlens.graphChangesColumnAddedColor",
 				"description": "Specifies the color for denoting lines added in the _Changes_ column on the _Commit Graph_",
 				"defaults": {
@@ -28296,7 +28316,6 @@
 		"@opentelemetry/sdk-trace-base": "2.7.0",
 		"@opentelemetry/semantic-conventions": "1.40.0",
 		"@vscode/codicons": "0.0.45",
-		"billboard.js": "3.18.0",
 		"diff2html": "3.4.56",
 		"dragula": "3.7.3",
 		"driver.js": "1.4.0",

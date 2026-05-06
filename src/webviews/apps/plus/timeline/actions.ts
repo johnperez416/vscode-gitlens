@@ -141,6 +141,7 @@ export class TimelineActions {
 			abbreviatedShaLength: ctx.displayConfig.abbreviatedShaLength,
 			dateFormat: ctx.displayConfig.dateFormat,
 			shortDateFormat: ctx.displayConfig.shortDateFormat,
+			currentUserNameStyle: ctx.displayConfig.currentUserNameStyle,
 		});
 		setAbbreviatedShaLength(ctx.displayConfig.abbreviatedShaLength);
 
@@ -202,15 +203,17 @@ export class TimelineActions {
 
 	async fetchDisplayConfig(): Promise<void> {
 		const config = await this._services.config;
-		const [dateFormat, shortDateFormat, abbreviatedShaLength] = await config.getMany(
+		const [dateFormat, shortDateFormat, abbreviatedShaLength, currentUserNameStyle] = await config.getMany(
 			'defaultDateFormat',
 			'defaultDateShortFormat',
 			'advanced.abbreviatedShaLength',
+			'defaultCurrentUserNameStyle',
 		);
 		this._state.displayConfig.set({
 			dateFormat: dateFormat ?? '',
 			shortDateFormat: shortDateFormat ?? '',
 			abbreviatedShaLength: abbreviatedShaLength,
+			currentUserNameStyle: currentUserNameStyle ?? 'nameAndYou',
 		});
 		setAbbreviatedShaLength(abbreviatedShaLength);
 	}
@@ -388,11 +391,7 @@ export class TimelineActions {
 			return;
 		}
 
-		s.scope.set({
-			...currentScope,
-			type: result.picked.type,
-			relativePath: result.picked.relativePath,
-		});
+		s.scope.set({ ...currentScope, type: result.picked.type, relativePath: result.picked.relativePath });
 		void this.fetchTimeline();
 	}
 
@@ -409,7 +408,8 @@ export class TimelineActions {
 
 		if (type === 'repo') {
 			if (openInEditor) {
-				this._timeline.openInEditor({ ...currentScope, type: 'repo', relativePath: '' });
+				const repoUri = s.repository.get()?.uri ?? currentScope.uri;
+				this._timeline.openInEditor({ ...currentScope, type: 'repo', uri: repoUri, relativePath: '' });
 				return;
 			}
 
@@ -419,12 +419,12 @@ export class TimelineActions {
 				return;
 			}
 
-			// Navigate to repo scope
-			s.scope.set({
-				...currentScope,
-				type: 'repo',
-				relativePath: '',
-			});
+			// Navigate to repo scope. Reset uri to the repo's uri so the host's enrichment
+			// (which rebuilds relativePath from uri vs repo.uri) yields '' instead of the
+			// previous file/folder path — otherwise the path breadcrumbs would re-appear and
+			// make it look like the filter wasn't cleared.
+			const repoUri = s.repository.get()?.uri ?? currentScope.uri;
+			s.scope.set({ ...currentScope, type: 'repo', uri: repoUri, relativePath: '' });
 			void this.fetchTimeline();
 			return;
 		}
@@ -432,19 +432,11 @@ export class TimelineActions {
 		if (value == null) return;
 
 		if (openInEditor) {
-			this._timeline.openInEditor({
-				...currentScope,
-				type: type,
-				relativePath: value,
-			});
+			this._timeline.openInEditor({ ...currentScope, type: type, relativePath: value });
 			return;
 		}
 
-		s.scope.set({
-			...currentScope,
-			type: type,
-			relativePath: value,
-		});
+		s.scope.set({ ...currentScope, type: type, relativePath: value });
 		void this.fetchTimeline();
 	}
 
@@ -454,17 +446,18 @@ export class TimelineActions {
 		if (result == null) return;
 
 		// head/base are left undefined — host enriches them in getDataset()
-		s.scope.set({
-			type: result.type,
-			uri: result.uri,
-			relativePath: '',
-		});
+		s.scope.set({ type: result.type, uri: result.uri, relativePath: '' });
 		void this.fetchTimeline();
 	}
 
 	selectDataPoint(detail: CommitEventDetail): void {
 		const s = this._state;
 		if (s.scope.get() == null) return;
+
+		// Interim selections come from mid-drag slider scrub — useful for visual feedback in the
+		// chart but the editor diff would churn through every tick. Skip the host RPC for those;
+		// the slider's release event re-fires with `interim: false` and that's what opens the diff.
+		if (detail.interim) return;
 
 		this._fireSelectDataPointDebounced ??= debounce(
 			(e: CommitEventDetail) => {
