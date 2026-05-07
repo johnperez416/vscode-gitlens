@@ -18,12 +18,6 @@ const phaseToCategory: Record<AgentSessionPhase, Category> = {
 	idle: 'idle',
 };
 
-const categoryRank: Record<Category, number> = {
-	'needs-input': 0,
-	working: 1,
-	idle: 2,
-};
-
 /** Idle sessions older than this fold behind a "Show N idle (24h+)" disclosure. Inside-a-workday
  *  idle sessions surface inline; older ones become noise unless the user opts in. */
 const staleIdleThresholdMs = 24 * 60 * 60 * 1000;
@@ -673,26 +667,9 @@ export class GlDetailsAgentStatus extends LitElement {
 		return { fresh: fresh, stale: stale };
 	}
 
-	/** Sort by category-actionability first (needs-input → working → idle), then by most-recent
-	 *  activity within each category. Same ordering everywhere — banner just reads `sessions[0]`
-	 *  to find its primary subject. Actionable always wins: a fresh idle session never outranks
-	 *  a session that's actually waiting on you. */
-	private get sortedSessions(): AgentSessionState[] | undefined {
-		if (this.sessions == null || this.sessions.length === 0) return undefined;
-		return this.sessions.toSorted((a, b) => {
-			const ra = categoryRank[phaseToCategory[a.phase]];
-			const rb = categoryRank[phaseToCategory[b.phase]];
-			if (ra !== rb) return ra - rb;
-			const ta = a.lastActivityTimestamp ?? a.phaseSinceTimestamp ?? 0;
-			const tb = b.lastActivityTimestamp ?? b.phaseSinceTimestamp ?? 0;
-			if (ta !== tb) return tb - ta;
-			return (a.name ?? '').localeCompare(b.name ?? '');
-		});
-	}
-
 	protected override willUpdate(_changed: PropertyValues): void {
-		const sessions = this.sortedSessions;
-		if (sessions == null) return;
+		const sessions = this.sessions;
+		if (sessions == null || sessions.length === 0) return;
 
 		const counts = this.tally(sessions);
 		if (counts['needs-input'] > 0 || counts.working > 0) {
@@ -702,8 +679,8 @@ export class GlDetailsAgentStatus extends LitElement {
 	}
 
 	override render(): unknown {
-		const sessions = this.sortedSessions;
-		if (sessions == null) return nothing;
+		const sessions = this.sessions;
+		if (sessions == null || sessions.length === 0) return nothing;
 
 		const counts = this.tally(sessions);
 		const hasActionable = counts['needs-input'] > 0 || counts.working > 0;
@@ -720,9 +697,10 @@ export class GlDetailsAgentStatus extends LitElement {
 		snapshot: { top: AgentSessionState; counts: Record<Category, number> },
 		visible: boolean,
 	): unknown {
-		// `sortedSessions` is category-then-timestamp ordered, so the first entry is always the
-		// highest-actionability session — exactly the right banner subject. The snapshot freezes
-		// this so the exit animation can play with stable content.
+		// `sessions` is category-then-timestamp ordered (canonical sort applied at the state-entry
+		// point, see `shared/agentUtils`), so the first entry is always the highest-actionability
+		// session — exactly the right banner subject. The snapshot freezes this so the exit
+		// animation can play with stable content.
 		const { top, counts } = snapshot;
 		const topCategory = phaseToCategory[top.phase];
 

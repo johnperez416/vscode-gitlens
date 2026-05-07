@@ -1,4 +1,34 @@
+import type { AgentSessionPhase } from '../../../agents/provider.js';
 import type { AgentSessionState } from '../../home/protocol.js';
+
+const phaseRank: Record<AgentSessionPhase, number> = {
+	waiting: 0,
+	working: 1,
+	idle: 2,
+};
+
+/** Canonical sort order for agent sessions across every UI surface. Category-actionability first
+ *  (needs-input → working → idle), then most-recent activity within a category, then alphabetical
+ *  by name. Applied once at each state-entry point so all consumers — banners, pills, cards,
+ *  hovers — render the same order. Actionable always wins: a fresh idle session never outranks a
+ *  session that's actually waiting on you. */
+export function sortAgentSessions(sessions: readonly AgentSessionState[]): AgentSessionState[] {
+	return sessions.toSorted((a, b) => {
+		const ra = phaseRank[a.phase];
+		const rb = phaseRank[b.phase];
+		if (ra !== rb) {
+			return ra - rb;
+		}
+		const ta = a.lastActivityTimestamp ?? a.phaseSinceTimestamp ?? 0;
+		const tb = b.lastActivityTimestamp ?? b.phaseSinceTimestamp ?? 0;
+
+		if (ta !== tb) {
+			return tb - ta;
+		}
+
+		return (a.name ?? '').localeCompare(b.name ?? '');
+	});
+}
 
 /** Identifies a branch+worktree the matcher should resolve sessions for. `repoPath` must be the
  *  path that `session.workspacePath` is normalized to on the host — i.e. the **main repo's path**

@@ -30,6 +30,7 @@ import type {
 	RepositoryChangeEventData,
 	Unsubscribe,
 } from '../../rpc/services/types.js';
+import { sortAgentSessions } from '../shared/agentUtils.js';
 import { subscribeAll } from '../shared/events/subscriptions.js';
 import type { HomeRootState } from './state.js';
 
@@ -207,7 +208,7 @@ export function setupSubscriptions(
 
 		() =>
 			services.home.onAgentSessionsChanged((sessions: AgentSessionState[]) => {
-				state.home.agentSessions.set(sessions);
+				state.home.agentSessions.set(sortAgentSessions(sessions));
 				actions.refreshAgentOverview();
 			}),
 	]);

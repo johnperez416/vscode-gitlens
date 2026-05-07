@@ -44,6 +44,7 @@ import {
 import type { WebviewState } from '../../../protocol.js';
 import { DidChangeHostWindowFocusNotification } from '../../../protocol.js';
 import type { OverviewBranchMergeTarget } from '../../../shared/overviewBranches.js';
+import { sortAgentSessions } from '../../shared/agentUtils.js';
 import type { ReactiveElementHost } from '../../shared/appHost.js';
 import { signalObjectState, signalState } from '../../shared/components/signal-utils.js';
 import type { LoggerContext } from '../../shared/contexts/logger.js';
@@ -332,7 +333,7 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 		// rather than eagerly at bootstrap, where it competes with the graph render itself.
 
 		void this.ipc.sendRequest(GetAgentSessionsRequest, undefined).then(sessions => {
-			this.agentSessions = sessions;
+			this.agentSessions = sortAgentSessions(sessions);
 		});
 	}
 
@@ -672,7 +673,7 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 				break;
 
 			case DidChangeAgentSessionsNotification.is(msg):
-				this.agentSessions = msg.params.sessions;
+				this.agentSessions = sortAgentSessions(msg.params.sessions);
 				break;
 
 			case DidChangeMcpBanner.is(msg):
