@@ -5,6 +5,7 @@ import { html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
+import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type { StashApplyCommandArgs } from '../../../../../commands/stashApply.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
 import type { CommitDetails } from '../../../../commitDetails/protocol.js';
@@ -32,6 +33,7 @@ import './gl-details-multicommit-panel.js';
 import './gl-details-compose-mode-panel.js';
 import './gl-details-review-mode-panel.js';
 import './gl-commit-box.js';
+import './gl-details-agent-status.js';
 import './gl-details-compare-mode-panel.js';
 import './gl-details-wip-empty-pane.js';
 import './gl-details-wip-header.js';
@@ -497,6 +499,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		const branchName = wip.branch?.name ?? 'unknown';
 		const activeMode = this._state.activeMode.get();
 		const hasChanges = (wip.changes?.files?.length ?? 0) > 0;
+		const branchAgentSessions = this.getBranchAgentSessions(wip.repo?.path, wip.branch?.name);
 
 		return html`
 			<gl-details-wip-header
@@ -520,6 +523,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				@fetch=${this.handleFetch}
 				@remove-associated-issue=${this.handleRemoveAssociatedIssue}
 			></gl-details-wip-header>
+			${branchAgentSessions != null && activeMode == null
+				? html`<gl-details-agent-status .sessions=${branchAgentSessions}></gl-details-agent-status>`
+				: nothing}
 			${activeMode === 'review'
 				? this.renderReviewMode()
 				: activeMode === 'compose'
@@ -758,6 +764,23 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 	private compareFileRef(leftRef: string | undefined): string | undefined {
 		const selected = this._state.branchCompareSelectedCommitSha.get();
 		return selected ?? leftRef;
+	}
+
+	/**
+	 * Filter the graph-state's agent sessions to those tied to the given branch within the given
+	 * repo path. Mirrors the matcher used by `gl-graph-overview` so the details-panel agent display
+	 * sees the same set of sessions the overview card does.
+	 */
+	private getBranchAgentSessions(
+		repoPath: string | undefined,
+		branchName: string | undefined,
+	): AgentSessionState[] | undefined {
+		if (repoPath == null || branchName == null) return undefined;
+		const all = this._graphState?.agentSessions;
+		if (all == null || all.length === 0) return undefined;
+
+		const matches = all.filter(s => s.workspacePath === repoPath && s.branch === branchName);
+		return matches.length > 0 ? matches : undefined;
 	}
 
 	private get commitBranchRef(): { name: string; remote: boolean } | undefined {
