@@ -86,6 +86,10 @@ export class GlAgentStatusPill extends LitElement {
 				line-height: normal;
 				white-space: nowrap;
 				cursor: default;
+				transition:
+					background-color 250ms ease,
+					border-color 250ms ease,
+					color 250ms ease;
 			}
 
 			.pill__dot {
@@ -93,6 +97,28 @@ export class GlAgentStatusPill extends LitElement {
 				height: 5px;
 				border-radius: 50%;
 				flex: none;
+				transition: background-color 250ms ease;
+			}
+
+			/* Ripple pulse for active states — mirrors the shared indicator pattern in
+			   shared/components/indicators/indicator.css.ts: solid dot, expanding-then-fading
+			   box-shadow halo. The halo uses the dot's accent color so the gesture matches the
+			   pill's category. */
+			.pill--working .pill__dot,
+			.pill--needs-input .pill__dot {
+				animation: gl-agent-pill-pulse 1.5s ease 0s infinite;
+			}
+
+			@keyframes gl-agent-pill-pulse {
+				0% {
+					box-shadow: 0 0 0 0 var(--pill-pulse-color, transparent);
+				}
+				70% {
+					box-shadow: 0 0 0 5px transparent;
+				}
+				100% {
+					box-shadow: 0 0 0 0 transparent;
+				}
 			}
 
 			/* Working */
@@ -103,6 +129,7 @@ export class GlAgentStatusPill extends LitElement {
 			}
 			.pill--working .pill__dot {
 				background-color: var(--gl-agent-pill-working-color);
+				--pill-pulse-color: color-mix(in srgb, var(--gl-agent-pill-working-color) 50%, transparent);
 			}
 
 			/* Needs Input */
@@ -113,6 +140,7 @@ export class GlAgentStatusPill extends LitElement {
 			}
 			.pill--needs-input .pill__dot {
 				background-color: var(--gl-agent-pill-attention-color);
+				--pill-pulse-color: color-mix(in srgb, var(--gl-agent-pill-attention-color) 60%, transparent);
 			}
 
 			/* Idle */
@@ -123,6 +151,18 @@ export class GlAgentStatusPill extends LitElement {
 			}
 			.pill--idle .pill__dot {
 				background-color: var(--gl-agent-pill-idle-color);
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				.pill,
+				.pill__dot {
+					transition: none;
+				}
+
+				.pill--working .pill__dot,
+				.pill--needs-input .pill__dot {
+					animation: none;
+				}
 			}
 
 			/* Popover content */
