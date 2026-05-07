@@ -1,9 +1,12 @@
+import type { PropertyValues } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { AgentSessionPhase } from '../../../../../agents/provider.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { AgentSessionState } from '../../../../home/protocol.js';
 import { elementBase, linkBase } from '../styles/lit/base.css.js';
+import '../actions/action-item.js';
+import '../actions/action-nav.js';
 import '../button.js';
 import '../code-icon.js';
 import '../overlays/popover.js';
@@ -75,9 +78,11 @@ export class GlAgentStatusPill extends LitElement {
 
 			/* Pill badge */
 			.pill {
+				/* border-box so the 1px border counts inside the 100% width — without it the pill
+				   bleeds 2px past its container in full mode. */
+				box-sizing: border-box;
 				display: inline-flex;
 				align-items: center;
-				gap: 0.4rem;
 				padding: 0.1rem 0.6rem;
 				border-radius: 50px;
 				border: 1px solid transparent;
@@ -92,12 +97,58 @@ export class GlAgentStatusPill extends LitElement {
 					color 250ms ease;
 			}
 
+			.pill__label {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.4rem;
+				min-width: 0;
+			}
+
 			.pill__dot {
 				width: 5px;
 				height: 5px;
 				border-radius: 50%;
 				flex: none;
 				transition: background-color 250ms ease;
+			}
+
+			/* Full mode — pill grows to fill its container and surfaces inline actions on the
+			   right of the label. The popover anchor still wraps the whole pill so hover/focus
+			   keeps surfacing the rich detail (without duplicating the action row).
+			   full-active is a host-managed attribute, distinct from the public full prop, so the
+			   needs-input + !canResolve fallback can still render compact even when the consumer
+			   requested full. */
+			:host([full-active]) {
+				display: block;
+				width: 100%;
+			}
+
+			:host([full-active]) gl-popover {
+				display: block;
+				--gl-popover-anchor-width: 100%;
+			}
+
+			:host([full-active]) .pill {
+				display: flex;
+				width: 100%;
+				justify-content: space-between;
+				padding: 0.3rem 0.6rem;
+			}
+
+			.pill__actions {
+				flex: none;
+				/* Tighten the inline action row so it sits flush with the pill's right padding
+				   instead of stretching the pill height. action-nav is a flex container itself —
+				   we just nudge gap and offset here. */
+				gap: 0.1rem;
+				margin-inline-end: -0.3rem;
+			}
+
+			.pill__actions action-item {
+				width: 1.8rem;
+				height: 1.8rem;
+				border-radius: 0.4rem;
+				color: inherit;
 			}
 
 			/* Ripple pulse for active states — mirrors the shared indicator pattern in
@@ -311,39 +362,116 @@ export class GlAgentStatusPill extends LitElement {
 	@property({ type: Object })
 	session!: AgentSessionState;
 
+	/** When set, the pill renders full-width with the category-aware action row inline on the
+	 *  right of the label. The hover popover still surfaces the rich detail (header, last prompt,
+	 *  tool context) but drops the action row to avoid duplicating the inline buttons.
+	 *
+	 *  Falls back to compact rendering when `needs-input` cannot resolve inline (`!isInWorkspace`
+	 *  or no `pendingPermissionDetail`) — a full-width pill with no actions would be a dead-end. */
+	@property({ type: Boolean, reflect: true })
+	full = false;
+
 	private onActionMouseDown(e: MouseEvent): void {
 		// Stop mousedown from reaching the popover, which would hide it
 		// before the click event fires on the <a> tag
 		e.stopPropagation();
 	}
 
+	private isFullActive(): boolean {
+		if (!this.full) return false;
+		const session = this.session;
+		if (session == null) return false;
+		const category = phaseCategories[session.phase];
+		// Needs-input sessions only honor full mode when the action surface is actually usable —
+		// otherwise the pill would be a full-width row with no actions, which is a dead-end UX.
+		const canResolve =
+			category === 'needs-input' && session.isInWorkspace && session.pendingPermissionDetail != null;
+		return category !== 'needs-input' || canResolve;
+	}
+
+	override willUpdate(_changed: PropertyValues<this>): void {
+		// Reflect post-fallback state via a private attribute so `:host([full-active])` selectors
+		// only apply when full mode is actually rendering. Setting the attribute pre-render avoids
+		// a one-frame layout flash that `updated()` would introduce.
+		this.toggleAttribute('full-active', this.isFullActive());
+	}
+
 	override render(): unknown {
 		const category = phaseCategories[this.session.phase];
 		const label = categoryLabels[category];
+		const detail = this.session.pendingPermissionDetail;
+		const canResolve = category === 'needs-input' && this.session.isInWorkspace && detail != null;
+
+		const renderFull = this.full && (category !== 'needs-input' || canResolve);
 
 		return html`
 			<gl-popover placement="bottom" hoist>
 				<span slot="anchor" class=${`pill ${category ? `pill--${category}` : ''}`.trim()} tabindex="0">
-					<span class="pill__dot"></span>
-					${label}
+					<span class="pill__label">
+						<span class="pill__dot"></span>
+						${label}
+					</span>
+					${renderFull ? this.renderInlineActions(category, canResolve) : nothing}
 				</span>
-				<div slot="content" class="hover-card" tabindex="-1">${this.renderHoverContent(category)}</div>
+				<div slot="content" class="hover-card" tabindex="-1">
+					${this.renderHoverContent(category, renderFull)}
+				</div>
 			</gl-popover>
 		`;
 	}
 
-	private renderHoverContent(category: AgentPillCategory): unknown {
+	private renderHoverContent(category: AgentPillCategory, omitActions: boolean): unknown {
 		switch (category) {
 			case 'working':
-				return this.renderWorkingHover();
+				return this.renderWorkingHover(omitActions);
 			case 'needs-input':
-				return this.renderNeedsInputHover();
+				return this.renderNeedsInputHover(omitActions);
 			case 'idle':
-				return this.renderIdleHover();
+				return this.renderIdleHover(omitActions);
 		}
 	}
 
-	private renderWorkingHover(): unknown {
+	/** Inline action surface for full mode. `needs-input` + canResolve renders the Allow / Deny / More
+	 *  trio; everything else (working, idle) gets a single Open Session affordance. The
+	 *  needs-input + !canResolve fallback is filtered out upstream by `render()`. */
+	private renderInlineActions(category: AgentPillCategory, canResolve: boolean): unknown {
+		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
+
+		if (category === 'needs-input' && canResolve) {
+			const detail = this.session.pendingPermissionDetail!;
+			const allowHref = createCommandLink('gitlens.agents.resolvePermission', {
+				sessionId: this.session.id,
+				decision: 'allow' as const,
+			});
+			const denyHref = createCommandLink('gitlens.agents.resolvePermission', {
+				sessionId: this.session.id,
+				decision: 'deny' as const,
+			});
+			const alwaysAllowHref = detail.hasSuggestions
+				? createCommandLink('gitlens.agents.resolvePermission', {
+						sessionId: this.session.id,
+						decision: 'allow' as const,
+						alwaysAllow: true,
+					})
+				: undefined;
+
+			return html`
+				<action-nav class="pill__actions" @mousedown=${this.onActionMouseDown}>
+					<action-item label="Allow" icon="check" href=${allowHref}></action-item>
+					<action-item label="Deny" icon="x" href=${denyHref}></action-item>
+					${this.renderMoreActionsMenu(openHref, alwaysAllowHref)}
+				</action-nav>
+			`;
+		}
+
+		return html`
+			<action-nav class="pill__actions" @mousedown=${this.onActionMouseDown}>
+				<action-item label="Open Session" icon="link-external" href=${openHref}></action-item>
+			</action-nav>
+		`;
+	}
+
+	private renderWorkingHover(omitActions: boolean): unknown {
 		const elapsed = formatElapsed(this.session.phaseSinceTimestamp);
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
 
@@ -369,16 +497,20 @@ export class GlAgentStatusPill extends LitElement {
 						</div>
 					`
 				: nothing}
-			<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
-				<gl-button appearance="secondary" full density="compact" href=${openHref}>
-					<code-icon icon="link-external" slot="prefix"></code-icon>
-					Open Session
-				</gl-button>
-			</div>
+			${omitActions
+				? nothing
+				: html`
+						<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
+							<gl-button appearance="secondary" full density="compact" href=${openHref}>
+								<code-icon icon="link-external" slot="prefix"></code-icon>
+								Open Session
+							</gl-button>
+						</div>
+					`}
 		`;
 	}
 
-	private renderNeedsInputHover(): unknown {
+	private renderNeedsInputHover(omitActions: boolean): unknown {
 		const elapsed = formatElapsed(this.session.phaseSinceTimestamp);
 		const detail = this.session.pendingPermissionDetail;
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
@@ -439,36 +571,38 @@ export class GlAgentStatusPill extends LitElement {
 							: nothing}
 					`
 				: nothing}
-			${canResolve
-				? html`
-						<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
-							<div class="hover-actions__row">
-								<gl-button full density="compact" href=${allowHref!}>
-									<code-icon icon="check" slot="prefix"></code-icon>
-									Allow
-								</gl-button>
-								<gl-button
-									appearance="secondary"
-									full
-									density="compact"
-									variant="danger"
-									href=${denyHref!}
-								>
-									<code-icon icon="x" slot="prefix"></code-icon>
-									Deny
-								</gl-button>
-								${this.renderMoreActionsMenu(openHref, alwaysAllowHref)}
+			${omitActions
+				? nothing
+				: canResolve
+					? html`
+							<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
+								<div class="hover-actions__row">
+									<gl-button full density="compact" href=${allowHref!}>
+										<code-icon icon="check" slot="prefix"></code-icon>
+										Allow
+									</gl-button>
+									<gl-button
+										appearance="secondary"
+										full
+										density="compact"
+										variant="danger"
+										href=${denyHref!}
+									>
+										<code-icon icon="x" slot="prefix"></code-icon>
+										Deny
+									</gl-button>
+									${this.renderMoreActionsMenu(openHref, alwaysAllowHref)}
+								</div>
 							</div>
-						</div>
-					`
-				: html`
-						<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
-							<gl-button appearance="secondary" full density="compact" href=${openHref}>
-								<code-icon icon="link-external" slot="prefix"></code-icon>
-								Open Session
-							</gl-button>
-						</div>
-					`}
+						`
+					: html`
+							<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
+								<gl-button appearance="secondary" full density="compact" href=${openHref}>
+									<code-icon icon="link-external" slot="prefix"></code-icon>
+									Open Session
+								</gl-button>
+							</div>
+						`}
 		`;
 	}
 
@@ -478,9 +612,7 @@ export class GlAgentStatusPill extends LitElement {
 	private renderMoreActionsMenu(openHref: string, alwaysAllowHref: string | undefined): unknown {
 		return html`
 			<gl-popover placement="bottom-end" trigger="click" hoist>
-				<gl-button slot="anchor" appearance="secondary" density="compact" aria-label="More actions">
-					<code-icon icon="ellipsis"></code-icon>
-				</gl-button>
+				<action-item slot="anchor" label="More actions" icon="ellipsis"></action-item>
 				<div slot="content" class="more-menu" role="menu" @mousedown=${this.onActionMouseDown}>
 					${alwaysAllowHref != null
 						? html`<a class="more-menu__item" role="menuitem" href=${alwaysAllowHref}>
@@ -497,7 +629,7 @@ export class GlAgentStatusPill extends LitElement {
 		`;
 	}
 
-	private renderIdleHover(): unknown {
+	private renderIdleHover(omitActions: boolean): unknown {
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
 
 		return html`
@@ -513,12 +645,16 @@ export class GlAgentStatusPill extends LitElement {
 						</div>
 					`
 				: nothing}
-			<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
-				<gl-button appearance="secondary" full density="compact" href=${openHref}>
-					<code-icon icon="link-external" slot="prefix"></code-icon>
-					Open Session
-				</gl-button>
-			</div>
+			${omitActions
+				? nothing
+				: html`
+						<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
+							<gl-button appearance="secondary" full density="compact" href=${openHref}>
+								<code-icon icon="link-external" slot="prefix"></code-icon>
+								Open Session
+							</gl-button>
+						</div>
+					`}
 		`;
 	}
 }
