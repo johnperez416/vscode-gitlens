@@ -1,3 +1,4 @@
+import type { PropertyValues } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { AgentSessionPhase } from '../../../../../agents/provider.js';
@@ -123,6 +124,32 @@ export class GlDetailsAgentStatus extends LitElement {
 					color-mix(in srgb, var(--banner-accent, var(--gl-agent-idle)) 4%, transparent)
 				);
 				border-left: 3px solid var(--banner-accent, var(--gl-agent-idle));
+				/* max-height bounds the layout-triggering exit collapse to this single element. */
+				max-height: 8rem;
+				overflow: hidden;
+				transform-origin: top;
+				transition:
+					opacity 200ms ease,
+					max-height 200ms ease,
+					transform 200ms ease,
+					background 250ms ease,
+					border-left-color 250ms ease,
+					display 200ms allow-discrete;
+			}
+
+			@starting-style {
+				.banner {
+					opacity: 0;
+					max-height: 0;
+					transform: translateY(-4px);
+				}
+			}
+
+			.banner[hidden] {
+				display: none;
+				opacity: 0;
+				max-height: 0;
+				transform: translateY(-4px);
 			}
 
 			.banner--needs-input {
@@ -136,6 +163,7 @@ export class GlDetailsAgentStatus extends LitElement {
 			}
 
 			.banner__icon {
+				position: relative;
 				flex: none;
 				color: var(--banner-accent);
 				font-size: 1.6em;
@@ -146,10 +174,30 @@ export class GlDetailsAgentStatus extends LitElement {
 				height: 2.4rem;
 				border-radius: 50%;
 				background-color: color-mix(in srgb, var(--banner-accent) 18%, transparent);
+				transition:
+					color 250ms ease,
+					background-color 250ms ease;
 			}
 
-			.banner__icon--pulse code-icon {
-				animation: gl-agent-pulse 1.5s ease-in-out infinite;
+			/* Stacked icon slots cross-fade on category swap. Inactive slot is scaled-down +
+			   transparent; the spinning code-icon's own transform animation runs unimpeded
+			   because the slot wrapper carries the swap transform, not the icon itself. */
+			.banner__icon-slot {
+				position: absolute;
+				inset: 0;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				opacity: 0;
+				transform: scale(0.7);
+				transition:
+					opacity 200ms ease,
+					transform 200ms ease;
+			}
+
+			.banner__icon-slot--active {
+				opacity: 1;
+				transform: scale(1);
 			}
 
 			@keyframes gl-agent-pulse {
@@ -159,6 +207,29 @@ export class GlDetailsAgentStatus extends LitElement {
 				}
 				50% {
 					opacity: 0.45;
+				}
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				.banner,
+				.banner__icon,
+				.banner__icon-slot {
+					transition: none;
+				}
+
+				.banner__icon-slot:not(.banner__icon-slot--active) {
+					/* Avoid a pop on swap — keep the inactive slot fully hidden rather than
+					   scaling under reduced motion. */
+					transform: none;
+				}
+
+				/* Outer-tree rule wins over code-icon's own :host([modifier='spin']) animation. */
+				.banner__icon code-icon[modifier='spin'] {
+					animation: none;
+				}
+
+				.card--working .card__dot {
+					animation: none;
 				}
 			}
 
@@ -576,6 +647,10 @@ export class GlDetailsAgentStatus extends LitElement {
 
 	@state() private _showStale = false;
 	@state() private _collapsed = true;
+	/** Persisted last-actionable banner data so the banner can animate out using its prior content
+	 *  after the underlying sessions go idle. Updated only when actionable; never cleared, so the
+	 *  exit animation has stable content to render while the [hidden] transition completes. */
+	@state() private _bannerSnapshot?: { top: AgentSessionState; counts: Record<Category, number> };
 
 	/** Splits idle sessions older than {@link staleIdleThresholdMs} out into a `stale`
 	 *  bucket. Non-idle sessions (working, needs-input) are always considered fresh regardless
@@ -615,6 +690,17 @@ export class GlDetailsAgentStatus extends LitElement {
 		});
 	}
 
+	protected override willUpdate(_changed: PropertyValues): void {
+		const sessions = this.sortedSessions;
+		if (sessions == null) return;
+
+		const counts = this.tally(sessions);
+		if (counts['needs-input'] > 0 || counts.working > 0) {
+			this._bannerSnapshot = { top: sessions[0], counts: counts };
+		}
+		// Otherwise leave _bannerSnapshot in place so the exit transition has content to render.
+	}
+
 	override render(): unknown {
 		const sessions = this.sortedSessions;
 		if (sessions == null) return nothing;
@@ -623,16 +709,21 @@ export class GlDetailsAgentStatus extends LitElement {
 		const hasActionable = counts['needs-input'] > 0 || counts.working > 0;
 
 		return html`
-			${hasActionable ? this.renderBanner(sessions, counts) : nothing} ${this.renderSection(sessions, counts)}
+			${this._bannerSnapshot != null ? this.renderBanner(this._bannerSnapshot, hasActionable) : nothing}
+			${this.renderSection(sessions, counts)}
 		`;
 	}
 
 	/* ---------- Banner ---------- */
 
-	private renderBanner(sessions: AgentSessionState[], counts: Record<Category, number>): unknown {
+	private renderBanner(
+		snapshot: { top: AgentSessionState; counts: Record<Category, number> },
+		visible: boolean,
+	): unknown {
 		// `sortedSessions` is category-then-timestamp ordered, so the first entry is always the
-		// highest-actionability session — exactly the right banner subject.
-		const top = sessions[0];
+		// highest-actionability session — exactly the right banner subject. The snapshot freezes
+		// this so the exit animation can play with stable content.
+		const { top, counts } = snapshot;
 		const topCategory = phaseToCategory[top.phase];
 
 		const summaryParts: string[] = [];
@@ -655,12 +746,17 @@ export class GlDetailsAgentStatus extends LitElement {
 			subtitleParts.push(elapsed);
 		}
 
-		const icon = topCategory === 'needs-input' ? 'warning' : topCategory === 'working' ? 'sync' : 'circle-outline';
-
 		return html`
-			<div class="banner banner--${topCategory}" role="status">
-				<span class="banner__icon ${topCategory === 'working' ? 'banner__icon--pulse' : ''}">
-					<code-icon icon=${icon}></code-icon>
+			<div class="banner banner--${topCategory}" role="status" ?hidden=${!visible}>
+				<span class="banner__icon">
+					<span
+						class=${`banner__icon-slot ${topCategory === 'needs-input' ? 'banner__icon-slot--active' : ''}`}
+					>
+						<code-icon icon="warning"></code-icon>
+					</span>
+					<span class=${`banner__icon-slot ${topCategory === 'working' ? 'banner__icon-slot--active' : ''}`}>
+						<code-icon icon="sync" modifier="spin"></code-icon>
+					</span>
 				</span>
 				<div class="banner__text">
 					<span class="banner__title">${summaryParts.join(' · ') || 'Agents on this branch'}</span>
