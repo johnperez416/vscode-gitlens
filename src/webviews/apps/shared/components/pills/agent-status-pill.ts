@@ -377,23 +377,12 @@ export class GlAgentStatusPill extends LitElement {
 		e.stopPropagation();
 	}
 
-	private isFullActive(): boolean {
-		if (!this.full) return false;
-		const session = this.session;
-		if (session == null) return false;
-		const category = phaseCategories[session.phase];
-		// Needs-input sessions only honor full mode when the action surface is actually usable —
-		// otherwise the pill would be a full-width row with no actions, which is a dead-end UX.
-		const canResolve =
-			category === 'needs-input' && session.isInWorkspace && session.pendingPermissionDetail != null;
-		return category !== 'needs-input' || canResolve;
-	}
-
 	override willUpdate(_changed: PropertyValues<this>): void {
-		// Reflect post-fallback state via a private attribute so `:host([full-active])` selectors
-		// only apply when full mode is actually rendering. Setting the attribute pre-render avoids
-		// a one-frame layout flash that `updated()` would introduce.
-		this.toggleAttribute('full-active', this.isFullActive());
+		// Reflect the consumer-requested mode via a private `full-active` attribute so the
+		// `:host([full-active])` style block only applies when a session is actually mounted
+		// (avoids a layout flash before `.session` arrives). Setting the attribute pre-render
+		// keeps the styles in sync on the first paint without a one-frame `updated()` lag.
+		this.toggleAttribute('full-active', this.full && this.session != null);
 	}
 
 	override render(): unknown {
@@ -402,8 +391,6 @@ export class GlAgentStatusPill extends LitElement {
 		const detail = this.session.pendingPermissionDetail;
 		const canResolve = category === 'needs-input' && this.session.isInWorkspace && detail != null;
 
-		const renderFull = this.full && (category !== 'needs-input' || canResolve);
-
 		return html`
 			<gl-popover placement="bottom" hoist>
 				<span slot="anchor" class=${`pill ${category ? `pill--${category}` : ''}`.trim()} tabindex="0">
@@ -411,10 +398,10 @@ export class GlAgentStatusPill extends LitElement {
 						<span class="pill__dot"></span>
 						${label}
 					</span>
-					${renderFull ? this.renderInlineActions(category, canResolve) : nothing}
+					${this.full ? this.renderInlineActions(category, canResolve) : nothing}
 				</span>
 				<div slot="content" class="hover-card" tabindex="-1">
-					${this.renderHoverContent(category, renderFull)}
+					${this.renderHoverContent(category, this.full)}
 				</div>
 			</gl-popover>
 		`;
@@ -432,8 +419,9 @@ export class GlAgentStatusPill extends LitElement {
 	}
 
 	/** Inline action surface for full mode. `needs-input` + canResolve renders the Allow / Deny / More
-	 *  trio; everything else (working, idle) gets a single Open Session affordance. The
-	 *  needs-input + !canResolve fallback is filtered out upstream by `render()`. */
+	 *  trio. Everything else — working, idle, and the `needs-input` + !canResolve case where the
+	 *  permission can't be resolved inline — gets a single Open Session affordance so the pill is
+	 *  never a full-width dead end. */
 	private renderInlineActions(category: AgentPillCategory, canResolve: boolean): unknown {
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
 
