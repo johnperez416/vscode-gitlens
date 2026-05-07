@@ -16,7 +16,6 @@ import {
 } from '../../../../../plus/launchpad/models/launchpad.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type {
-	AgentSessionState,
 	BranchRef,
 	CreatePullRequestCommandArgs,
 	GetOverviewBranch,
@@ -26,6 +25,7 @@ import type {
 } from '../../../../home/protocol.js';
 import type { HomeState } from '../../../home/state.js';
 import { homeStateContext } from '../../../home/state.js';
+import { getWorktreeBasename, matchAgentSessionsForBranch } from '../../../shared/agentUtils.js';
 import { renderBranchName } from '../../../shared/components/branch-name.js';
 import type { GlCard } from '../../../shared/components/card/card.js';
 import { GlElement, observe } from '../../../shared/components/element.js';
@@ -838,27 +838,13 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 		></gl-branch-icon>`;
 	}
 
-	private getMatchingAgentSessions(): AgentSessionState[] {
-		const sessions = this._homeState?.agentSessions?.get();
-		if (sessions == null || sessions.length === 0) return [];
-
-		const branchName = this.branch.name;
-		const repoPath = this.repo;
-		return sessions.filter(session => {
-			if (session.branch !== branchName) return false;
-			if (session.workspacePath !== repoPath) return false;
-			// If both the session and the branch card have worktree info, cross-check
-			if (session.worktreeName != null && this.branch.worktree != null) {
-				const worktreeBasename = this.branch.worktree.uri.split('/').pop() ?? '';
-				if (session.worktreeName !== worktreeBasename) return false;
-			}
-			return true;
-		});
-	}
-
 	private renderAgentPillsRow(): TemplateResult | NothingType {
-		const sessions = this.getMatchingAgentSessions();
-		if (sessions.length === 0) return nothing;
+		const sessions = matchAgentSessionsForBranch(this._homeState?.agentSessions?.get(), {
+			name: this.branch.name,
+			repoPath: this.repo,
+			worktreeName: this.branch.worktree != null ? getWorktreeBasename(this.branch.worktree.uri) : undefined,
+		});
+		if (sessions == null || sessions.length === 0) return nothing;
 
 		return html`
 			<div class="branch-item__agents">

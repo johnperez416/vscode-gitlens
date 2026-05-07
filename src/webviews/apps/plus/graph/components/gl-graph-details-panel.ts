@@ -9,9 +9,11 @@ import type { AgentSessionState } from '../../../../../agents/models/agentSessio
 import type { StashApplyCommandArgs } from '../../../../../commands/stashApply.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
 import type { CommitDetails } from '../../../../commitDetails/protocol.js';
+import type { Wip } from '../../../../plus/graph/detailsProtocol.js';
 import type { GraphServices, VirtualRefShape } from '../../../../plus/graph/graphService.js';
 import type { FileChangeListItemDetail } from '../../../commitDetails/components/gl-details-base.js';
 import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
+import { getWorktreeBasename, matchAgentSessionsForBranch } from '../../../shared/agentUtils.js';
 import { ContextMenuProxyController } from '../../../shared/controllers/context-menu-proxy.js';
 import { graphServicesContext, graphStateContext } from '../context.js';
 import type { DetailsActions } from './detailsActions.js';
@@ -499,7 +501,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		const branchName = wip.branch?.name ?? 'unknown';
 		const activeMode = this._state.activeMode.get();
 		const hasChanges = (wip.changes?.files?.length ?? 0) > 0;
-		const branchAgentSessions = this.getBranchAgentSessions(wip.repo?.path, wip.branch?.name);
+		const branchAgentSessions = this.getBranchAgentSessions(wip);
 
 		return html`
 			<gl-details-wip-header
@@ -770,20 +772,29 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 	}
 
 	/**
-	 * Filter the graph-state's agent sessions to those tied to the given branch within the given
-	 * repo path. Mirrors the matcher used by `gl-graph-overview` so the details-panel agent display
-	 * sees the same set of sessions the overview card does.
+	 * Resolves the WIP's branch+worktree to the agent sessions running on it. Uses the graph's
+	 * primary-repo path (from {@link graphRepoPath}) — not `wip.repo.path` — because the host
+	 * normalizes `session.workspacePath` to the main-repo path for any worktree-resident agent
+	 * (see `claudeCodeProvider.ts` / `info.repoRoot` in `env/node/providers.ts`). For a
+	 * `worktree-wip::` selection, `wip.repo.path` IS the worktree's path; treating it as the
+	 * `repoPath` would never match a worktree session. The basename of `wip.repo.path` becomes
+	 * the worktree-disambiguator when it differs from the primary repo.
 	 */
-	private getBranchAgentSessions(
-		repoPath: string | undefined,
-		branchName: string | undefined,
-	): AgentSessionState[] | undefined {
-		if (repoPath == null || branchName == null) return undefined;
-		const all = this._graphState?.agentSessions;
-		if (all == null || all.length === 0) return undefined;
+	private getBranchAgentSessions(wip: Wip): AgentSessionState[] | undefined {
+		const branchName = wip.branch?.name;
+		if (branchName == null) return undefined;
 
-		const matches = all.filter(s => s.workspacePath === repoPath && s.branch === branchName);
-		return matches.length > 0 ? matches : undefined;
+		const primaryRepoPath = this.graphRepoPath() ?? wip.repo?.path;
+		if (primaryRepoPath == null) return undefined;
+
+		const wipPath = wip.repo?.path;
+		const worktreeName = wipPath != null && wipPath !== primaryRepoPath ? getWorktreeBasename(wipPath) : undefined;
+
+		return matchAgentSessionsForBranch(this._graphState?.agentSessions, {
+			name: branchName,
+			repoPath: primaryRepoPath,
+			worktreeName: worktreeName,
+		});
 	}
 
 	private get commitBranchRef(): { name: string; remote: boolean } | undefined {
