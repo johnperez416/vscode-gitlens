@@ -139,7 +139,7 @@ export type GraphMinimapMarkerTypes =
 
 export const supportedRefMetadataTypes: GraphRefMetadataType[] = ['upstream', 'pullRequest', 'issue'];
 
-export type GraphSidebarPanel = 'branches' | 'overview' | 'remotes' | 'stashes' | 'tags' | 'worktrees';
+export type GraphSidebarPanel = 'agents' | 'branches' | 'overview' | 'remotes' | 'stashes' | 'tags' | 'worktrees';
 
 export interface GraphOverviewData {
 	active: OverviewBranch[];
@@ -695,6 +695,7 @@ export type DidGetSidebarDataParams = { layout?: 'list' | 'tree'; compact?: bool
 	| { panel: 'tags'; items: GraphSidebarTag[] }
 	| { panel: 'worktrees'; items: GraphSidebarWorktree[] }
 	| { panel: 'overview'; items: never[] }
+	| { panel: 'agents'; items: AgentSessionState[] }
 );
 export type GetRowHoverParams = {
 	type: GitGraphRowType;

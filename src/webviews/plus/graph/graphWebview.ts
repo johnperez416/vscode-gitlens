@@ -1663,7 +1663,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				getSidebarCounts: () => this.onGetCounts(),
 				toggleLayout: panel => this.onSidebarToggleLayout({ panel: panel }),
 				refresh: panel => this.onSidebarRefresh({ panel: panel }),
-				executeAction: (command, context) => this.onSidebarAction({ command: command, context: context }),
+				executeAction: (command, context, args) =>
+					this.onSidebarAction({ command: command, context: context, args: args }),
 				onSidebarInvalidated: this._sidebarInvalidatedEvent.subscribe(buffer, tracker),
 				onWorktreeStateChanged: this._sidebarWorktreeEvent.subscribe(buffer, tracker),
 			},
@@ -2404,9 +2405,17 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		this.notifySidebarInvalidated();
 	}
 
-	private onSidebarAction(params: { command: GlCommands; context?: string }) {
+	private onSidebarAction(params: { command: GlCommands; context?: string; args?: unknown[] }) {
 		const repoPath = this._graph?.repoPath;
 		if (repoPath == null) return;
+
+		// Typed-args path — used by panels (e.g. agents) where the action target is a structured
+		// payload, not a serialized webview-item context. Args bypass the context+repoPath fallback
+		// because the receiving command takes its own typed arguments.
+		if (params.args != null) {
+			void executeCommand(params.command, ...params.args);
+			return;
+		}
 
 		if (params.context != null) {
 			try {

@@ -6,6 +6,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { fromNow } from '@gitlens/utils/date.js';
+import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type { GlCommands } from '../../../../../constants.commands.js';
 import type { WebviewItemContext } from '../../../../../system/webview.js';
 import { serializeWebviewItemContext, withWebviewItemFlag } from '../../../../../system/webview.js';
@@ -18,21 +19,33 @@ import type {
 	GraphSidebarWorktree,
 } from '../../../../plus/graph/protocol.js';
 import {
+	agentTooltip,
 	branchTooltip,
 	remoteTooltip,
 	stashTooltip,
 	tagTooltip,
 	worktreeTooltip,
 } from '../../../../plus/graph/sidebarTooltips.js';
+import {
+	agentPhaseToCategory,
+	describeAgentSession,
+	findOverviewBranchForSession,
+	formatAgentElapsed,
+	getAgentCategoryLabel,
+} from '../../../shared/agentUtils.js';
 import { scrollableBase, subPanelEnterStyles } from '../../../shared/components/styles/lit/base.css.js';
 import type {
 	TreeItemAction,
 	TreeItemActionDetail,
+	TreeItemDecoration,
 	TreeItemSelectionDetail,
 	TreeModel,
 	TreeModelFlat,
 } from '../../../shared/components/tree/base.js';
 import { ContextMenuProxyController } from '../../../shared/controllers/context-menu-proxy.js';
+import type { AppState } from '../context.js';
+import { graphStateContext } from '../context.js';
+import { getOverviewBranchSelectionSha } from '../utils/branchSelection.utils.js';
 import { sidebarActionsContext } from './sidebarContext.js';
 import type { SidebarActions } from './sidebarState.js';
 import '../overview/graph-overview.js';
@@ -59,6 +72,9 @@ const panelConfig: Record<GraphSidebarPanel, PanelConfig> = {
 			{ icon: 'add', tooltip: 'Create Worktree...', command: 'gitlens.views.title.createWorktree' },
 			{ icon: 'rocket', tooltip: 'Start Work', command: 'gitlens.startWork' },
 		],
+	},
+	agents: {
+		title: 'Agents',
 	},
 	worktrees: {
 		title: 'Worktrees',
@@ -311,6 +327,9 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	@consume({ context: sidebarActionsContext, subscribe: true })
 	private _actions!: SidebarActions;
 
+	@consume({ context: graphStateContext, subscribe: true })
+	private readonly _state!: AppState;
+
 	/** Memo for `buildTreeModel`. Renders fire on every filter/expansion change, so without this
 	 *  the tree model is rebuilt for an unchanged `data` reference. Reset on key change. */
 	private _treeModelCache?: {
@@ -365,8 +384,8 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 
 			// Always fetch on panel switch — data may be stale even if non-null.
 			// The Resource's cancelPrevious handles dedup.
-			// Overview panel manages its own data via IPC, skip sidebar fetch.
-			if (this.activePanel != null && this.activePanel !== 'overview') {
+			// Overview/Agents panels manage their own data via reactive state, skip sidebar fetch.
+			if (this.activePanel != null && this.activePanel !== 'overview' && this.activePanel !== 'agents') {
 				this._actions.fetchPanel(this.activePanel);
 			}
 		}
@@ -389,6 +408,20 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				<div class="content">
 					<gl-graph-overview></gl-graph-overview>
 				</div>
+			</div>`;
+		}
+
+		// Agents bypass the resource/IPC fetch loop — sessions arrive on `_state.agentSessions` via
+		// reactive notifications. Synthesize a `DidGetSidebarDataParams`-shaped value so the standard
+		// tree-view rendering flow (filter box + leaves) takes over.
+		if (this.activePanel === 'agents') {
+			const data: DidGetSidebarDataParams = {
+				panel: 'agents',
+				items: this._state.agentSessions ?? [],
+			};
+			return html`<div class="panel">
+				${this.renderHeader(config, false)}
+				<div class="content">${this.renderTreeContent(config, data)}</div>
 			</div>`;
 		}
 
@@ -555,6 +588,8 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					w => (w.isDefault || w.opened || !w.branch ? [w.name] : w.branch.split('/')),
 					(w, isTree) => this.toWorktreeLeaf(w, isTree),
 				);
+			case 'agents':
+				return data.items.map((a, i) => leafToTreeModel(this.toAgentLeaf(a), `agent:${a.id}:${i}`, 1));
 			default:
 				return [];
 		}
@@ -700,6 +735,83 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			// `+working` is appended client-side once the async hasChanges check resolves —
 			// the host emits the base context only.
 			contextValue: w.context != null && w.hasChanges ? withWebviewItemFlag(w.context, 'working') : w.context,
+		};
+	}
+
+	private toAgentLeaf(session: AgentSessionState): LeafProps {
+		const category = agentPhaseToCategory[session.phase];
+		const elapsed = formatAgentElapsed(session.phaseSinceTimestamp);
+		const phaseLabel = getAgentCategoryLabel(category);
+		// Description = last prompt; otherwise the describeSession line for needs-input / working
+		// (`Awaiting: tool` / `Running tool`). The "Last active …" fallback is intentionally
+		// excluded — elapsed time already shows up on the phase decoration, no need to repeat it.
+		const description =
+			session.lastPrompt ||
+			describeAgentSession(session, category, elapsed, {
+				awaitingPrefix: 'short',
+				idleFallback: 'lastPrompt',
+			});
+
+		const matchingBranch = findOverviewBranchForSession(this._state.overview, session);
+		const sha =
+			matchingBranch != null
+				? getOverviewBranchSelectionSha(matchingBranch, this._state.overviewWip?.[matchingBranch.id])
+				: undefined;
+
+		const detail = session.pendingPermissionDetail;
+		const canResolve = category === 'needs-input' && session.isInWorkspace && detail != null;
+		const showAlwaysAllow = canResolve && detail.hasSuggestions === true;
+
+		const actions: TreeItemAction[] = [];
+		if (canResolve) {
+			actions.push({
+				icon: 'check',
+				label: 'Allow',
+				action: 'gitlens.agents.resolvePermission',
+				arguments: [{ sessionId: session.id, decision: 'allow' as const }],
+				...(showAlwaysAllow
+					? {
+							altIcon: 'check-all',
+							altLabel: 'Always Allow',
+							altAction: 'gitlens.agents.resolvePermission',
+							altArguments: [{ sessionId: session.id, decision: 'allow' as const, alwaysAllow: true }],
+						}
+					: {}),
+			});
+			actions.push({
+				icon: 'x',
+				label: 'Deny',
+				action: 'gitlens.agents.resolvePermission',
+				arguments: [{ sessionId: session.id, decision: 'deny' as const }],
+			});
+		}
+		actions.push({
+			icon: 'link-external',
+			label: 'Open Session',
+			action: 'gitlens.agents.openSession',
+			arguments: [session.id],
+		});
+
+		// Phase decoration uses the muted-text kind so the textual phase reads alongside the icon
+		// color, giving us a non-color signal for the same status (a11y safety net).
+		const decorations: TreeItemDecoration[] = [
+			{
+				type: 'text',
+				label: phaseLabel + (elapsed != null ? ` · ${elapsed}` : ''),
+				kind: category === 'needs-input' ? 'modified' : category === 'working' ? 'untracked' : 'muted',
+				position: 'before',
+			},
+		];
+
+		return {
+			label: session.name,
+			tooltip: agentTooltip(session, matchingBranch),
+			filterText: `${session.name} ${session.lastPrompt ?? ''}`.trim(),
+			icon: { type: 'agent', phase: session.phase },
+			description: description,
+			context: [sha] as SidebarItemContext,
+			decorations: decorations,
+			actions: actions,
 		};
 	}
 
@@ -866,8 +978,10 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	private handleTreeItemAction(e: CustomEvent<TreeItemActionDetail>) {
 		const action = e.detail.action;
 		const node = e.detail.node as TreeModelFlat;
-		const command = (e.detail.altKey && action.altAction ? action.altAction : action.action) as GlCommands;
-		this._actions?.executeAction(command, node.contextData as string | undefined);
+		const useAlt = e.detail.altKey && action.altAction != null;
+		const command = (useAlt ? action.altAction! : action.action) as GlCommands;
+		const args = useAlt ? action.altArguments : action.arguments;
+		this._actions?.executeAction(command, node.contextData as string | undefined, args);
 	}
 
 	private handleTreeItemSelected(

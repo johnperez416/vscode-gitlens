@@ -5,7 +5,7 @@ import type { DidGetSidebarDataParams, GraphSidebarPanel } from '../../../../plu
 import type { Resource } from '../../../shared/state/resource.js';
 import { createResource } from '../../../shared/state/resource.js';
 
-export type Counts = Record<'branches' | 'remotes' | 'stashes' | 'tags' | 'worktrees', number | undefined>;
+export type Counts = Record<'agents' | 'branches' | 'remotes' | 'stashes' | 'tags' | 'worktrees', number | undefined>;
 
 export interface SidebarState {
 	readonly counts: { get(): Counts | undefined };
@@ -35,7 +35,7 @@ export interface SidebarActions {
 	invalidateAll(): void;
 	refresh(panel: GraphSidebarPanel): void;
 	toggleLayout(panel: GraphSidebarPanel): void;
-	executeAction(command: GlCommands, context?: string): void;
+	executeAction(command: GlCommands, context?: string, args?: unknown[]): void;
 	applyWorktreeChanges(changes: Record<string, boolean | undefined>): void;
 	dispose(): void;
 }
@@ -62,6 +62,7 @@ export function createSidebarActions(): SidebarActions {
 
 	const panels: Record<GraphSidebarPanel, Resource<DidGetSidebarDataParams | undefined>> = {
 		overview: createPanelResource('overview'),
+		agents: createPanelResource('agents'),
 		branches: createPanelResource('branches'),
 		remotes: createPanelResource('remotes'),
 		stashes: createPanelResource('stashes'),
@@ -97,6 +98,7 @@ export function createSidebarActions(): SidebarActions {
 
 	const expandedPaths: Record<GraphSidebarPanel, Set<string>> = {
 		overview: new Set(),
+		agents: new Set(),
 		branches: new Set(),
 		remotes: new Set(),
 		stashes: new Set(),
@@ -106,6 +108,7 @@ export function createSidebarActions(): SidebarActions {
 
 	const selectedPath: Record<GraphSidebarPanel, string | undefined> = {
 		overview: undefined,
+		agents: undefined,
 		branches: undefined,
 		remotes: undefined,
 		stashes: undefined,
@@ -207,8 +210,8 @@ export function createSidebarActions(): SidebarActions {
 			service?.toggleLayout(panel);
 		},
 
-		executeAction: function (command: GlCommands, context?: string) {
-			service?.executeAction(command, context);
+		executeAction: function (command: GlCommands, context?: string, args?: unknown[]) {
+			service?.executeAction(command, context, args);
 		},
 
 		applyWorktreeChanges: function (changes: Record<string, boolean | undefined>) {

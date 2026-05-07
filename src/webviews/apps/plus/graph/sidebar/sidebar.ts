@@ -18,9 +18,10 @@ interface Icon {
 	icon: string;
 	tooltip: string;
 }
-type IconTypes = 'branches' | 'overview' | 'remotes' | 'stashes' | 'tags' | 'worktrees';
+type IconTypes = 'agents' | 'branches' | 'overview' | 'remotes' | 'stashes' | 'tags' | 'worktrees';
 const icons: Icon[] = [
 	{ type: 'overview', icon: 'home', tooltip: 'Overview' },
+	{ type: 'agents', icon: 'hubot', tooltip: 'Agents' },
 	{ type: 'worktrees', icon: 'gl-worktrees-view', tooltip: 'Worktrees' },
 	{ type: 'branches', icon: 'gl-branches-view', tooltip: 'Branches' },
 	{ type: 'remotes', icon: 'gl-remotes-view', tooltip: 'Remotes' },
@@ -141,8 +142,8 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 	get include(): undefined | IconTypes[] {
 		const repo = this._state.repositories?.find(item => item.id === this._state.selectedRepository);
 		const base: readonly IconTypes[] = repo?.virtual
-			? (['overview', 'branches', 'remotes', 'tags'] as const)
-			: (['overview', 'branches', 'remotes', 'tags', 'stashes', 'worktrees'] as const);
+			? (['overview', 'agents', 'branches', 'remotes', 'tags'] as const)
+			: (['overview', 'agents', 'branches', 'remotes', 'tags', 'stashes', 'worktrees'] as const);
 
 		if (this._state.config?.experimentalFeaturesEnabled !== true) {
 			return base.filter(t => t !== 'overview');
@@ -275,17 +276,23 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 				aria-pressed=${isActive}
 			>
 				<code-icon icon="${icon.icon}"></code-icon>
-				${icon.type !== 'overview'
-					? this._actions?.state.countsLoading.get()
-						? html`<span class="count"
-								><code-icon icon="loading" modifier="spin" size="9"></code-icon
-							></span>`
-						: this._actions?.state.countsError.get()
-							? html`<span class="count error"><code-icon icon="warning" size="9"></code-icon></span>`
-							: renderCount(this._actions?.state.counts.get()?.[icon.type])
-					: nothing}
+				${this.renderIconCount(icon)}
 			</button>
 		</gl-tooltip>`;
+	}
+
+	private renderIconCount(icon: Icon) {
+		if (icon.type === 'overview') return nothing;
+		// Agents flow through reactive state, not the host counts IPC — read directly so the
+		// badge updates without paying the round-trip and skips the loading/error states.
+		if (icon.type === 'agents') return renderCount(this._state.agentSessions?.length || undefined);
+		if (this._actions?.state.countsLoading.get()) {
+			return html`<span class="count"><code-icon icon="loading" modifier="spin" size="9"></code-icon> </span>`;
+		}
+		if (this._actions?.state.countsError.get()) {
+			return html`<span class="count error"><code-icon icon="warning" size="9"></code-icon></span>`;
+		}
+		return renderCount(this._actions?.state.counts.get()?.[icon.type]);
 	}
 
 	private handleIconClick(icon: Icon) {

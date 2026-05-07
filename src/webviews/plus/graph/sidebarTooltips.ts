@@ -1,6 +1,14 @@
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { formatIndicators, formatTrackingTooltip } from '@gitlens/git/utils/tooltip.utils.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
+import type { AgentSessionState } from '../../../agents/models/agentSessionState.js';
+import {
+	agentPhaseToCategory,
+	formatAgentElapsed,
+	getAgentCategoryLabel,
+	getWorktreeBasename,
+} from '../../apps/shared/agentUtils.js';
+import type { OverviewBranch } from '../../shared/overviewBranches.js';
 import type {
 	GraphSidebarBranch,
 	GraphSidebarRemote,
@@ -118,5 +126,62 @@ export function remoteTooltip(r: GraphSidebarRemote): string {
 	if (r.url) {
 		tooltip += `\n\n${r.url}`;
 	}
+	return tooltip;
+}
+
+/** Markdown tooltip for an agent leaf in the graph sidebar. Mirrors the informational content
+ *  the `gl-agent-status-pill` shows in its popover (header, last prompt, current tool / request /
+ *  context) and adds the related branch/worktree so the user knows what graph row this leaf maps
+ *  to. Action affordances stay on the row (revealed on hover) so we don't duplicate them here. */
+export function agentTooltip(session: AgentSessionState, matchingBranch: OverviewBranch | undefined): string {
+	const category = agentPhaseToCategory[session.phase];
+	const phaseLabel = getAgentCategoryLabel(category);
+	const elapsed = formatAgentElapsed(session.phaseSinceTimestamp);
+
+	const phaseIcon =
+		category === 'needs-input' ? '$(warning)' : category === 'working' ? '$(sync)' : '$(circle-filled)';
+
+	const headerParts = [phaseLabel];
+	if (elapsed != null) {
+		headerParts.push(elapsed);
+	}
+
+	let tooltip = `${phaseIcon} **${session.name}** — ${headerParts.join(' · ')}`;
+
+	if (session.lastPrompt) {
+		tooltip += `\n\n**Last Prompt**\\\n${session.lastPrompt}`;
+	}
+
+	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
+		tooltip += `\n\n**Current Tool**\\\n${session.statusDetail}`;
+	}
+
+	const detail = session.pendingPermissionDetail;
+	if (category === 'needs-input' && detail != null) {
+		const requestParts = [`\`${detail.toolName}\``];
+		if (detail.toolDescription) {
+			requestParts.push(`— ${detail.toolDescription}`);
+		}
+		tooltip += `\n\n**Request**\\\n${requestParts.join(' ')}`;
+
+		if (detail.toolInputDescription) {
+			tooltip += `\n\n**Context**\\\n${detail.toolInputDescription}`;
+		}
+	}
+
+	// Branch line — prefer the resolved overview match (it carries the worktree URI we can show
+	// the basename of); fall back to the raw `session.branch` + `worktreeName` when the agent is
+	// on a branch outside the current overview.
+	const branchName = matchingBranch?.name ?? session.branch;
+	if (branchName) {
+		const worktreeName =
+			matchingBranch?.worktree != null ? getWorktreeBasename(matchingBranch.worktree.uri) : session.worktreeName;
+		let branchLine = `$(git-branch) \`${branchName}\``;
+		if (worktreeName) {
+			branchLine += ` — _worktree: ${worktreeName}_`;
+		}
+		tooltip += `\n\n**Branch**\\\n${branchLine}`;
+	}
+
 	return tooltip;
 }

@@ -255,7 +255,7 @@ export interface GraphSidebarService {
 	getSidebarCounts(): Promise<DidGetCountParams>;
 	toggleLayout(panel: GraphSidebarPanel): void;
 	refresh(panel: GraphSidebarPanel): void;
-	executeAction(command: GlCommands, context?: string): void;
+	executeAction(command: GlCommands, context?: string, args?: unknown[]): void;
 
 	onSidebarInvalidated: RpcEventSubscription<undefined>;
 	onWorktreeStateChanged: RpcEventSubscription<{ changes: Record<string, boolean | undefined> }>;
