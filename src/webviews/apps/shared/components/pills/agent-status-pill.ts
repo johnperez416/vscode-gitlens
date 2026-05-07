@@ -222,9 +222,48 @@ export class GlAgentStatusPill extends LitElement {
 				gap: 0.4rem;
 			}
 
-			.hover-actions__row gl-button {
-				flex: 1;
-				min-width: 0;
+			.hover-actions__row > gl-button {
+				/* min-width: max-content keeps Allow / Deny from shrinking below their icon+label
+				   content when the popover is anchored in a narrow sidebar — the popover body
+				   grows horizontally to fit instead. flex: 1 1 0 keeps the row evenly distributed
+				   when there's slack. */
+				flex: 1 1 0;
+				min-width: max-content;
+			}
+
+			.hover-actions__row > gl-popover {
+				flex: 0 0 auto;
+			}
+
+			/* "…" overflow menu — anchored off the third action button. */
+			.more-menu {
+				display: flex;
+				flex-direction: column;
+				min-width: 14rem;
+				padding: 0.2rem;
+			}
+
+			.more-menu__item {
+				display: flex;
+				align-items: center;
+				gap: 0.6rem;
+				padding: 0.4rem 0.6rem;
+				border-radius: 0.3rem;
+				color: var(--vscode-foreground);
+				text-decoration: none;
+				cursor: pointer;
+				font-size: 0.95em;
+			}
+
+			.more-menu__item:hover {
+				background-color: var(--vscode-list-hoverBackground);
+				color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
+				text-decoration: none;
+			}
+
+			.more-menu__item code-icon {
+				color: var(--vscode-descriptionForeground);
+				flex: none;
 			}
 		`,
 	];
@@ -364,23 +403,10 @@ export class GlAgentStatusPill extends LitElement {
 				? html`
 						<div class="hover-actions" @mousedown=${this.onActionMouseDown}>
 							<div class="hover-actions__row">
-								<gl-button appearance="secondary" full density="compact" href=${allowHref!}>
+								<gl-button full density="compact" href=${allowHref!}>
 									<code-icon icon="check" slot="prefix"></code-icon>
 									Allow
 								</gl-button>
-								${alwaysAllowHref != null
-									? html`
-											<gl-button
-												appearance="secondary"
-												full
-												density="compact"
-												href=${alwaysAllowHref}
-											>
-												<code-icon icon="check-all" slot="prefix"></code-icon>
-												Always Allow
-											</gl-button>
-										`
-									: nothing}
 								<gl-button
 									appearance="secondary"
 									full
@@ -391,11 +417,8 @@ export class GlAgentStatusPill extends LitElement {
 									<code-icon icon="x" slot="prefix"></code-icon>
 									Deny
 								</gl-button>
+								${this.renderMoreActionsMenu(openHref, alwaysAllowHref)}
 							</div>
-							<gl-button appearance="secondary" full density="compact" href=${openHref}>
-								<code-icon icon="link-external" slot="prefix"></code-icon>
-								Open Session
-							</gl-button>
 						</div>
 					`
 				: html`
@@ -406,6 +429,31 @@ export class GlAgentStatusPill extends LitElement {
 							</gl-button>
 						</div>
 					`}
+		`;
+	}
+
+	/** Overflow menu anchored off the "…" action in the needs-input row. Always Allow only renders
+	 *  when the agent supports it; Open Session is always available. The inner popover uses a click
+	 *  trigger — the parent hover popover stays open while focus is on this anchor. */
+	private renderMoreActionsMenu(openHref: string, alwaysAllowHref: string | undefined): unknown {
+		return html`
+			<gl-popover placement="bottom-end" trigger="click" hoist>
+				<gl-button slot="anchor" appearance="secondary" density="compact" aria-label="More actions">
+					<code-icon icon="ellipsis"></code-icon>
+				</gl-button>
+				<div slot="content" class="more-menu" role="menu" @mousedown=${this.onActionMouseDown}>
+					${alwaysAllowHref != null
+						? html`<a class="more-menu__item" role="menuitem" href=${alwaysAllowHref}>
+								<code-icon icon="check-all"></code-icon>
+								<span>Always Allow</span>
+							</a>`
+						: nothing}
+					<a class="more-menu__item" role="menuitem" href=${openHref}>
+						<code-icon icon="link-external"></code-icon>
+						<span>Open Session</span>
+					</a>
+				</div>
+			</gl-popover>
 		`;
 	}
 
