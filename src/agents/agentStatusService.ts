@@ -1,5 +1,6 @@
 import type { Disposable, QuickPickItem } from 'vscode';
 import { commands, EventEmitter, Uri, window, workspace } from 'vscode';
+import { Logger } from '@gitlens/utils/logger.js';
 import type { Container } from '../container.js';
 import { createQuickPickSeparator } from '../quickpicks/items/common.js';
 import { registerCommand } from '../system/-webview/command.js';
@@ -106,6 +107,7 @@ export class AgentStatusService implements Disposable {
 					await installClaudeHook();
 					this.container.telemetry.sendEvent('agents/hookInstalled', { 'agent.provider': 'claudeCode' });
 				} catch (ex) {
+					Logger.error(ex, 'AgentStatusService.installClaudeHook');
 					void window.showErrorMessage(
 						`Failed to install Claude hook: ${ex instanceof Error ? ex.message : String(ex)}`,
 					);
@@ -117,6 +119,7 @@ export class AgentStatusService implements Disposable {
 					await uninstallClaudeHook();
 					this.container.telemetry.sendEvent('agents/hookUninstalled', { 'agent.provider': 'claudeCode' });
 				} catch (ex) {
+					Logger.error(ex, 'AgentStatusService.uninstallClaudeHook');
 					void window.showErrorMessage(
 						`Failed to uninstall Claude hook: ${ex instanceof Error ? ex.message : String(ex)}`,
 					);
