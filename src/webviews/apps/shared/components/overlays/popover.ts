@@ -94,6 +94,21 @@ function isHandleAnchored(handle: ResizeHandle, placement: string | undefined): 
 	return matches(mainAnchored) || matches(crossAnchored);
 }
 
+/**
+ * Walks up `node`'s parent chain — jumping ShadowRoot → host at boundaries — to determine whether
+ * `possibleAncestor` is a shadow-including ancestor. `Node.contains` and `compareDocumentPosition`
+ * stop at shadow tree boundaries (returning `DOCUMENT_POSITION_DISCONNECTED` across them), which
+ * breaks containment checks between popovers nested inside child components' shadow roots.
+ */
+function isShadowIncludingAncestor(possibleAncestor: Node, node: Node): boolean {
+	let current: Node | null = node;
+	while (current != null) {
+		if (current === possibleAncestor) return true;
+		current = current.parentNode ?? (current instanceof ShadowRoot ? current.host : null);
+	}
+	return false;
+}
+
 function parseResizeHandles(value: string | undefined): ResizeHandle[] {
 	if (!value) return [];
 	const result = new Set<ResizeHandle>();
@@ -153,11 +168,7 @@ export class GlPopover extends GlElement {
 
 	private static closeOthers(openingPopover: GlPopover): void {
 		for (const popover of GlPopover.openPopovers) {
-			if (
-				popover === openingPopover ||
-				// Check if the popover contains the opening popover
-				Boolean(popover.compareDocumentPosition(openingPopover) & Node.DOCUMENT_POSITION_CONTAINS)
-			) {
+			if (popover === openingPopover || isShadowIncludingAncestor(popover, openingPopover)) {
 				continue;
 			}
 
