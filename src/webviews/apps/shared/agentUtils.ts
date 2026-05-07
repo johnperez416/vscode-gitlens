@@ -1,11 +1,70 @@
 import type { AgentSessionPhase } from '../../../agents/provider.js';
 import type { AgentSessionState } from '../../home/protocol.js';
+import type { OverviewBranch } from '../../shared/overviewBranches.js';
 
 const phaseRank: Record<AgentSessionPhase, number> = {
 	waiting: 0,
 	working: 1,
 	idle: 2,
 };
+
+export type AgentSessionCategory = 'working' | 'needs-input' | 'idle';
+
+export const agentPhaseToCategory: Record<AgentSessionPhase, AgentSessionCategory> = {
+	working: 'working',
+	waiting: 'needs-input',
+	idle: 'idle',
+};
+
+export function getAgentCategoryLabel(category: AgentSessionCategory): string {
+	switch (category) {
+		case 'needs-input':
+			return 'Needs input';
+		case 'working':
+			return 'Working';
+		case 'idle':
+			return 'Idle';
+	}
+}
+
+/** "Last active …" granularity helper used by the graph details panel and the graph agents
+ *  sidebar panel — short-and-stable formatting (no seconds past 1 minute). The agent-status pill
+ *  has its own slightly more granular variant inline. */
+export function formatAgentElapsed(timestamp: number | undefined): string | undefined {
+	if (timestamp == null) return undefined;
+	const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+	if (seconds < 60) return `${seconds}s`;
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	const remainingMinutes = minutes % 60;
+	return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+/** Per-session "what is it doing" line. Mirrors the contract used by the graph details panel:
+ *  needs-input → awaiting tool; working tool_use → current tool; otherwise last-active timestamp
+ *  or the most-recent prompt. */
+export function describeAgentSession(
+	session: AgentSessionState,
+	category: AgentSessionCategory,
+	elapsed: string | undefined,
+	options: { awaitingPrefix?: 'long' | 'short'; idleFallback?: 'lastActive' | 'lastPrompt' } = {},
+): string | undefined {
+	const awaitingPrefix = options.awaitingPrefix ?? 'long';
+	const idleFallback = options.idleFallback ?? 'lastActive';
+	const detail = session.pendingPermissionDetail;
+
+	if (category === 'needs-input' && detail != null) {
+		if (detail.toolName == null) return 'Awaiting permission';
+		const prefix = awaitingPrefix === 'long' ? 'Awaiting permission:' : 'Awaiting:';
+		return `${prefix} ${detail.toolName}${detail.toolDescription ? ` — ${detail.toolDescription}` : ''}`;
+	}
+	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
+		return `Running ${session.statusDetail}`;
+	}
+	if (idleFallback === 'lastActive' && elapsed != null) return `Last active ${elapsed} ago`;
+	return session.lastPrompt || undefined;
+}
 
 /** Canonical sort order for agent sessions across every UI surface. Category-actionability first
  *  (needs-input → working → idle), then most-recent activity within a category, then alphabetical
@@ -108,4 +167,27 @@ export function matchAgentSessionsForBranch(
 	});
 
 	return matches.length > 0 ? matches : undefined;
+}
+
+/** Reverse of {@link matchAgentSessionsForBranch}: given a session, find the matching
+ *  `OverviewBranch` in the supplied buckets so the graph agents sidebar can scope-and-select
+ *  the same target the overview cards do. Same disambiguation rule (branch name +
+ *  workspacePath/repoPath, with worktree-name tie-break when both sides have it). */
+export function findOverviewBranchForSession(
+	branches: { active: readonly OverviewBranch[]; recent: readonly OverviewBranch[] } | undefined,
+	session: AgentSessionState,
+): OverviewBranch | undefined {
+	if (branches == null || session.branch == null || session.workspacePath == null) return undefined;
+
+	for (const candidate of [...branches.active, ...branches.recent]) {
+		if (candidate.name !== session.branch) continue;
+		if (candidate.repoPath !== session.workspacePath) continue;
+		const candidateWorktree = candidate.worktree != null ? getWorktreeBasename(candidate.worktree.uri) : undefined;
+		if (session.worktreeName != null && candidateWorktree != null && session.worktreeName !== candidateWorktree) {
+			continue;
+		}
+		return candidate;
+	}
+
+	return undefined;
 }
