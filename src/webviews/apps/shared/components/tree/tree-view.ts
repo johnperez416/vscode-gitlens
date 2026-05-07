@@ -5,6 +5,7 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import type { Ref } from 'lit/directives/ref.js';
 import { createRef, ref } from 'lit/directives/ref.js';
 import { when } from 'lit/directives/when.js';
+import type { AgentSessionPhase } from '@gitlens/agents/types.js';
 import { GlElement } from '../element.js';
 import type { GlGitStatus } from '../status/git-status.js';
 import { scrollableBase } from '../styles/lit/base.css.js';
@@ -189,6 +190,20 @@ export class GlTreeView extends GlElement {
 				font-size: 1.1rem;
 				font-weight: 500;
 				border: 1px solid;
+			}
+
+			/* Phase-tinted hubot icon for agent leaves. Tokens mirror those used by
+			   gl-details-agent-status and gl-agent-status-pill so the sidebar leaf reads as
+			   the same status surface. code-icon's :host inherits color from its parent, so
+			   styling the element here flows through to its rendered glyph. */
+			code-icon.tree-icon-agent {
+				color: var(--vscode-descriptionForeground);
+			}
+			code-icon.tree-icon-agent--working {
+				color: var(--vscode-progressBar-background);
+			}
+			code-icon.tree-icon-agent--waiting {
+				color: var(--vscode-editorWarning-foreground);
 			}
 		`,
 	];
@@ -449,7 +464,8 @@ export class GlTreeView extends GlElement {
 			| string
 			| { type: 'status'; name: GlGitStatus['status'] }
 			| { type: 'branch'; status?: string; worktree?: boolean; hasChanges?: boolean }
-			| { type: 'file-icon'; filename: string },
+			| { type: 'file-icon'; filename: string }
+			| { type: 'agent'; phase: AgentSessionPhase },
 	) {
 		if (icon == null) return nothing;
 
@@ -472,6 +488,17 @@ export class GlTreeView extends GlElement {
 
 		if (icon.type === 'file-icon') {
 			return html`<gl-file-icon slot="icon" .filename=${icon.filename}></gl-file-icon>`;
+		}
+
+		if (icon.type === 'agent') {
+			// Phase classes are defined in this component's static styles; the base
+			// `tree-icon-agent` class supplies the idle (descriptionForeground) color and the
+			// modifier overrides it for working / waiting.
+			return html`<code-icon
+				slot="icon"
+				icon="claude"
+				class="tree-icon-agent tree-icon-agent--${icon.phase}"
+			></code-icon>`;
 		}
 
 		return nothing;

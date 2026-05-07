@@ -1,3 +1,4 @@
+import type { AgentSessionPhase } from '@gitlens/agents/types.js';
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
 import type { DraftPatchFileChange } from '../../../../../plus/drafts/models/drafts.js';
 
@@ -37,6 +38,7 @@ export interface TreeItemAction {
 	altIcon?: string;
 	altLabel?: string;
 	altAction?: string;
+	altArguments?: any[];
 }
 
 export interface TreeItemDecorationBase {
@@ -91,7 +93,8 @@ interface TreeModelBase<Context = any[]> extends TreeItemBase {
 		| string
 		| { type: 'status'; name: GitFileStatus }
 		| { type: 'branch'; status?: string; worktree?: boolean; hasChanges?: boolean }
-		| { type: 'file-icon'; filename: string };
+		| { type: 'file-icon'; filename: string }
+		| { type: 'agent'; phase: AgentSessionPhase };
 	description?: string;
 	context?: Context;
 	actions?: TreeItemAction[];
