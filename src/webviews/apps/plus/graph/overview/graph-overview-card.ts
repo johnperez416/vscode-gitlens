@@ -323,8 +323,11 @@ export class GlGraphOverviewCard extends LitElement {
 
 		.branch-item__active-agents {
 			display: flex;
-			flex-wrap: wrap;
-			align-items: center;
+			flex-direction: column;
+			/* flex-start so a compact-fallback pill (needs-input + !canResolve) shrinks to its
+			   content instead of inheriting stretch. Full-mode pills still span the row via their
+			   own width: 100%. */
+			align-items: flex-start;
 			gap: 0.4rem;
 		}
 
@@ -906,9 +909,9 @@ export class GlGraphOverviewCard extends LitElement {
 	}
 
 	private renderActiveAgentPills() {
-		// Surface waiting-phase pills on the card itself so the user sees actionable agent
-		// states without opening the rich hover. Working/idle sessions stay quiet here and
-		// continue to render in `renderHoverAgents()`.
+		// Surface waiting-phase sessions on the card itself as full-width pills so the most
+		// actionable affordance (Allow / Deny / More) is one click away. Working and idle sessions
+		// stay quiet here and continue to render in `renderHoverAgents()` inside the rich hover.
 		const sessions = this.agentSessions;
 		if (sessions == null || sessions.length === 0) return nothing;
 
@@ -916,7 +919,7 @@ export class GlGraphOverviewCard extends LitElement {
 		if (active.length === 0) return nothing;
 
 		return html`<div class="branch-item__active-agents">
-			${active.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
+			${active.map(s => html`<gl-agent-status-pill full .session=${s}></gl-agent-status-pill>`)}
 		</div>`;
 	}
 
@@ -1243,7 +1246,32 @@ export class GlGraphOverviewCard extends LitElement {
 		);
 	}
 
-	private onCardClick() {
+	/** Walk the composed event path to detect when a click/keydown originated inside an embedded
+	 *  agent status pill — those are the pill's own affordance (Allow / Deny / More) and must not
+	 *  trigger the card's "scope to branch" dispatch as a side effect. We deliberately don't
+	 *  stopPropagation inside the pill itself because that would also break VS Code's webview
+	 *  command:URL interception, which relies on link clicks reaching the document. */
+	private isEventFromAgentPill(e: Event): boolean {
+		const path = e.composedPath();
+		for (const node of path) {
+			if ((node as Element)?.tagName === 'GL-AGENT-STATUS-PILL') return true;
+		}
+		return false;
+	}
+
+	private onCardClick(e: MouseEvent) {
+		if (this.isEventFromAgentPill(e)) return;
+		this.dispatchBranchSelected();
+	}
+
+	private onCardKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Enter' && e.key !== ' ') return;
+		if (this.isEventFromAgentPill(e)) return;
+		e.preventDefault();
+		this.dispatchBranchSelected();
+	}
+
+	private dispatchBranchSelected() {
 		this.dispatchEvent(
 			new CustomEvent('gl-graph-overview-branch-selected', {
 				detail: {
@@ -1259,13 +1287,6 @@ export class GlGraphOverviewCard extends LitElement {
 				composed: true,
 			}),
 		);
-	}
-
-	private onCardKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			this.onCardClick();
-		}
 	}
 
 	private onLinkClick(e: Event) {
