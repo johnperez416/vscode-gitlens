@@ -44,17 +44,18 @@ export class GlRepoButtonGroup extends GlElement {
 				min-width: 1.4rem;
 			}
 
+			/* With a single icon the host should size to its content — no reserved space
+			   beyond the base min-width — otherwise the collapsed state shows dead space
+			   to the right of the icon. */
 			:host([icons]) {
 				grid-template-columns: auto minmax(0, 1fr);
-				min-width: 3.6rem;
 			}
 
-			:host([icons='1']:not([expandable])) {
-				min-width: 3rem;
-			}
-
+			/* Multi-icon needs explicit reservation so the layout doesn't jump as icons
+			   appear/disappear. */
 			:host([icons='2']) {
 				grid-template-columns: auto auto minmax(0, 1fr);
+				min-width: 3.6rem;
 			}
 
 			.indicator-dot {
@@ -78,6 +79,22 @@ export class GlRepoButtonGroup extends GlElement {
 			:host([expandable]:not(:hover, :focus-within)) .truncated-button {
 				min-width: 0;
 				max-width: 0;
+			}
+
+			/* When the surrounding gl-breadcrumb-item is hovered or focused, expand the
+			   truncated-button as if the gl-repo-button-group itself were hovered. This
+			   lets users hover anywhere in the breadcrumb-item (e.g., the chevron
+			   separator) to reveal the repo name. !important is required because the
+			   collapse rule above (with :host attribute + :not) has higher specificity
+			   than :host-context. */
+			:host-context(gl-breadcrumb-item:hover) .truncated-button .picker-icon::before,
+			:host-context(gl-breadcrumb-item:focus-within) .truncated-button .picker-icon::before {
+				visibility: visible !important;
+			}
+			:host-context(gl-breadcrumb-item:hover) .truncated-button,
+			:host-context(gl-breadcrumb-item:focus-within) .truncated-button {
+				min-width: auto !important;
+				max-width: none !important;
 			}
 		`,
 		pickerIconStyles,
@@ -131,6 +148,7 @@ export class GlRepoButtonGroup extends GlElement {
 			${this.renderProviderIcon()}
 			<gl-button
 				class="truncated-button"
+				part="label"
 				appearance="toolbar"
 				?disabled=${this.disabled}
 				@click=${(event: MouseEvent) =>

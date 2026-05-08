@@ -17,15 +17,15 @@ export class GlFileIcon extends LitElement {
 			display: inline-flex;
 			align-items: center;
 			justify-content: center;
-			width: 16px;
-			height: 16px;
+			width: var(--gl-file-icon-size, 16px);
+			height: var(--gl-file-icon-size, 16px);
 			vertical-align: text-bottom;
 		}
 
 		.font-icon {
 			display: inline-block;
 			font-family: 'seti';
-			font-size: 16px;
+			font-size: var(--gl-file-icon-size, 16px);
 			line-height: 1;
 			text-align: center;
 			-webkit-font-smoothing: antialiased;

@@ -56,9 +56,15 @@ export class GlTooltip extends LitElement {
 			-webkit-user-select: none;
 		}
 
-		[slot='content'] hr {
+		/* Style hr inside the tooltip body. The slot[name=content] selector matches
+		   fallback content, which is where handleUnsafeOverlayContent puts the hr it
+		   generates from "\n\n" in a .content string (e.g. gl-copy-container's tooltip).
+		   Slotted content from consumers lives in their light DOM and isn't reachable
+		   from here — those consumers need their own [slot=content] hr rule. */
+		slot[name='content'] hr {
 			border: none;
 			border-top: 1px solid var(--color-foreground--25);
+			margin: 0.4rem 0;
 		}
 	`;
 

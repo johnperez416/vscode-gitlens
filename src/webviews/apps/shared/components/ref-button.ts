@@ -46,7 +46,11 @@ export class GlRefButton extends LitElement {
 	worktree = false;
 
 	override render(): unknown {
-		return html`<gl-button appearance="toolbar" href=${ifDefined(this.href)} ?disabled=${this.disabled}
+		return html`<gl-button
+			part="button"
+			appearance="toolbar"
+			href=${ifDefined(this.href)}
+			?disabled=${this.disabled}
 			>${this.ref == null
 				? html`<slot name="empty">&lt;missing&gt;</slot>`
 				: html`<gl-ref-name

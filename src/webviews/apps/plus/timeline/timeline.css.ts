@@ -119,6 +119,18 @@ export const timelineStyles = css`
 	.breadcrumb-actions {
 		display: inline-flex;
 		align-items: center;
+		/* Push the actions buttons to the end of the chain so they don't break the
+		   crumb sequence (the slotted gl-breadcrumb-items have order = idx*2 set by
+		   the breadcrumbs host; this keeps actions outside that range). */
+		order: 9999;
+		margin-left: 0.4rem;
+	}
+
+	/* Style hr inside slotted tooltip content for breadcrumb items. */
+	[slot='tooltip'] hr {
+		border: none;
+		border-top: 1px solid var(--color-foreground--25);
+		margin: 0.4rem 0;
 	}
 
 	.details .details__ref,
@@ -264,13 +276,5 @@ export const timelineStyles = css`
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.5rem;
-	}
-
-	.breadcrumb-item-children {
-		display: flex;
-	}
-
-	.breadcrumb-folder {
-		cursor: pointer;
 	}
 `;

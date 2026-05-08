@@ -13,6 +13,7 @@ import type {
 	TimelineSliceBy,
 } from '../../../plus/timeline/protocol.js';
 import { SignalWatcherWebviewApp } from '../../shared/appBase.js';
+import { compactBreadcrumbsConsumerStyles } from '../../shared/components/breadcrumbs.js';
 import type { Checkbox } from '../../shared/components/checkbox/checkbox.js';
 import type { GlRefButton } from '../../shared/components/ref-button.js';
 import { getHost } from '../../shared/host/context.js';
@@ -28,13 +29,13 @@ import type { TimelineState } from './state.js';
 import { createTimelineState } from './state.js';
 import { timelineBaseStyles, timelineStyles } from './timeline.css.js';
 import './components/chart.js';
-import '../../shared/components/breadcrumbs.js';
 import '../../shared/components/button.js';
 import '../../shared/components/checkbox/checkbox.js';
 import '../../shared/components/code-icon.js';
 import '../../shared/components/copy-container.js';
 import '../../shared/components/feature-badge.js';
 import '../../shared/components/feature-gate.js';
+import '../../shared/components/file-icon/file-icon.js';
 import '../../shared/components/gl-error-banner.js';
 import '../../shared/components/menu/menu-label.js';
 import '../../shared/components/progress.js';
@@ -45,7 +46,13 @@ import '../../shared/components/repo-button-group.js';
 
 @customElement('gl-timeline-app')
 export class GlTimelineApp extends SignalWatcherWebviewApp {
-	static override styles = [linkStyles, ruleStyles, timelineBaseStyles, timelineStyles];
+	static override styles = [
+		linkStyles,
+		ruleStyles,
+		timelineBaseStyles,
+		timelineStyles,
+		compactBreadcrumbsConsumerStyles,
+	];
 
 	@property({ type: String, noAccessor: true })
 	private context!: string;
@@ -220,9 +227,7 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 	};
 
 	private onChangeScope = (e: MouseEvent) => {
-		const el =
-			(e.target as HTMLElement)?.closest('gl-breadcrumb-item-child') ??
-			(e.target as HTMLElement)?.closest('gl-breadcrumb-item');
+		const el = (e.target as HTMLElement)?.closest('gl-breadcrumb-item');
 
 		const type = el?.getAttribute('type') as TimelineScopeType;
 		if (type == null) return;
@@ -313,7 +318,7 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 		const s = this._state;
 		const isEditor = this.placement === 'editor';
 		const canClear = isEditor && s.scope.get()?.type !== 'repo';
-		return html`<gl-breadcrumbs>
+		return html`<gl-breadcrumbs density="compact" label="Visual History scope">
 			${this.renderRepositoryBreadcrumbItem()}
 			${this.renderBranchBreadcrumbItem()}${this.renderBreadcrumbPathItems()}
 			${isEditor
@@ -348,8 +353,9 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 		if (repo == null) return nothing;
 
 		return html`<gl-breadcrumb-item
-			collapsibleState="${s.scope.get()?.relativePath ? 'collapsed' : 'expanded'}"
 			icon="gl-repository"
+			label="${repo.name}"
+			priority="1"
 			shrink="10000000"
 			type="repo"
 		>
@@ -376,8 +382,9 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 		const showAllBranches = s.showAllBranches.get();
 
 		return html`<gl-breadcrumb-item
-			collapsibleState="expanded"
 			icon="${showAllBranches ? 'git-branch' : getRefIcon(headRef)}"
+			label="${showAllBranches ? 'All Branches' : (headRef?.name ?? 'Branch')}"
+			priority="4"
 			shrink="100000"
 			type="ref"
 		>
@@ -405,68 +412,66 @@ export class GlTimelineApp extends SignalWatcherWebviewApp {
 		const basePart = parts.pop() || '';
 		const folders = parts.length;
 
-		// Add folder parts if any
+		// Add folder parts if any — each segment is its own flat breadcrumb item
 		if (folders) {
 			const rootPart = parts.shift()!;
 			let fullPath = rootPart;
 
-			const folderItem = html`
+			breadcrumbs.push(html`
 				<gl-breadcrumb-item
-					collapsibleState="expanded"
+					foldable
 					icon="folder"
+					interactive
+					label="${rootPart}"
+					priority="3"
 					type="${'folder' satisfies TimelineScopeType}"
 					value="${rootPart}"
+					aria-label="Visualize folder history of ${rootPart}"
+					@click=${this.onChangeScope}
 				>
-					<gl-button
-						appearance="toolbar"
-						@click=${this.onChangeScope}
-						aria-label="Visualize folder history of ${rootPart}"
-						>${rootPart}<span slot="tooltip"
-							>Visualize Folder History
-							<hr />
-							${rootPart}</span
-						></gl-button
-					>
-
-					${parts.length
-						? html`<span slot="children" class="breadcrumb-item-children">
-								${parts.map(part => {
-									fullPath = `${fullPath}/${part}`;
-									return html`<gl-breadcrumb-item-child
-										type="${'folder' satisfies TimelineScopeType}"
-										value="${fullPath}"
-									>
-										<gl-button
-											appearance="toolbar"
-											@click=${this.onChangeScope}
-											aria-label="Visualize folder history of ${fullPath}"
-											>${part}<span slot="tooltip"
-												>Visualize Folder History
-												<hr />
-												${fullPath}</span
-											></gl-button
-										>
-									</gl-breadcrumb-item-child>`;
-								})}
-							</span>`
-						: nothing}
+					${rootPart}
+					<span slot="tooltip">${rootPart}</span>
 				</gl-breadcrumb-item>
-			`;
+			`);
 
-			breadcrumbs.push(folderItem);
+			parts.forEach((part, i) => {
+				fullPath = `${fullPath}/${part}`;
+				const segPath = fullPath;
+				// Sub-priority within tier 2: deepest segment (closest to file) collapses first.
+				// parts[0] is closest to root, parts[N-1] is the deepest.
+				const segPriority = 2 + (parts.length - 1 - i) * 0.01;
+				breadcrumbs.push(html`
+					<gl-breadcrumb-item
+						appearance="segment"
+						interactive
+						label="${part}"
+						priority="${segPriority}"
+						type="${'folder' satisfies TimelineScopeType}"
+						value="${segPath}"
+						aria-label="Visualize folder history of ${segPath}"
+						@click=${this.onChangeScope}
+					>
+						${part}
+						<span slot="tooltip">${segPath}</span>
+					</gl-breadcrumb-item>
+				`);
+			});
 		}
 
-		// Add base item
+		// Add base item (file or final folder)
 		const scopeType = s.scope.get()?.type;
+		const isFile = scopeType !== 'folder';
+		const folderIcon = scopeType === 'folder' && !folders ? 'folder' : undefined;
 		breadcrumbs.push(html`
 			<gl-breadcrumb-item
-				collapsibleState="none"
-				icon="${ifDefined(scopeType === 'folder' ? (folders ? undefined : 'folder') : 'file')}"
+				icon="${ifDefined(folderIcon)}"
+				label="${basePart}"
+				priority="5"
 				shrink="0"
-				tooltip="${path}"
 				type="${(scopeType === 'folder' ? 'folder' : 'file') satisfies TimelineScopeType}"
 				value="${path}"
 			>
+				${isFile ? html`<gl-file-icon slot="start" filename="${basePart}"></gl-file-icon>` : nothing}
 				<gl-copy-container
 					tabindex="0"
 					copyLabel="Copy Path&#10;&#10;${path}"
