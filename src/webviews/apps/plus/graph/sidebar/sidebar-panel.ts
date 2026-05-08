@@ -51,6 +51,7 @@ import type { SidebarActions } from './sidebarState.js';
 import '../overview/graph-overview.js';
 import '../../../shared/components/button.js';
 import '../../../shared/components/code-icon.js';
+import '../../../shared/components/hooks-banner.js';
 import '../../../shared/components/progress.js';
 import '../../../shared/components/tree/tree-view.js';
 
@@ -315,6 +316,11 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				color: var(--vscode-descriptionForeground);
 				font-size: 1.2rem;
 			}
+
+			.agents-banner {
+				flex: none;
+				padding: 0 0.4rem 0.4rem;
+			}
 		`,
 	];
 
@@ -420,7 +426,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				items: this._state.agentSessions ?? [],
 			};
 			return html`<div class="panel">
-				${this.renderHeader(config, false)}
+				${this.renderHeader(config, false)} ${this.renderAgentsBanner(data.items.length === 0)}
 				<div class="content">${this.renderTreeContent(config, data)}</div>
 			</div>`;
 		}
@@ -461,6 +467,21 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				></gl-button>
 			</div>
 			<progress-indicator position="bottom" ?active=${isLoading}></progress-indicator>
+		</div>`;
+	}
+
+	private renderAgentsBanner(listIsEmpty: boolean): unknown {
+		// Only pitch the install when there are no sessions to act on — once the list has agents,
+		// the banner becomes noise above their tree.
+		if (!listIsEmpty) return nothing;
+		// Only pitch the install when there's something to install — `canInstallClaudeHook` flips
+		// false the moment hooks are detected as installed (or claude isn't available).
+		if (!(this._state.canInstallClaudeHook ?? false)) return nothing;
+		// Respect the same dismissal as the graph-overview banner — `hooksBannerCollapsed` is true
+		// when the user dismissed it via the onboarding service.
+		if (this._state.hooksBannerCollapsed ?? true) return nothing;
+		return html`<div class="agents-banner">
+			<gl-hooks-banner source="graph-sidebar-agents" layout="responsive"></gl-hooks-banner>
 		</div>`;
 	}
 
