@@ -1025,18 +1025,16 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 						!(state.hooksBannerCollapsed ?? true),
 					() => html`
 						<gl-popover class="hooks-tooltip" placement="bottom" trigger="click focus hover">
-							<a
-								class="action-button action-button--hooks"
-								href=${createCommandLink('gitlens.agents.installClaudeHook')}
-								slot="anchor"
-							>
+							<button type="button" class="action-button action-button--hooks" slot="anchor">
 								<code-icon class="action-button__icon" icon="hubot"></code-icon>
-							</a>
+							</button>
 							<div class="hooks-tooltip__content" slot="content">
 								<strong>Install Claude Code Hooks</strong><br />
 								Configure Claude to send status updates to GitLens so you can see and manage your agents
 								here.
 								<br /><br />
+								<a href=${createCommandLink('gitlens.agents.installClaudeHook')}>Install</a>
+								&middot;
 								<a href=${createCommandLink('gitlens.agents.uninstallClaudeHook')}>Uninstall</a>
 								&middot;
 								<a
