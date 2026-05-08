@@ -78,19 +78,6 @@ export function openTraeChat(args: string): Thenable<void> {
 	});
 }
 
-const copilotChatExtensionId = 'GitHub.copilot-chat';
-export function isCopilotChatExtensionInstalled(): boolean {
-	const ext = extensions.getExtension(copilotChatExtensionId);
-	return ext != null;
-}
-
-export async function supportsChatParticipant(appName?: string): Promise<boolean> {
-	appName ??= await getHostAppName();
-	if (appName == null) return false;
-
-	return isHostVSCode(appName) && isCopilotChatExtensionInstalled();
-}
-
 const supportedChatHosts = ['code', 'code-insiders', 'code-exploration', 'cursor', 'windsurf', 'kiro', 'trae'];
 export async function supportsChat(appName?: string): Promise<boolean> {
 	appName ??= await getHostAppName();
