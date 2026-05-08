@@ -194,8 +194,8 @@ export function computeBubbleMetrics(dataset: readonly TimelineDatum[]): BubbleM
 	const sums = new Float32Array(dataset.length);
 	let max = 0;
 	let n = 0;
-	for (let i = 0; i < dataset.length; i++) {
-		const total = (dataset[i].additions ?? 0) + (dataset[i].deletions ?? 0);
+	for (const datum of dataset) {
+		const total = (datum.additions ?? 0) + (datum.deletions ?? 0);
 		if (total > 0) {
 			sums[n++] = total;
 		}
@@ -219,8 +219,8 @@ function computeBinMetrics(bins: readonly { additions: number; deletions: number
 	const sums = new Float32Array(bins.length);
 	let max = 0;
 	let n = 0;
-	for (let i = 0; i < bins.length; i++) {
-		const total = bins[i].additions + bins[i].deletions;
+	for (const bin of bins) {
+		const total = bin.additions + bin.deletions;
 		if (total > 0) {
 			sums[n++] = total;
 		}
