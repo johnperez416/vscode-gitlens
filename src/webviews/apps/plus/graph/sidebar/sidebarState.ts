@@ -29,6 +29,10 @@ export interface SidebarActions {
 	/** Per-panel selected item path — survives panel switches */
 	readonly selectedPath: Record<GraphSidebarPanel, string | undefined>;
 
+	/** Layout for the agents panel — kept client-side because session data isn't fetched from the host
+	 *  (it streams through reactive notifications). Other panels persist their layout via VS Code config. */
+	readonly agentsLayout: { get(): 'list' | 'tree' };
+
 	initialize(service: GraphSidebarService): void;
 	fetchPanel(panel: GraphSidebarPanel): void;
 	fetchCounts(): void;
@@ -116,6 +120,8 @@ export function createSidebarActions(): SidebarActions {
 		worktrees: undefined,
 	};
 
+	const agentsLayout = litSignal<'list' | 'tree'>('list');
+
 	const actions: SidebarActions = {
 		state: state,
 		activePanel: undefined,
@@ -123,6 +129,7 @@ export function createSidebarActions(): SidebarActions {
 		filterMode: 'filter',
 		expandedPaths: expandedPaths,
 		selectedPath: selectedPath,
+		agentsLayout: agentsLayout,
 
 		initialize: function (svc: GraphSidebarService) {
 			// Clean up previous subscriptions on re-initialization (e.g. RPC reconnection)
@@ -207,6 +214,10 @@ export function createSidebarActions(): SidebarActions {
 		},
 
 		toggleLayout: function (panel: GraphSidebarPanel) {
+			if (panel === 'agents') {
+				agentsLayout.set(agentsLayout.get() === 'tree' ? 'list' : 'tree');
+				return;
+			}
 			service?.toggleLayout(panel);
 		},
 

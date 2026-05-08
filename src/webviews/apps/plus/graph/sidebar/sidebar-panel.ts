@@ -424,6 +424,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			const data: DidGetSidebarDataParams = {
 				panel: 'agents',
 				items: this._state.agentSessions ?? [],
+				layout: this._actions.agentsLayout.get(),
 			};
 			return html`<div class="panel">
 				${this.renderHeader(config, false)} ${this.renderAgentsBanner(data.items.length === 0)}
@@ -507,7 +508,8 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			this.activePanel === 'worktrees' ||
 			this.activePanel === 'branches' ||
 			this.activePanel === 'remotes' ||
-			this.activePanel === 'tags';
+			this.activePanel === 'tags' ||
+			this.activePanel === 'agents';
 		const currentLayout = data.layout;
 
 		return html`<gl-tree-view
@@ -610,7 +612,9 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					(w, isTree) => this.toWorktreeLeaf(w, isTree),
 				);
 			case 'agents':
-				return data.items.map((a, i) => leafToTreeModel(this.toAgentLeaf(a), `agent:${a.id}:${i}`, 1));
+				return useTree
+					? this.buildAgentTree(data.items)
+					: data.items.map((a, i) => leafToTreeModel(this.toAgentLeaf(a), `agent:${a.id}:${i}`, 1));
 			default:
 				return [];
 		}
@@ -834,6 +838,75 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			decorations: decorations,
 			actions: actions,
 		};
+	}
+
+	/** Tree-mode build for the agents panel: groups sessions by `(workspacePath, branch, worktreeName)`
+	 *  so all sessions on the same branch+worktree nest under a single parent. Group order preserves
+	 *  the input's actionability sort (needs-input → working → idle) by tracking each group's first
+	 *  appearance index in the source list. */
+	private buildAgentTree(items: readonly AgentSessionState[]): TreeModel<SidebarItemContext>[] {
+		if (items.length === 0) return [];
+
+		interface Group {
+			key: string;
+			workspacePath: string | undefined;
+			branch: string | undefined;
+			worktreeName: string | undefined;
+			firstIndex: number;
+			sessions: AgentSessionState[];
+		}
+
+		const groups = new Map<string, Group>();
+		items.forEach((session, index) => {
+			const key = `${session.workspacePath ?? ''}\0${session.branch ?? ''}\0${session.worktreeName ?? ''}`;
+			let group = groups.get(key);
+			if (group == null) {
+				group = {
+					key: key,
+					workspacePath: session.workspacePath,
+					branch: session.branch,
+					worktreeName: session.worktreeName,
+					firstIndex: index,
+					sessions: [],
+				};
+				groups.set(key, group);
+			}
+			group.sessions.push(session);
+		});
+
+		return [...groups.values()]
+			.sort((a, b) => a.firstIndex - b.firstIndex)
+			.map(group => {
+				const children = group.sessions.map((s, j) =>
+					leafToTreeModel(this.toAgentLeaf(s), `agent:${s.id}:${j}`, 2),
+				);
+
+				const matchingBranch = findOverviewBranchForSession(this._state.overview, group.sessions[0]);
+				const sha =
+					matchingBranch != null
+						? getOverviewBranchSelectionSha(matchingBranch, this._state.overviewWip?.[matchingBranch.id])
+						: undefined;
+
+				const hasWorktree =
+					group.worktreeName != null ||
+					(matchingBranch?.worktree != null && !matchingBranch.worktree.isDefault);
+
+				const label = group.branch ?? 'Unattached';
+				const description = group.worktreeName ?? matchingBranch?.worktree?.name;
+
+				return {
+					branch: true,
+					expanded: true,
+					path: `agent-group:${group.key}`,
+					level: 1,
+					label: label,
+					icon: { type: 'branch' as const, status: matchingBranch?.status, worktree: hasWorktree },
+					description: description,
+					checkable: false,
+					context: [sha] as SidebarItemContext,
+					children: children,
+				};
+			});
 	}
 
 	private buildRemoteTree(
