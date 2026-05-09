@@ -35,8 +35,7 @@ minimumReleaseAgeExclude:
     - '@eamodio/*'
     - '@gitkraken/*'
     - '@vscode/*'
-    - '@awesome.me/webawesome@3.6.0'
-    - 'eslint@10.3.0'
+    - 'ovsx@0.10.12'
     - 'zod@4.4.3'
 
 patchedDependencies:

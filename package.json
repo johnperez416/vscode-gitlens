@@ -28350,7 +28350,7 @@
 		"fflate": "0.8.2",
 		"ignore": "7.0.5",
 		"lit": "3.3.2",
-		"marked": "18.0.2",
+		"marked": "18.0.3",
 		"os-browserify": "0.3.0",
 		"path-browserify": "1.0.1",
 		"react": "19.2.5",
@@ -28371,7 +28371,7 @@
 		"@playwright/test": "1.59.1",
 		"@prettier/plugin-oxc": "0.1.4",
 		"@profoundlogic/hogan": "3.0.4",
-		"@swc/core": "1.15.32",
+		"@swc/core": "1.15.33",
 		"@types/mocha": "catalog:",
 		"@types/node": "20.16.15",
 		"@types/react": "19.2.14",
@@ -28399,7 +28399,7 @@
 		"esbuild-sass-plugin": "3.7.0",
 		"eslint": "10.3.0",
 		"eslint-import-resolver-typescript": "4.4.4",
-		"eslint-plugin-anti-trojan-source": "1.1.2",
+		"eslint-plugin-anti-trojan-source": "1.1.4",
 		"eslint-plugin-import-x": "4.16.2",
 		"eslint-plugin-lit": "2.2.1",
 		"eslint-plugin-react-hooks": "7.1.1",
@@ -28407,7 +28407,7 @@
 		"fantasticon": "4.1.0",
 		"fork-ts-checker-webpack-plugin": "9.1.0",
 		"glob": "13.0.6",
-		"globals": "17.5.0",
+		"globals": "17.6.0",
 		"html-loader": "5.1.0",
 		"html-webpack-plugin": "5.6.7",
 		"husky": "9.1.7",
@@ -28416,7 +28416,7 @@
 		"lint-staged": "16.4.0",
 		"lz-string": "1.5.0",
 		"mini-css-extract-plugin": "2.10.2",
-		"ovsx": "0.10.11",
+		"ovsx": "0.10.12",
 		"playwright": "1.59.1",
 		"prettier": "3.8.3",
 		"regex-to-strings": "2.1.0",
@@ -28456,5 +28456,5 @@
 	"lint-staged": {
 		"*.{ts,tsx,json,jsonc,md,scss,yaml}": "prettier --write --experimental-cli --cache"
 	},
-	"packageManager": "pnpm@10.33.2"
+	"packageManager": "pnpm@10.33.4"
 }
