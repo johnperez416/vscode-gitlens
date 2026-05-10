@@ -8,6 +8,7 @@ import { findCommitFile, getCommitForFile } from '../../git/utils/-webview/commi
 import { isWebviewItemContext } from '../../system/webview.js';
 import type {
 	DetailsFileContextValue,
+	DetailsFolderContextValue,
 	DetailsItemContext,
 	DetailsItemTypedContext,
 	DetailsItemTypedContextValue,
@@ -26,7 +27,14 @@ export function isDetailsItemContext(item: unknown): item is DetailsItemContext 
 	);
 }
 
-export function isDetailsItemTypedContext(item: unknown, type: 'file'): item is DetailsItemTypedContext;
+export function isDetailsItemTypedContext(
+	item: unknown,
+	type: 'file',
+): item is DetailsItemTypedContext<DetailsFileContextValue>;
+export function isDetailsItemTypedContext(
+	item: unknown,
+	type: 'folder',
+): item is DetailsItemTypedContext<DetailsFolderContextValue>;
 export function isDetailsItemTypedContext(
 	item: unknown,
 	type: DetailsItemTypedContextValue['type'],
@@ -38,10 +46,16 @@ export function isDetailsItemTypedContext(
 	);
 }
 
-export function isDetailsFileContext(item: unknown): item is DetailsItemTypedContext {
+export function isDetailsFileContext(item: unknown): item is DetailsItemTypedContext<DetailsFileContextValue> {
 	if (item == null) return false;
 
 	return isDetailsItemTypedContext(item, 'file');
+}
+
+export function isDetailsFolderContext(item: unknown): item is DetailsItemTypedContext<DetailsFolderContextValue> {
+	if (item == null) return false;
+
+	return isDetailsItemTypedContext(item, 'folder');
 }
 
 export function getUriFromContext(container: Container, context: DetailsFileContextValue): Uri | undefined {
@@ -55,6 +69,10 @@ export function getUriFromContext(container: Container, context: DetailsFileCont
 		uri = svc.getAbsoluteUri(path, repoPath);
 	}
 	return uri;
+}
+
+export function getFolderUriFromContext(container: Container, context: DetailsFolderContextValue): Uri {
+	return container.git.getAbsoluteUri(context.path, context.repoPath);
 }
 
 export type ComparisonContext = { sha: string };

@@ -9,6 +9,7 @@ import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import type { Autolink } from '../../../../../autolinks/models/autolinks.js';
 import { serializeWebviewItemContext } from '../../../../../system/webview.js';
 import type { DetailsItemTypedContext, Preferences } from '../../../../plus/graph/detailsProtocol.js';
+import { buildFolderContext } from '../../../../plus/graph/detailsProtocol.js';
 import type {
 	BranchComparisonCommit,
 	BranchComparisonContributor,
@@ -607,6 +608,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 					?show-file-icons=${true}
 					.fileActions=${GlDetailsCompareModePanel._fileActions}
 					.fileContext=${this._getFileContext}
+					.folderContext=${(folder: { relativePath: string }) => buildFolderContext(this.repoPath, folder)}
 					.buttons=${this.getMultiDiffRefs(files) ? ['layout', 'search', 'multi-diff'] : undefined}
 					empty-text=${isLoadingEmpty ? '' : 'No changes'}
 					@file-compare-previous=${this.redispatch}

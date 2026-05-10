@@ -16,7 +16,7 @@ import type {
 	DetailsItemContext,
 	DetailsItemTypedContext,
 } from '../../../commitDetails/protocol.js';
-import { messageHeadlineSplitterToken } from '../../../commitDetails/protocol.js';
+import { buildFolderContext, messageHeadlineSplitterToken } from '../../../commitDetails/protocol.js';
 import type {
 	GraphCommitContextValue,
 	GraphItemRefContext,
@@ -1087,6 +1087,10 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 			});
 		}
 		return actions;
+	}
+
+	override getFolderContext(folder: { relativePath: string }): string | undefined {
+		return buildFolderContext(this.commit?.repoPath, folder);
 	}
 
 	override getFileContext(file: File): string | undefined {

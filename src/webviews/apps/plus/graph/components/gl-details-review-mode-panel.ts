@@ -13,6 +13,7 @@ import { pluralize } from '@gitlens/utils/string.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
 import { serializeWebviewItemContext } from '../../../../../system/webview.js';
 import type { DetailsItemTypedContext } from '../../../../plus/graph/detailsProtocol.js';
+import { buildFolderContext } from '../../../../plus/graph/detailsProtocol.js';
 import type { ScopeSelection } from '../../../../plus/graph/graphService.js';
 import type { AiModelInfo } from '../../../../rpc/services/types.js';
 import { redispatch } from '../../../shared/components/element.js';
@@ -412,6 +413,7 @@ export class GlDetailsReviewModePanel extends LitElement {
 					.checkableStates=${checkableStates}
 					.fileActions=${this.fileActionsForFile}
 					.fileContext=${this.getFileContext}
+					.folderContext=${(folder: { relativePath: string }) => buildFolderContext(this.repoPath, folder)}
 					.searchContext=${this.searchContext}
 					check-verb="Include"
 					uncheck-verb="Exclude"

@@ -56,6 +56,8 @@ export class GlDetailsBase extends LitElement {
 
 	protected _getFileActions = (file: File, opts?: Partial<TreeItemBase>) => this.getFileActions(file, opts);
 	protected _getFileContext = (file: File) => this.getFileContext(file);
+	protected _getFolderContext = (folder: { name: string; relativePath: string; repoPath?: string }) =>
+		this.getFolderContext(folder);
 	protected _onFileChecked = (e: CustomEvent) => this.onFileChecked(e);
 
 	protected renderChangedFiles(
@@ -86,6 +88,7 @@ export class GlDetailsBase extends LitElement {
 				?show-file-icons=${this.fileIcons}
 				.fileActions=${this._getFileActions}
 				.fileContext=${this._getFileContext}
+				.folderContext=${this._getFolderContext}
 				.searchContext=${this.searchContext}
 				.buttons=${buttons}
 				empty-text=${isLoadingEmpty ? '' : (this.emptyText ?? 'No Files')}
@@ -152,6 +155,10 @@ export class GlDetailsBase extends LitElement {
 	}
 
 	protected getFileContext(_file: File): string | undefined {
+		return undefined;
+	}
+
+	protected getFolderContext(_folder: { name: string; relativePath: string; repoPath?: string }): string | undefined {
 		return undefined;
 	}
 }

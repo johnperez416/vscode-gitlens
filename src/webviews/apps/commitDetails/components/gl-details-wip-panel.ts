@@ -12,6 +12,7 @@ import type { Draft } from '../../../../plus/drafts/models/drafts.js';
 import { createCommandLink } from '../../../../system/commands.js';
 import { serializeWebviewItemContext } from '../../../../system/webview.js';
 import type { DetailsItemTypedContext, DraftState, Wip } from '../../../commitDetails/protocol.js';
+import { buildFolderContext } from '../../../commitDetails/protocol.js';
 import type { ComposerCommandArgs } from '../../../plus/composer/registration.js';
 import type { Change } from '../../../plus/patchDetails/protocol.js';
 import type { TreeItemAction, TreeItemBase, TreeItemCheckedDetail } from '../../shared/components/tree/base.js';
@@ -465,6 +466,7 @@ export class GlDetailsWipPanel extends GlDetailsBase {
 				?bulk-conflict-actions=${this.bulkConflictActions}
 				.fileActions=${this._getFileActions}
 				.fileContext=${this._getFileContext}
+				.folderContext=${this._getFolderContext}
 				.searchContext=${this.searchContext}
 				.multiDiff=${this.getMultiDiffRefs()}
 				@file-checked=${this._onFileChecked}
@@ -579,6 +581,10 @@ export class GlDetailsWipPanel extends GlDetailsBase {
 			return [unstage];
 		}
 		return [stage];
+	}
+
+	override getFolderContext(folder: { relativePath: string }): string | undefined {
+		return buildFolderContext(this.wip?.repo?.path, folder);
 	}
 
 	override getFileContext(file: File): string | undefined {

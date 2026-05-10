@@ -8,6 +8,7 @@ import { pluralize } from '@gitlens/utils/string.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
 import { serializeWebviewItemContext } from '../../../../../system/webview.js';
 import type { DetailsItemTypedContext } from '../../../../plus/graph/detailsProtocol.js';
+import { buildFolderContext } from '../../../../plus/graph/detailsProtocol.js';
 import type { ProposedCommit, ProposedCommitFile, ScopeSelection } from '../../../../plus/graph/graphService.js';
 import type { AiModelInfo } from '../../../../rpc/services/types.js';
 import { redispatch } from '../../../shared/components/element.js';
@@ -320,6 +321,7 @@ export class GlDetailsComposeModePanel extends LitElement {
 					.checkableStates=${checkableStates}
 					.fileActions=${this.idleFileActionsForFile}
 					.fileContext=${this.getIdleFileContext}
+					.folderContext=${(folder: { relativePath: string }) => buildFolderContext(this.repoPath, folder)}
 					.searchContext=${this.searchContext}
 					check-verb="Include"
 					uncheck-verb="Exclude"
@@ -555,6 +557,7 @@ export class GlDetailsComposeModePanel extends LitElement {
 			.buttons=${['multi-diff', 'layout', 'search']}
 			.fileActions=${this.fileActionsForFile}
 			.fileContext=${this.getFileContext}
+			.folderContext=${(folder: { relativePath: string }) => buildFolderContext(this.repoPath, folder)}
 			@file-open=${this.forwardFileEventWithVirtualRef}
 			@file-compare-previous=${this.forwardFileEventWithVirtualRef}
 			@file-stage=${this.redispatch}

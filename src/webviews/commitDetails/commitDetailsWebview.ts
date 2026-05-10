@@ -47,8 +47,18 @@ import type {
 	NavigateResult,
 } from './commitDetailsService.js';
 import type { ComparisonContext } from './commitDetailsWebview.utils.js';
-import { getFileCommitFromContext, isDetailsFileContext, isDetailsItemContext } from './commitDetailsWebview.utils.js';
+import {
+	getFileCommitFromContext,
+	isDetailsFileContext,
+	isDetailsFolderContext,
+	isDetailsItemContext,
+} from './commitDetailsWebview.utils.js';
 import { DetailsFileCommands, getDetailsFileCommands } from './detailsFileCommands.js';
+import {
+	DetailsFolderCommands,
+	getDetailsFolderCommands,
+	sharedDetailsFolderCommandRoutes,
+} from './detailsFolderCommands.js';
 import type {
 	CommitDetails,
 	DetailsItemContext,
@@ -341,16 +351,25 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 			registerWebviewCommand(`${this.host.id}.refresh`, () => this.host.refresh(true)),
 		];
 
-		// Shared file commands
+		// Shared file commands. `gitlens.views.copy:` and `gitlens.copyRelativePathToClipboard:` are
+		// also wired to folder context — when the menu fires them on a folder row, route to the
+		// folder commands instance instead of running the file lookup (which would no-op).
 		const fileCommands = new DetailsFileCommands(this.container, this.host.id);
+		const folderCommands = new DetailsFolderCommands(this.container);
 		for (const { command: cmd, handler } of getDetailsFileCommands()) {
 			const suspendsLineTracker = lineTrackerCommands.has(cmd);
+			const folderRoute = sharedDetailsFolderCommandRoutes[cmd];
 			subscriptions.push(
 				registerWebviewCommand(
 					getWebviewCommand(cmd, this.host.type),
 					async (item?: DetailsItemContext | ExecuteFileActionParams) => {
 						if (suspendsLineTracker) {
 							this.suspendLineTracker();
+						}
+
+						if (folderRoute != null && isDetailsFolderContext(item)) {
+							folderCommands[folderRoute](item.webviewItemValue);
+							return;
 						}
 
 						const [commit, file, comparison] = await this.getFileCommitFromContextOrParams(item);
@@ -360,6 +379,19 @@ export class CommitDetailsWebviewProvider implements WebviewProvider<State, Stat
 					},
 					this,
 				),
+			);
+		}
+
+		// Folder-only commands (Folder History submenu). `gitlens.views.copy:` and
+		// `gitlens.copyRelativePathToClipboard:` are intentionally NOT registered here — they share
+		// IDs with the file commands above.
+		for (const { command: cmd, handler } of getDetailsFolderCommands()) {
+			if (cmd in sharedDetailsFolderCommandRoutes) continue;
+			subscriptions.push(
+				registerWebviewCommand(getWebviewCommand(cmd, this.host.type), (item?: DetailsItemContext) => {
+					if (!isDetailsFolderContext(item)) return;
+					handler.call(folderCommands, item.webviewItemValue);
+				}),
 			);
 		}
 

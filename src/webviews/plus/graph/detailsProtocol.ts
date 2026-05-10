@@ -19,4 +19,4 @@ export type {
 	Wip,
 } from '../../commitDetails/protocol.js';
 
-export { messageHeadlineSplitterToken } from '../../commitDetails/protocol.js';
+export { buildFolderContext, messageHeadlineSplitterToken } from '../../commitDetails/protocol.js';

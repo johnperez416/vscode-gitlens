@@ -11,6 +11,7 @@ import type { Config, DateStyle } from '../../config.js';
 import type { Sources } from '../../constants.telemetry.js';
 import type { GlRepository } from '../../git/models/repository.js';
 import type { WebviewItemContext } from '../../system/webview.js';
+import { serializeWebviewItemContext } from '../../system/webview.js';
 import type { IpcScope } from '../ipc/models/ipc.js';
 import type { WebviewState } from '../protocol.js';
 import type { FileShowOptions, WipChange } from '../rpc/services/types.js';
@@ -149,7 +150,7 @@ export type DetailsItemContext = WebviewItemContext<DetailsItemContextValue>;
 export type DetailsItemContextValue = DetailsItemTypedContextValue;
 
 export type DetailsItemTypedContext<T = DetailsItemTypedContextValue> = WebviewItemContext<T>;
-export type DetailsItemTypedContextValue = DetailsFileContextValue;
+export type DetailsItemTypedContextValue = DetailsFileContextValue | DetailsFolderContextValue;
 
 export interface DetailsFileContextValue {
 	type: 'file';
@@ -160,4 +161,20 @@ export interface DetailsFileContextValue {
 	stashNumber?: string;
 	staged?: boolean;
 	status?: GitFileStatus;
+}
+
+export interface DetailsFolderContextValue {
+	type: 'folder';
+	path: string;
+	repoPath: string;
+}
+
+export function buildFolderContext(repoPath: string | undefined, folder: { relativePath: string }): string | undefined {
+	if (!repoPath) return undefined;
+
+	const context: DetailsItemTypedContext = {
+		webviewItem: 'gitlens:folder',
+		webviewItemValue: { type: 'folder', path: folder.relativePath, repoPath: repoPath },
+	};
+	return serializeWebviewItemContext(context);
 }

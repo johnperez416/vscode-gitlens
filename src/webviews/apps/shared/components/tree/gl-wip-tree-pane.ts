@@ -87,6 +87,9 @@ export class GlWipTreePane extends LitElement {
 	@property({ attribute: false })
 	fileContext?: (file: FileItem) => string | undefined;
 
+	@property({ attribute: false })
+	folderContext?: (folder: { name: string; relativePath: string; repoPath?: string }) => string | undefined;
+
 	@property({ type: Object, attribute: 'search-context' })
 	searchContext?: GitCommitSearchContext;
 
@@ -216,6 +219,7 @@ export class GlWipTreePane extends LitElement {
 			.searchContext=${this.searchContext}
 			.fileActions=${this._wrappedActions}
 			.fileContext=${this.fileContext}
+			.folderContext=${this.folderContext}
 			.filesLayout=${this.preferences?.files}
 			.showIndentGuides=${this.preferences?.indentGuides}
 			.grouping=${this._grouping}

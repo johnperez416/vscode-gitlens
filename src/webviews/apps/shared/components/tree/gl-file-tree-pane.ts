@@ -87,6 +87,14 @@ export class GlFileTreePane extends LitElement {
 	@property({ attribute: false })
 	fileContext?: (file: FileItem) => string | undefined;
 
+	/**
+	 * Optional callback to generate context data for folder tree items. When set, each folder's
+	 * tree model will include the returned contextData string so VS Code's webview menu system
+	 * can target it via `webviewItem` regex matchers.
+	 */
+	@property({ attribute: false })
+	folderContext?: (folder: { name: string; relativePath: string; repoPath?: string }) => string | undefined;
+
 	// --- Generic grouping (replaces isUncommitted / staged-unstaged logic) ---
 
 	@property({ attribute: false })
@@ -174,10 +182,10 @@ export class GlFileTreePane extends LitElement {
 
 	override willUpdate(changedProperties: Map<PropertyKey, unknown>): void {
 		// Rebuild cached tree model when tree-structure-relevant properties change.
-		// Note: fileActions and fileContext are excluded — they're callbacks/arrays
-		// consumed during model creation but don't affect tree structure. Including them
-		// causes unnecessary rebuilds (losing expansion state) because callers often pass
-		// new references on every render.
+		// Note: fileActions, fileContext, and folderContext are excluded — they're
+		// callbacks/arrays consumed during model creation but don't affect tree structure.
+		// Including them causes unnecessary rebuilds (losing expansion state) because
+		// callers often pass new references on every render.
 		if (
 			changedProperties.has('files') ||
 			changedProperties.has('filesLayout') ||
@@ -225,6 +233,7 @@ export class GlFileTreePane extends LitElement {
 				filterMode: this._filterMode,
 				searchContext: this.searchContext,
 				fileToModel: (file, opts, flat) => this.fileToTreeModel(file, opts, flat),
+				folderToContextData: this.folderContext,
 			});
 		}
 	}

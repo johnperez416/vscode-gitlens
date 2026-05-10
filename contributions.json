@@ -1180,7 +1180,7 @@
 			"menus": {
 				"webview/context": [
 					{
-						"when": "webviewItem =~ /gitlens:file\\b/ && webview == gitlens.views.commitDetails",
+						"when": "webviewItem =~ /gitlens:(file|folder)\\b/ && webview == gitlens.views.commitDetails",
 						"group": "7_gitlens_cutcopypaste",
 						"order": 2
 					}
@@ -1193,7 +1193,7 @@
 			"menus": {
 				"webview/context": [
 					{
-						"when": "webviewItem =~ /gitlens:file\\b/ && (webview == gitlens.graph || webview == gitlens.views.graph)",
+						"when": "webviewItem =~ /gitlens:(file|folder)\\b/ && (webview == gitlens.graph || webview == gitlens.views.graph)",
 						"group": "7_gitlens_cutcopypaste",
 						"order": 2
 					}
@@ -4473,9 +4473,46 @@
 				]
 			}
 		},
+		"gitlens.openFolderHistory:commitDetails": {
+			"label": "Open Folder History",
+			"menus": {
+				"gitlens/webview/folder/history": [
+					{
+						"when": "webview == gitlens.views.commitDetails",
+						"group": "1_gitlens",
+						"order": 1
+					}
+				]
+			}
+		},
+		"gitlens.openFolderHistory:graphDetails": {
+			"label": "Open Folder History",
+			"menus": {
+				"gitlens/webview/folder/history": [
+					{
+						"when": "webview == gitlens.graph || webview == gitlens.views.graph",
+						"group": "1_gitlens",
+						"order": 1
+					}
+				]
+			}
+		},
 		"gitlens.openFolderHistoryInGraph": {
 			"label": "Open Folder History in Commit Graph",
 			"icon": "$(gitlens-graph)"
+		},
+		"gitlens.openFolderHistoryInGraph:commitDetails": {
+			"label": "Open Folder History in Commit Graph",
+			"icon": "$(gitlens-graph)",
+			"menus": {
+				"gitlens/webview/folder/history": [
+					{
+						"when": "webview == gitlens.views.commitDetails",
+						"group": "1_gitlens",
+						"order": 2
+					}
+				]
+			}
 		},
 		"gitlens.openFolderHistoryInGraph:explorer": {
 			"label": "Open Folder History in Commit Graph",
@@ -4483,6 +4520,19 @@
 			"menus": {
 				"gitlens/explorer/folder/history": [
 					{
+						"group": "1_gitlens",
+						"order": 2
+					}
+				]
+			}
+		},
+		"gitlens.openFolderHistoryInGraph:graphDetails": {
+			"label": "Open Folder History in Commit Graph",
+			"icon": "$(gitlens-graph)",
+			"menus": {
+				"gitlens/webview/folder/history": [
+					{
+						"when": "webview == gitlens.graph || webview == gitlens.views.graph",
 						"group": "1_gitlens",
 						"order": 2
 					}
@@ -10122,7 +10172,7 @@
 			"menus": {
 				"webview/context": [
 					{
-						"when": "webviewItem =~ /gitlens:file\\b(?!.*?\\b\\+(staged|unstaged)\\b)/ && webview == gitlens.views.commitDetails",
+						"when": "webviewItem =~ /gitlens:(file|folder)\\b(?!.*?\\b\\+(staged|unstaged)\\b)/ && webview == gitlens.views.commitDetails",
 						"group": "7_gitlens_cutcopypaste",
 						"order": 1
 					}
@@ -10135,7 +10185,7 @@
 			"menus": {
 				"webview/context": [
 					{
-						"when": "webviewItem =~ /gitlens:file\\b(?!.*?\\b\\+(staged|unstaged)\\b)/ && (webview == gitlens.graph || webview == gitlens.views.graph)",
+						"when": "webviewItem =~ /gitlens:(file|folder)\\b(?!.*?\\b\\+(staged|unstaged)\\b)/ && (webview == gitlens.graph || webview == gitlens.views.graph)",
 						"group": "7_gitlens_cutcopypaste",
 						"order": 1
 					}
@@ -18897,12 +18947,38 @@
 				]
 			}
 		},
+		"gitlens.visualizeHistory.folder:commitDetails": {
+			"label": "Open Visual Folder History",
+			"icon": "$(graph-scatter)",
+			"menus": {
+				"gitlens/webview/folder/history": [
+					{
+						"when": "webview == gitlens.views.commitDetails",
+						"group": "1_gitlens",
+						"order": 5
+					}
+				]
+			}
+		},
 		"gitlens.visualizeHistory.folder:explorer": {
 			"label": "Open Visual Folder History",
 			"icon": "$(graph-scatter)",
 			"menus": {
 				"gitlens/explorer/folder/history": [
 					{
+						"group": "1_gitlens",
+						"order": 5
+					}
+				]
+			}
+		},
+		"gitlens.visualizeHistory.folder:graphDetails": {
+			"label": "Open Visual Folder History",
+			"icon": "$(graph-scatter)",
+			"menus": {
+				"gitlens/webview/folder/history": [
+					{
+						"when": "webview == gitlens.graph || webview == gitlens.views.graph",
 						"group": "1_gitlens",
 						"order": 5
 					}
@@ -19932,6 +20008,18 @@
 						"when": "view == gitlens.views.worktrees || view == gitlens.views.scm.grouped && gitlens:views:scm:grouped:view == worktrees",
 						"group": "2_gitlens_sort",
 						"order": 0
+					}
+				]
+			}
+		},
+		"gitlens/webview/folder/history": {
+			"label": "Folder History",
+			"menus": {
+				"webview/context": [
+					{
+						"when": "webviewItem =~ /gitlens:folder\\b/ && (webview == gitlens.views.commitDetails || webview == gitlens.graph || webview == gitlens.views.graph)",
+						"group": "4_timeline",
+						"order": 1
 					}
 				]
 			}

@@ -147,6 +147,7 @@ export function walkFileTree<T extends GitFileChangeShape>(
 	fileToModel: (file: T, options: Partial<TreeItemBase>, flat: boolean) => TreeModel,
 	options: Partial<TreeItemBase> = { level: 1 },
 	repoPath?: string,
+	folderToContextData?: (folder: { name: string; relativePath: string; repoPath?: string }) => string | undefined,
 ): TreeModel {
 	if (options.level === undefined) {
 		options.level = 1;
@@ -158,6 +159,13 @@ export function walkFileTree<T extends GitFileChangeShape>(
 		if (repoPath) {
 			model.tooltip = joinPaths(repoPath, item.relativePath);
 		}
+		if (folderToContextData != null) {
+			model.contextData = folderToContextData({
+				name: item.name,
+				relativePath: item.relativePath,
+				repoPath: repoPath,
+			});
+		}
 	} else {
 		model = fileToModel(item.value, options, false);
 	}
@@ -165,7 +173,13 @@ export function walkFileTree<T extends GitFileChangeShape>(
 	if (item.children != null) {
 		const children = [];
 		for (const child of item.children.values()) {
-			const childModel = walkFileTree(child, fileToModel, { ...options, level: options.level + 1 }, repoPath);
+			const childModel = walkFileTree(
+				child,
+				fileToModel,
+				{ ...options, level: options.level + 1 },
+				repoPath,
+				folderToContextData,
+			);
 			children.push(childModel);
 		}
 
@@ -192,6 +206,7 @@ export function buildFileTree<T extends GitFileChangeShape>(
 	searchContext: { matchedFiles?: readonly { readonly path: string }[] } | null | undefined,
 	fileToModel: (file: T, options: Partial<TreeItemBase>, flat: boolean) => TreeModel,
 	options: Partial<TreeItemBase> = { level: 1 },
+	folderToContextData?: (folder: { name: string; relativePath: string; repoPath?: string }) => string | undefined,
 ): TreeModel[] {
 	if (options.level === undefined) {
 		options.level = 1;
@@ -217,7 +232,7 @@ export function buildFileTree<T extends GitFileChangeShape>(
 		);
 		if (fileTree.children != null) {
 			for (const child of fileTree.children.values()) {
-				const childModel = walkFileTree(child, fileToModel, options, repoPath);
+				const childModel = walkFileTree(child, fileToModel, options, repoPath, folderToContextData);
 				children.push(childModel);
 			}
 		}
@@ -244,16 +259,26 @@ export interface GroupedTreeOptions<T extends GitFileChangeShape> {
 	filterMode: 'off' | 'mixed' | 'matched';
 	searchContext?: { matchedFiles?: readonly { readonly path: string }[] } | null;
 	fileToModel: (file: T, options: Partial<TreeItemBase>, flat: boolean) => TreeModel;
+	folderToContextData?: (folder: { name: string; relativePath: string; repoPath?: string }) => string | undefined;
 }
 
 export function buildGroupedTree<T extends GitFileChangeShape>(opts: GroupedTreeOptions<T>): TreeModel[] {
-	const { files, isTree, compact, filterMode, searchContext, fileToModel } = opts;
+	const { files, isTree, compact, filterMode, searchContext, fileToModel, folderToContextData } = opts;
 
 	if (!opts.grouping) {
-		return buildFileTree(files, isTree, compact, filterMode, searchContext, fileToModel, {
-			level: 1,
-			...(opts.checkable ? { checkable: true } : {}),
-		});
+		return buildFileTree(
+			files,
+			isTree,
+			compact,
+			filterMode,
+			searchContext,
+			fileToModel,
+			{
+				level: 1,
+				...(opts.checkable ? { checkable: true } : {}),
+			},
+			folderToContextData,
+		);
 	}
 
 	// Group files using the provided grouping function
@@ -282,13 +307,31 @@ export function buildGroupedTree<T extends GitFileChangeShape>(opts: GroupedTree
 			expanded: true,
 			checked: false,
 			context: [groupDef.key],
-			children: buildFileTree(groupFiles, isTree, compact, filterMode, searchContext, fileToModel, { level: 2 }),
+			children: buildFileTree(
+				groupFiles,
+				isTree,
+				compact,
+				filterMode,
+				searchContext,
+				fileToModel,
+				{ level: 2 },
+				folderToContextData,
+			),
 			actions: groupDef.actions,
 		});
 	}
 
 	if (children.length === 0) {
-		return buildFileTree(files, isTree, compact, filterMode, searchContext, fileToModel);
+		return buildFileTree(
+			files,
+			isTree,
+			compact,
+			filterMode,
+			searchContext,
+			fileToModel,
+			undefined,
+			folderToContextData,
+		);
 	}
 
 	return children;

@@ -190,8 +190,17 @@ import { serializeWebviewItemContext } from '../../../system/webview.js';
 import { DeepLinkActionType } from '../../../uris/deepLinks/deepLink.js';
 import { RepositoryFolderNode } from '../../../views/nodes/abstract/repositoryFolderNode.js';
 import type { ExplainResult } from '../../commitDetails/commitDetailsService.js';
-import { getFileCommitFromContext, isDetailsFileContext } from '../../commitDetails/commitDetailsWebview.utils.js';
+import {
+	getFileCommitFromContext,
+	isDetailsFileContext,
+	isDetailsFolderContext,
+} from '../../commitDetails/commitDetailsWebview.utils.js';
 import { DetailsFileCommands, getDetailsFileCommands } from '../../commitDetails/detailsFileCommands.js';
+import {
+	DetailsFolderCommands,
+	getDetailsFolderCommands,
+	sharedDetailsFolderCommandRoutes,
+} from '../../commitDetails/detailsFolderCommands.js';
 import type { IpcParams, IpcResponse } from '../../ipc/handlerRegistry.js';
 import { ipcCommand, ipcRequest } from '../../ipc/handlerRegistry.js';
 import type { IpcNotification } from '../../ipc/models/ipc.js';
@@ -1898,20 +1907,31 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			);
 		}
 
-		// Register file action commands for the integrated details panel
-		this.registerDetailsFileCommands(commands);
+		// Register file/folder action commands for the integrated details panel
+		this.registerDetailsFileAndFolderCommands(commands);
 
 		return commands;
 	}
 
-	private registerDetailsFileCommands(commands: Disposable[]): void {
+	private registerDetailsFileAndFolderCommands(commands: Disposable[]): void {
 		const fileCommands = new DetailsFileCommands(this.container);
+		const folderCommands = new DetailsFolderCommands(this.container);
+
+		// Shared file commands. `gitlens.views.copy:` and `gitlens.copyRelativePathToClipboard:` are
+		// also wired to folder context — when the menu fires them on a folder row, route to the
+		// folder commands instance instead of running the file lookup (which would no-op).
 		for (const { command: cmd, handler } of getDetailsFileCommands()) {
+			const folderRoute = sharedDetailsFolderCommandRoutes[cmd];
 			commands.push(
 				this.host.registerWebviewCommandForId(
 					this.host.id,
 					getWebviewCommand(cmd, 'graphDetails'),
 					async (item?: DetailsItemContext) => {
+						if (folderRoute != null && isDetailsFolderContext(item)) {
+							folderCommands[folderRoute](item.webviewItemValue);
+							return;
+						}
+
 						if (!isDetailsFileContext(item)) return;
 
 						const [commit, file, comparison] = await getFileCommitFromContext(
@@ -1921,6 +1941,21 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						if (commit == null) return;
 
 						return void handler.call(fileCommands, commit, file, undefined, comparison);
+					},
+				),
+			);
+		}
+
+		// Folder-only commands (Folder History submenu).
+		for (const { command: cmd, handler } of getDetailsFolderCommands()) {
+			if (cmd in sharedDetailsFolderCommandRoutes) continue;
+			commands.push(
+				this.host.registerWebviewCommandForId(
+					this.host.id,
+					getWebviewCommand(cmd, 'graphDetails'),
+					(item?: DetailsItemContext) => {
+						if (!isDetailsFolderContext(item)) return;
+						handler.call(folderCommands, item.webviewItemValue);
 					},
 				),
 			);

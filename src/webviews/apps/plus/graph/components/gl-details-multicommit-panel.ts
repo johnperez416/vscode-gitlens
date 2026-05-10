@@ -17,7 +17,7 @@ import type {
 	Preferences,
 	State,
 } from '../../../../plus/graph/detailsProtocol.js';
-import { messageHeadlineSplitterToken } from '../../../../plus/graph/detailsProtocol.js';
+import { buildFolderContext, messageHeadlineSplitterToken } from '../../../../plus/graph/detailsProtocol.js';
 import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
 import { renderLearnAboutAutolinks } from '../../../shared/components/chips/learn-about-autolinks.js';
 import { redispatch } from '../../../shared/components/element.js';
@@ -229,6 +229,8 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 													?show-file-icons=${this.fileIcons}
 													.fileActions=${GlDetailsMultiCommitPanel._fileActions}
 													.fileContext=${this.getFileContext}
+													.folderContext=${(folder: { relativePath: string }) =>
+														buildFolderContext(this.commitTo?.repoPath, folder)}
 													.searchContext=${this.searchContext}
 													.buttons=${this.getMultiDiffRefs()
 														? ['layout', 'search', 'multi-diff']
