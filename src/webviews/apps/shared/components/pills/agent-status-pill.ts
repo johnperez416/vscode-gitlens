@@ -48,12 +48,19 @@ export class GlAgentStatusPill extends LitElement {
 				--gl-agent-pill-working-bg: color-mix(in srgb, var(--gl-agent-pill-working-color) 10%, transparent);
 				--gl-agent-pill-working-border: color-mix(in srgb, var(--gl-agent-pill-working-color) 50%, transparent);
 
-				/* Needs Input (amber/warning) */
+				/* Needs Input (amber/warning). Border is brighter than the other categories
+				   (75% vs. 50%/35%) so the static state already communicates "this one's
+				   different" before the breathing animation kicks in. */
 				--gl-agent-pill-attention-color: var(--vscode-editorWarning-foreground);
 				--gl-agent-pill-attention-bg: color-mix(in srgb, var(--gl-agent-pill-attention-color) 10%, transparent);
+				--gl-agent-pill-attention-bg-peak: color-mix(
+					in srgb,
+					var(--gl-agent-pill-attention-color) 22%,
+					transparent
+				);
 				--gl-agent-pill-attention-border: color-mix(
 					in srgb,
-					var(--gl-agent-pill-attention-color) 50%,
+					var(--gl-agent-pill-attention-color) 75%,
 					transparent
 				);
 
@@ -138,12 +145,9 @@ export class GlAgentStatusPill extends LitElement {
 				color: inherit;
 			}
 
-			/* Ripple pulse for active states — mirrors the shared indicator pattern in
-			   shared/components/indicators/indicator.css.ts: solid dot, expanding-then-fading
-			   box-shadow halo. The halo uses the dot's accent color so the gesture matches the
-			   pill's category. */
-			.pill--working .pill__dot,
-			.pill--needs-input .pill__dot {
+			/* Background-only animation (no box-shadow) so it doesn't get clipped by ancestors
+			   with overflow: hidden. */
+			.pill--working .pill__dot {
 				animation: gl-agent-pill-pulse 1.5s ease 0s infinite;
 			}
 
@@ -156,6 +160,20 @@ export class GlAgentStatusPill extends LitElement {
 				}
 				100% {
 					box-shadow: 0 0 0 0 transparent;
+				}
+			}
+
+			.pill--needs-input {
+				animation: gl-agent-pill-breathing 3.5s ease-in-out 0s infinite;
+			}
+
+			@keyframes gl-agent-pill-breathing {
+				0%,
+				100% {
+					background-color: var(--gl-agent-pill-attention-bg);
+				}
+				50% {
+					background-color: var(--gl-agent-pill-attention-bg-peak);
 				}
 			}
 
@@ -178,7 +196,6 @@ export class GlAgentStatusPill extends LitElement {
 			}
 			.pill--needs-input .pill__dot {
 				background-color: var(--gl-agent-pill-attention-color);
-				--pill-pulse-color: color-mix(in srgb, var(--gl-agent-pill-attention-color) 60%, transparent);
 			}
 
 			/* Idle */
@@ -198,7 +215,7 @@ export class GlAgentStatusPill extends LitElement {
 				}
 
 				.pill--working .pill__dot,
-				.pill--needs-input .pill__dot {
+				.pill--needs-input {
 					animation: none;
 				}
 			}
