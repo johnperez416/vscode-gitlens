@@ -1,3 +1,4 @@
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { Issue } from '@gitlens/git/models/issue.js';
 import type { PullRequest, PullRequestShape } from '@gitlens/git/models/pullRequest.js';
@@ -273,11 +274,12 @@ export async function getOverviewWip(
 	branches: Iterable<GitBranch>,
 	worktreesByBranch: ReadonlyMap<string, GitWorktree>,
 	branchIds: string[],
-	options?: { signal?: AbortSignal },
+	options?: { priority?: GitCommandPriority; signal?: AbortSignal },
 ): Promise<GetOverviewWipResponse> {
 	if (branchIds.length === 0) return {};
 
-	const signal = options?.signal;
+	const { priority, signal } = options ?? {};
+	const statusOptions = priority != null ? { priority: priority } : undefined;
 
 	const branchesById = new Map<string, GitBranch>();
 	for (const branch of branches) {
@@ -295,9 +297,11 @@ export async function getOverviewWip(
 
 		const wt = worktreesByBranch.get(branchId);
 		if (wt != null) {
-			statusPromises.set(branchId, GitWorktree.getStatus(wt, signal));
+			statusPromises.set(branchId, GitWorktree.getStatus(wt, statusOptions, signal));
 		} else if (branch.current) {
-			repoStatusPromise ??= container.git.getRepositoryService(branch.repoPath).status.getStatus(signal);
+			repoStatusPromise ??= container.git
+				.getRepositoryService(branch.repoPath)
+				.status.getStatus(statusOptions, signal);
 			statusPromises.set(branchId, repoStatusPromise);
 		}
 	}
@@ -370,11 +374,17 @@ export async function getOverviewEnrichment(
 		 * hover) opt in here so initial enrichment doesn't pay for ~4 git/integration ops per branch.
 		 */
 		skipMergeTarget?: boolean;
+		/**
+		 * Priority for the underlying git operations on the *fallback* branch-overview path (when
+		 * `getBranchOverview` is not provided). Callers wiring their own `getBranchOverview` must
+		 * apply this themselves — there's no automatic plumbing past the callback boundary.
+		 */
+		priority?: GitCommandPriority;
 	},
 ): Promise<GetOverviewEnrichmentResponse> {
 	if (branchIds.length === 0) return {};
 
-	const { isPro, resolveLaunchpad, signal, getBranchOverview, skipMergeTarget } = options;
+	const { isPro, resolveLaunchpad, signal, getBranchOverview, skipMergeTarget, priority } = options;
 	const launchpadPromise: Promise<LaunchpadCategorizedResult> | undefined = isPro
 		? container.launchpad.getCategorizedItems()
 		: undefined;
@@ -408,7 +418,7 @@ export async function getOverviewEnrichment(
 					.getRepositoryService(branch.repoPath)
 					.branches.getBranchContributionsOverview(
 						branch.ref,
-						{ associatedPullRequest: associatedPR },
+						{ associatedPullRequest: associatedPR, priority: priority },
 						signal,
 					);
 			// Compute merge target for every enriched branch (not just the current one) so the graph's

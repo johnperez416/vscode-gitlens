@@ -1,4 +1,5 @@
 import type { Cache } from '@gitlens/git/cache.js';
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import type { BranchContributionsOverview, GitBranchesSubProvider } from '@gitlens/git/providers/branches.js';
 import { createRevisionRange, stripOrigin } from '@gitlens/git/utils/revision.utils.js';
@@ -202,28 +203,19 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	async getBranchContributionsOverview(
 		repoPath: string,
 		ref: string,
-		options?: { associatedPullRequest?: Promise<{ refs?: { base?: { branch: string } } } | undefined> },
+		// `priority` is unused — the GitHub provider doesn't go through the local git command
+		// queue, so the priority signal has no effect here. Accepted for interface compatibility.
+		options?: {
+			associatedPullRequest?: Promise<{ refs?: { base?: { branch: string } } } | undefined>;
+			priority?: GitCommandPriority;
+		},
 		_cancellation?: AbortSignal,
 	): Promise<BranchContributionsOverview | undefined> {
 		const scope = getScopedLogger();
 
-		// No outer cache here — GitHub provider has no stored-target safety net (no Tier 1
-		// equivalent), so the result is purely PR-resolution-dependent and a `ref`-keyed cache
-		// would serve stale data when the PR is later retargeted.
-		try {
-			let mergeTarget: string | undefined;
-
-			// PR-based lookup (GitHub provider has no stored targets or base branch detection)
-			if (options?.associatedPullRequest != null) {
-				const pr = await options.associatedPullRequest;
-				if (pr?.refs?.base != null) {
-					mergeTarget = pr.refs.base.branch;
-				}
-			}
-
-			mergeTarget ??= await this.getDefaultBranchName(repoPath);
-			if (mergeTarget == null) return undefined;
-
+		// Expensive body — runs only on cache miss. Closes over `mergeTarget` so the cache key
+		// (`${ref}|${mergeTarget}`) fully captures every input that affects the result.
+		const fetchBody = async (mergeTarget: string): Promise<BranchContributionsOverview | undefined> => {
 			const mergeBase = await this.provider.refs.getMergeBase(repoPath, ref, mergeTarget);
 			if (mergeBase == null) return undefined;
 
@@ -288,6 +280,31 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 
 				contributors: result.contributors,
 			};
+		};
+
+		try {
+			// Resolve `mergeTarget` (PR base or default branch). Only the expensive body below is
+			// cached — keyed on `${ref}|${mergeTarget}` so callers that resolve to the same target
+			// share the result, while differing targets get independent slots.
+			let mergeTarget: string | undefined;
+
+			if (options?.associatedPullRequest != null) {
+				const pr = await options.associatedPullRequest;
+				if (pr?.refs?.base != null) {
+					mergeTarget = pr.refs.base.branch;
+				}
+			}
+
+			mergeTarget ??= await this.getDefaultBranchName(repoPath);
+			if (mergeTarget == null) return undefined;
+
+			// Safe to cache despite PR retargeting: the cache key includes the resolved `mergeTarget`,
+			// so a retargeted PR resolves to a fresh slot and the old entry is stale-but-unused (and
+			// TTL-evicts). The prior "no outer cache here" rationale assumed a `ref`-only key.
+			const resolvedTarget = mergeTarget;
+			return await this.cache.getBranchOverview(repoPath, `${ref}|${resolvedTarget}`, () =>
+				fetchBody(resolvedTarget),
+			);
 		} catch (ex) {
 			scope?.error(ex);
 			return undefined;
@@ -346,6 +363,9 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	async getDefaultBranchName(
 		repoPath: string | undefined,
 		_remote?: string,
+		// `priority` is unused — the GitHub provider doesn't go through the local git command
+		// queue, so the priority signal has no effect here. Accepted for interface compatibility.
+		_options?: { priority?: GitCommandPriority },
 		_cancellation?: AbortSignal,
 	): Promise<string | undefined> {
 		if (repoPath == null) return undefined;

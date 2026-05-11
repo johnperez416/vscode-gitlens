@@ -1,4 +1,5 @@
 import type { Cache } from '@gitlens/git/cache.js';
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
@@ -35,7 +36,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		repoPath: string,
 		ref1: string,
 		ref2: string,
-		_options?: { forkPoint?: boolean },
+		_options?: { forkPoint?: boolean; priority?: GitCommandPriority },
 		_cancellation?: AbortSignal,
 	): Promise<string | undefined> {
 		if (repoPath == null) return undefined;

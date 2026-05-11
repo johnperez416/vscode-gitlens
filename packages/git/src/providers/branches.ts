@@ -1,4 +1,6 @@
 import type { PagedResult, PagingOptions } from '@gitlens/utils/paging.js';
+import type { GkConfigInvalidationTarget } from '../cache.js';
+import type { GitCommandPriority } from '../exec.types.js';
 import type { BranchDisposition, GitBranch } from '../models/branch.js';
 import type { GitCommitStats } from '../models/commit.js';
 import type { GitContributor } from '../models/contributor.js';
@@ -43,7 +45,7 @@ export interface GitBranchesSubProvider {
 	getBranchContributionsOverview(
 		repoPath: string,
 		ref: string,
-		options?: { associatedPullRequest?: Promise<PullRequest | undefined> },
+		options?: { associatedPullRequest?: Promise<PullRequest | undefined>; priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<BranchContributionsOverview | undefined>;
 	getBranchesWithCommits(
@@ -58,6 +60,7 @@ export interface GitBranchesSubProvider {
 	getDefaultBranchName(
 		repoPath: string | undefined,
 		remote?: string,
+		options?: { priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<string | undefined>;
 
@@ -94,7 +97,12 @@ export interface GitBranchesSubProvider {
 		targetBranch: string,
 		cancellation?: AbortSignal,
 	): Promise<ConflictDetectionResult>;
-	getBaseBranchName?(repoPath: string, ref: string, cancellation?: AbortSignal): Promise<string | undefined>;
+	getBaseBranchName?(
+		repoPath: string,
+		ref: string,
+		options?: { priority?: GitCommandPriority },
+		cancellation?: AbortSignal,
+	): Promise<string | undefined>;
 	getStoredMergeTargetBranchName?(repoPath: string, ref: string): Promise<string | undefined>;
 	getStoredDetectedMergeTargetBranchName?(repoPath: string, ref: string): Promise<string | undefined>;
 	getStoredUserMergeTargetBranchName?(repoPath: string, ref: string): Promise<string | undefined>;
@@ -108,7 +116,17 @@ export interface GitBranchesSubProvider {
 		branchName: string,
 		disposition: BranchDisposition | undefined,
 	): Promise<void>;
-	storeBaseBranchName?(repoPath: string, ref: string, base: string): Promise<void>;
-	storeMergeTargetBranchName?(repoPath: string, ref: string, target: string): Promise<void>;
+	storeBaseBranchName?(
+		repoPath: string,
+		ref: string,
+		base: string,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
+	): Promise<void>;
+	storeMergeTargetBranchName?(
+		repoPath: string,
+		ref: string,
+		target: string,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
+	): Promise<void>;
 	storeUserMergeTargetBranchName?(repoPath: string, ref: string, target: string | undefined): Promise<void>;
 }

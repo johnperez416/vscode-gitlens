@@ -1,3 +1,4 @@
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import type { GitConflictFile } from '@gitlens/git/models/staging.js';
 import { GitStatus } from '@gitlens/git/models/status.js';
@@ -12,7 +13,11 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 
 	@gate()
 	@debug()
-	async getStatus(repoPath: string | undefined, _cancellation?: AbortSignal): Promise<GitStatus | undefined> {
+	async getStatus(
+		repoPath: string | undefined,
+		_options?: { priority?: GitCommandPriority },
+		_cancellation?: AbortSignal,
+	): Promise<GitStatus | undefined> {
 		if (repoPath == null) return undefined;
 
 		const context = await this.provider.ensureRepositoryContext(repoPath);

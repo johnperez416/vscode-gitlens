@@ -1,5 +1,6 @@
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import { GitFileWorkingTreeStatus } from '@gitlens/git/models/fileStatus.js';
 import type { GitConflictFile } from '@gitlens/git/models/staging.js';
@@ -33,12 +34,16 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 
 	@gate(rp => rp ?? '')
 	@debug()
-	async getStatus(repoPath: string | undefined, cancellation?: AbortSignal): Promise<GitStatus | undefined> {
+	async getStatus(
+		repoPath: string | undefined,
+		options?: { priority?: GitCommandPriority },
+		cancellation?: AbortSignal,
+	): Promise<GitStatus | undefined> {
 		if (repoPath == null) return undefined;
 
 		const porcelainVersion = (await this.git.supports('git:status:porcelain-v2')) ? 2 : 1;
 
-		const result = await this.statusCore(repoPath, porcelainVersion, {}, cancellation);
+		const result = await this.statusCore(repoPath, porcelainVersion, { priority: options?.priority }, cancellation);
 		const repoUri = fileUri(normalizePath(repoPath));
 		const status = parseGitStatus(result.stdout, repoPath, porcelainVersion, p =>
 			joinUriPath(repoUri, normalizePath(p)),
@@ -126,7 +131,7 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 	private async statusCore(
 		repoPath: string,
 		porcelainVersion: number = 1,
-		options?: { similarityThreshold?: number },
+		options?: { similarityThreshold?: number; priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 		...pathspecs: string[]
 	): Promise<GitResult> {
@@ -148,6 +153,7 @@ export class StatusGitSubProvider implements GitStatusSubProvider {
 				cancellation: cancellation,
 				configs: gitConfigsStatus,
 				env: { GIT_OPTIONAL_LOCKS: '0' },
+				...(options?.priority != null ? { priority: options.priority } : undefined),
 			},
 			...params,
 			'--',

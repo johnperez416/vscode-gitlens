@@ -253,7 +253,7 @@ Each sub-provider interface is defined in its own file under `providers/`:
 | `setUpstreamBranch?(repoPath, name, upstream)`                                       | `void`                                     |
 | `setBranchDisposition?(repoPath, branchName, disposition)`                           | `void`                                     |
 | `storeBaseBranchName?(repoPath, ref, base)`                                          | `void`                                     |
-| `storeMergeTargetBranchName?(repoPath, ref, target)`                                 | `void`                                     |
+| `storeMergeTargetBranchName?(repoPath, ref, target, options?)`                       | `void`                                     |
 | `storeUserMergeTargetBranchName?(repoPath, ref, target)`                             | `void`                                     |
 
 ### GitCommitsSubProvider
@@ -292,7 +292,7 @@ Each sub-provider interface is defined in its own file under `providers/`:
 | `getRepositoryInfo?(cwd)`                       | `Promise<...>`         |
 | `getGkConfig?(repoPath, key, options?)`         | `string \| undefined`  |
 | `getGkConfigRegex?(repoPath, pattern)`          | `Map<string, string>`  |
-| `setGkConfig?(repoPath, key, value)`            | `void`                 |
+| `setGkConfig?(repoPath, key, value, options?)`  | `void`                 |
 | `getSigningConfig?(repoPath)`                   | `SigningConfig`        |
 | `getSigningConfigFlags?(config)`                | `string[]`             |
 | `setSigningConfig?(repoPath, config, options?)` | `void`                 |
@@ -374,16 +374,16 @@ Each sub-provider interface is defined in its own file under `providers/`:
 
 ### GitRefsSubProvider
 
-| Method                                                           | Returns                     |
-| ---------------------------------------------------------------- | --------------------------- |
-| `checkIfCouldBeValidBranchOrTagName(repoPath, ref)`              | `boolean`                   |
-| `getMergeBase(repoPath, ref1, ref2, options?, cancellation?)`    | `string \| undefined`       |
-| `getReference(repoPath, ref, cancellation?)`                     | `GitReference \| undefined` |
-| `getSymbolicReferenceName?(repoPath, ref, cancellation?)`        | `string \| undefined`       |
-| `hasBranchOrTag(repoPath, options?, cancellation?)`              | `boolean`                   |
-| `isValidReference(repoPath, ref, pathOrUri?, cancellation?)`     | `boolean`                   |
-| `validateReference(repoPath, ref, relativePath?, cancellation?)` | `string \| undefined`       |
-| `updateReference(repoPath, ref, newRef, cancellation?)`          | `void`                      |
+| Method                                                              | Returns                     |
+| ------------------------------------------------------------------- | --------------------------- |
+| `checkIfCouldBeValidBranchOrTagName(repoPath, ref)`                 | `boolean`                   |
+| `getMergeBase(repoPath, ref1, ref2, options?, cancellation?)`       | `string \| undefined`       |
+| `getReference(repoPath, ref, cancellation?)`                        | `GitReference \| undefined` |
+| `getSymbolicReferenceName?(repoPath, ref, options?, cancellation?)` | `string \| undefined`       |
+| `hasBranchOrTag(repoPath, options?, cancellation?)`                 | `boolean`                   |
+| `isValidReference(repoPath, ref, pathOrUri?, cancellation?)`        | `boolean`                   |
+| `validateReference(repoPath, ref, relativePath?, cancellation?)`    | `string \| undefined`       |
+| `updateReference(repoPath, ref, newRef, cancellation?)`             | `void`                      |
 
 ### GitRemotesSubProvider
 
@@ -447,7 +447,7 @@ Each sub-provider interface is defined in its own file under `providers/`:
 
 | Method                                                            | Returns                        |
 | ----------------------------------------------------------------- | ------------------------------ |
-| `getStatus(repoPath, cancellation?)`                              | `GitStatus \| undefined`       |
+| `getStatus(repoPath, options?, cancellation?)`                    | `GitStatus \| undefined`       |
 | `getStatusForFile?(repoPath, pathOrUri, options?, cancellation?)` | `GitStatusFile \| undefined`   |
 | `getStatusForPath?(repoPath, pathOrUri, options?, cancellation?)` | `GitStatusFile[] \| undefined` |
 | `hasWorkingChanges(repoPath, options?, cancellation?)`            | `boolean`                      |

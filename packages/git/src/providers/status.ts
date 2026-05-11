@@ -1,4 +1,5 @@
 import type { Uri } from '@gitlens/utils/uri.js';
+import type { GitCommandPriority } from '../exec.types.js';
 import type { GitFile } from '../models/file.js';
 import type { GitConflictFile } from '../models/staging.js';
 import type { GitStatus } from '../models/status.js';
@@ -11,7 +12,11 @@ export interface GitWorkingChangesState {
 }
 
 export interface GitStatusSubProvider {
-	getStatus(repoPath: string | undefined, cancellation?: AbortSignal): Promise<GitStatus | undefined>;
+	getStatus(
+		repoPath: string | undefined,
+		options?: { priority?: GitCommandPriority },
+		cancellation?: AbortSignal,
+	): Promise<GitStatus | undefined>;
 	getStatusForFile?(
 		repoPath: string,
 		pathOrUri: string | Uri,

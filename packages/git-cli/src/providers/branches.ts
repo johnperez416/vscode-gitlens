@@ -1,6 +1,7 @@
-import type { Cache, ConflictDetectionCacheKey } from '@gitlens/git/cache.js';
+import type { Cache, ConflictDetectionCacheKey, GkConfigInvalidationTarget } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
 import { BranchError } from '@gitlens/git/errors.js';
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { BranchDisposition, BranchMetadata } from '@gitlens/git/models/branch.js';
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
@@ -360,46 +361,23 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	async getBranchContributionsOverview(
 		repoPath: string,
 		ref: string,
-		options?: { associatedPullRequest?: Promise<{ refs?: { base?: { branch: string } } } | undefined> },
+		options?: {
+			associatedPullRequest?: Promise<{ refs?: { base?: { branch: string } } } | undefined>;
+			priority?: GitCommandPriority;
+		},
 		cancellation?: AbortSignal,
 	): Promise<BranchContributionsOverview | undefined> {
 		const scope = getScopedLogger();
+		const priority = options?.priority;
+		const priorityOpts = priority != null ? { priority: priority } : undefined;
 
-		const getCore = async (
-			_commonPath: string,
-			_cacheable: CacheController | undefined,
+		// Expensive body — runs only on cache miss. Closes over `mergeTarget` so the cache key
+		// (`${ref}|${mergeTarget}`) fully captures every input that affects the result.
+		const fetchBody = async (
+			mergeTarget: string,
 			signal: AbortSignal | undefined,
-			storedTarget: string | undefined,
 		): Promise<BranchContributionsOverview | undefined> => {
-			let mergeTarget: string | undefined;
-
-			// Tier 1: Stored merge target (user-set or previously detected from PR). Caller has
-			// already read this once for the cache decision; reuse rather than re-fetching.
-			if (storedTarget) {
-				const validated = await this.provider.refs.getSymbolicReferenceName(repoPath, storedTarget);
-				mergeTarget = validated || storedTarget;
-			}
-
-			// Tier 2: PR-based lookup. The branch object is only needed here (for `remoteName`),
-			// so lazy-load it on the cold path instead of paying for it on every call.
-			if (mergeTarget == null && options?.associatedPullRequest != null) {
-				const pr = await options.associatedPullRequest;
-				if (pr?.refs?.base != null) {
-					const branch = await this.getBranch(repoPath, ref, signal);
-					if (branch == null) return undefined;
-					mergeTarget = `${branch.remoteName}/${pr.refs.base.branch}`;
-					// Store for future reuse — turns the next call into a Tier 1 cache-eligible path.
-					void this.storeMergeTargetBranchName(repoPath, ref, mergeTarget);
-				}
-			}
-
-			// Tier 3: Base branch, then default branch
-			mergeTarget ??= await this.getBaseBranchName(repoPath, ref, signal);
-			mergeTarget ??= await this.getDefaultBranchName(repoPath, undefined, signal);
-
-			if (mergeTarget == null) return undefined;
-
-			const mergeBase = await this.provider.refs.getMergeBase(repoPath, ref, mergeTarget, undefined, signal);
+			const mergeBase = await this.provider.refs.getMergeBase(repoPath, ref, mergeTarget, priorityOpts, signal);
 			if (mergeBase == null) return undefined;
 
 			// Fetch the merge-base commit's dates in parallel with contributors so consumers
@@ -471,20 +449,60 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 		};
 
 		try {
-			// Pre-check Tier 1: when a stored merge target exists the result is deterministic for
-			// `ref` (Tier 2's PR resolution is short-circuited), so it's safe to cache. Otherwise
-			// the result depends on PR resolution which the cache key can't capture — bypass.
+			// Resolve `mergeTarget` through Tier 1 → Tier 2 → Tier 3. The pieces of each tier are
+			// already individually cached (`getStoredMergeTargetBranchName`, `getBaseBranchName`,
+			// `getDefaultBranchName`), so this resolution path is cheap on warm caches. Only the
+			// expensive body below (`getMergeBase` + `getContributors` w/ stats + `getCommitDates`)
+			// is wrapped by `cache.getBranchOverview`, keyed on the resolved `mergeTarget` so any
+			// caller that resolves to the same target shares; differing targets get independent
+			// slots, which is the correctness constraint that previously forced the Tier 2/3 paths
+			// to bypass the cache entirely.
+			let mergeTarget: string | undefined;
+
+			// Tier 1: Stored merge target (user-set or previously detected from PR).
 			const storedTarget = await this.getStoredMergeTargetBranchName(repoPath, ref);
-			if (storedTarget != null) {
-				return await this.cache.getBranchOverview(
+			if (storedTarget) {
+				const validated = await this.provider.refs.getSymbolicReferenceName(
 					repoPath,
-					ref,
-					(commonPath, cacheable, signal) =>
-						getCore(commonPath, cacheable, signal ?? cancellation, storedTarget),
-					{ cancellation: cancellation },
+					storedTarget,
+					priorityOpts,
+					cancellation,
 				);
+				mergeTarget = validated || storedTarget;
 			}
-			return await getCore(repoPath, undefined, cancellation, undefined);
+
+			// Tier 2: PR-based lookup. The branch object is only needed here (for `remoteName`),
+			// so lazy-load it on the cold path instead of paying for it on every call.
+			if (mergeTarget == null && options?.associatedPullRequest != null) {
+				const pr = await options.associatedPullRequest;
+				if (pr?.refs?.base != null) {
+					const branch = await this.getBranch(repoPath, ref, cancellation);
+					if (branch == null) return undefined;
+					mergeTarget = `${branch.remoteName}/${pr.refs.base.branch}`;
+					// Store for future reuse — turns the next call into a Tier 1 path. Skip the
+					// `branchOverviews` invalidation that the write would otherwise trigger: we're
+					// about to populate `${ref}|${mergeTarget}` with this exact target, so evicting
+					// it would just force the next caller to redo the body. (gk-merge-target writes
+					// do not affect `baseBranchName`, so no need to skip that target.)
+					void this.storeMergeTargetBranchName(repoPath, ref, mergeTarget, {
+						skipInvalidation: ['branchOverviews'],
+					});
+				}
+			}
+
+			// Tier 3: Base branch, then default branch.
+			mergeTarget ??= await this.getBaseBranchName(repoPath, ref, priorityOpts, cancellation);
+			mergeTarget ??= await this.getDefaultBranchName(repoPath, undefined, priorityOpts, cancellation);
+
+			if (mergeTarget == null) return undefined;
+
+			const resolvedTarget = mergeTarget;
+			return await this.cache.getBranchOverview(
+				repoPath,
+				`${ref}|${resolvedTarget}`,
+				(_commonPath, _cacheable, signal) => fetchBody(resolvedTarget, signal ?? cancellation),
+				{ cancellation: cancellation },
+			);
 		} catch (ex) {
 			scope?.error(ex);
 			if (isCancellationError(ex)) throw ex;
@@ -624,7 +642,12 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 							}
 
 							if (data == null) {
-								const symbolicRef = await this.getDefaultBranchName(repoPath, 'origin', signal);
+								const symbolicRef = await this.getDefaultBranchName(
+									repoPath,
+									'origin',
+									undefined,
+									signal,
+								);
 								if (symbolicRef != null) {
 									data = [
 										symbolicRef.startsWith('origin/')
@@ -705,18 +728,21 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	async getDefaultBranchName(
 		repoPath: string | undefined,
 		remote?: string,
+		options?: { priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<string | undefined> {
 		if (repoPath == null) return undefined;
 
 		remote ??= 'origin';
+		const priority = options?.priority;
+		const priorityOpts = priority != null ? { priority: priority } : undefined;
 
 		return this.cache.getDefaultBranchName(repoPath, remote, async commonPath => {
 			let retried = false;
 			while (true) {
 				try {
 					const result = await this.git.run(
-						{ cwd: commonPath, cancellation: cancellation },
+						{ cwd: commonPath, cancellation: cancellation, ...priorityOpts },
 						'symbolic-ref',
 						'--short',
 						`refs/remotes/${remote}/HEAD`,
@@ -728,7 +754,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 							if (!retried) {
 								retried = true;
 								await this.git.run(
-									{ cwd: commonPath, cancellation: cancellation },
+									{ cwd: commonPath, cancellation: cancellation, ...priorityOpts },
 									'remote',
 									'set-head',
 									'-a',
@@ -738,7 +764,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 							}
 
 							const result = await this.git.run(
-								{ cwd: commonPath, cancellation: cancellation },
+								{ cwd: commonPath, cancellation: cancellation, ...priorityOpts },
 								'ls-remote',
 								'--symref',
 								remote,
@@ -1263,7 +1289,15 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	}
 
 	@debug({ exit: true })
-	getBaseBranchName(repoPath: string, ref: string, cancellation?: AbortSignal): Promise<string | undefined> {
+	getBaseBranchName(
+		repoPath: string,
+		ref: string,
+		options?: { priority?: GitCommandPriority },
+		cancellation?: AbortSignal,
+	): Promise<string | undefined> {
+		const priority = options?.priority;
+		const priorityOpts = priority != null ? { priority: priority } : undefined;
+
 		return this.cache.getBaseBranchName(
 			repoPath,
 			ref,
@@ -1280,19 +1314,36 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 					}
 
 					if (mergeBase != null) {
-						const branch = await this.provider.refs.getSymbolicReferenceName(commonPath, mergeBase);
+						const branch = await this.provider.refs.getSymbolicReferenceName(
+							commonPath,
+							mergeBase,
+							priorityOpts,
+						);
 						if (branch != null) {
 							if (update) {
-								void this.storeBaseBranchName(commonPath, ref, branch);
+								// Self-write: the value we're storing is exactly what this factory is
+								// returning, so any in-flight `branchOverviews` or `baseBranchName` entry
+								// being populated against this resolution should NOT be evicted.
+								void this.storeBaseBranchName(commonPath, ref, branch, {
+									skipInvalidation: ['branchOverviews', 'baseBranchName'],
+								});
 							}
 							return branch;
 						}
 					}
 				} catch {}
 
-				const branch = await this.getBaseBranchFromReflog(commonPath, ref, { upstream: true }, signal);
+				const branch = await this.getBaseBranchFromReflog(
+					commonPath,
+					ref,
+					{ upstream: true, priority: priority },
+					signal,
+				);
 				if (branch != null) {
-					void this.storeBaseBranchName(commonPath, ref, branch);
+					// Self-write: see comment on the migration path above.
+					void this.storeBaseBranchName(commonPath, ref, branch, {
+						skipInvalidation: ['branchOverviews', 'baseBranchName'],
+					});
 					return branch;
 				}
 
@@ -1305,12 +1356,15 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	private async getBaseBranchFromReflog(
 		repoPath: string,
 		ref: string,
-		options?: { upstream: true },
+		options?: { upstream: true; priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<string | undefined> {
+		const priority = options?.priority;
+		const priorityOpts = priority != null ? { priority: priority } : undefined;
+
 		try {
 			let result = await this.git.run(
-				{ cwd: repoPath, cancellation: cancellation },
+				{ cwd: repoPath, cancellation: cancellation, ...priorityOpts },
 				'reflog',
 				ref,
 				'--grep-reflog=branch: Created from *.',
@@ -1325,18 +1379,22 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 				let name: string | undefined = match[1];
 				if (name !== 'HEAD') {
 					if (options?.upstream) {
-						const upstream = await this.provider.refs.getSymbolicReferenceName(repoPath, `${name}@{u}`);
+						const upstream = await this.provider.refs.getSymbolicReferenceName(
+							repoPath,
+							`${name}@{u}`,
+							priorityOpts,
+						);
 						if (upstream) return upstream;
 					}
 
-					name = await this.provider.refs.getSymbolicReferenceName(repoPath, name);
+					name = await this.provider.refs.getSymbolicReferenceName(repoPath, name, priorityOpts);
 					if (name) return name;
 				}
 			}
 
 			// Check if branch was created from HEAD
 			result = await this.git.run(
-				{ cwd: repoPath, cancellation: cancellation },
+				{ cwd: repoPath, cancellation: cancellation, ...priorityOpts },
 				'reflog',
 				'HEAD',
 				`--grep-reflog=checkout: moving from .* to ${ref.replace('refs/heads/', '')}`,
@@ -1349,11 +1407,15 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			if (match?.length === 2) {
 				let name: string | undefined = match[1];
 				if (options?.upstream) {
-					const upstream = await this.provider.refs.getSymbolicReferenceName(repoPath, `${name}@{u}`);
+					const upstream = await this.provider.refs.getSymbolicReferenceName(
+						repoPath,
+						`${name}@{u}`,
+						priorityOpts,
+					);
 					if (upstream) return upstream;
 				}
 
-				name = await this.provider.refs.getSymbolicReferenceName(repoPath, name);
+				name = await this.provider.refs.getSymbolicReferenceName(repoPath, name, priorityOpts);
 				if (name) return name;
 			}
 		} catch (ex) {
@@ -1469,13 +1531,23 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	}
 
 	@debug()
-	async storeBaseBranchName(repoPath: string, ref: string, base: string): Promise<void> {
-		await this.provider.config.setGkConfig(repoPath, `branch.${ref}.gk-merge-base`, base);
+	async storeBaseBranchName(
+		repoPath: string,
+		ref: string,
+		base: string,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
+	): Promise<void> {
+		await this.provider.config.setGkConfig(repoPath, `branch.${ref}.gk-merge-base`, base, options);
 	}
 
 	@debug()
-	async storeMergeTargetBranchName(repoPath: string, ref: string, target: string): Promise<void> {
-		await this.provider.config.setGkConfig(repoPath, `branch.${ref}.gk-merge-target`, target);
+	async storeMergeTargetBranchName(
+		repoPath: string,
+		ref: string,
+		target: string,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
+	): Promise<void> {
+		await this.provider.config.setGkConfig(repoPath, `branch.${ref}.gk-merge-target`, target, options);
 	}
 
 	@debug()

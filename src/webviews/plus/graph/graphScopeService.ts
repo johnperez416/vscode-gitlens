@@ -87,7 +87,7 @@ export async function getScopeFiles(
 	const byPath = new Map<string, GitFileChangeShape>();
 
 	if (scope.includeStaged || scope.includeUnstaged) {
-		const wipStatus = await svc.status.getStatus(signal);
+		const wipStatus = await svc.status.getStatus(undefined, signal);
 		signal?.throwIfAborted();
 		for (const f of wipStatus?.files ?? []) {
 			const hasStaged = f.indexStatus != null;

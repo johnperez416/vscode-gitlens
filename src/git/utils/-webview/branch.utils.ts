@@ -65,7 +65,7 @@ export async function getBranchMergeTargetInfo(
 		getBranchMergeTargetNameWithoutFallback(container, branch, options),
 		container.git
 			.getRepositoryService(branch.repoPath)
-			.branches.getBaseBranchName?.(branch.name, options?.cancellation),
+			.branches.getBaseBranchName?.(branch.name, undefined, options?.cancellation),
 		getDefaultBranchName(container, branch.repoPath, branch.remoteName, {
 			cancellation: options?.cancellation,
 		}),
@@ -94,7 +94,7 @@ export async function getBranchMergeTargetName(
 		const [baseResult, defaultResult] = await Promise.allSettled([
 			container.git
 				.getRepositoryService(branch.repoPath)
-				.branches.getBaseBranchName?.(branch.name, options?.cancellation),
+				.branches.getBaseBranchName?.(branch.name, undefined, options?.cancellation),
 			getDefaultBranchName(container, branch.repoPath, branch.remoteName, {
 				cancellation: options?.cancellation,
 			}),
@@ -145,7 +145,7 @@ async function getBranchMergeTargetNameWithoutFallback(
 		? await svc.branches.getStoredDetectedMergeTargetBranchName?.(branch.name)
 		: await svc.branches.getStoredMergeTargetBranchName?.(branch.name);
 	if (targetBranch) {
-		const validated = await svc.refs.getSymbolicReferenceName?.(targetBranch, options?.cancellation);
+		const validated = await svc.refs.getSymbolicReferenceName?.(targetBranch, undefined, options?.cancellation);
 		return { value: validated || targetBranch, paused: false };
 	}
 
@@ -156,7 +156,13 @@ async function getBranchMergeTargetNameWithoutFallback(
 			if (pr?.refs?.base == null) return undefined;
 
 			const name = `${branch.remoteName}/${pr.refs.base.branch}`;
-			void svc.branches.storeMergeTargetBranchName?.(branch.name, name);
+			// Same self-write semantics as `getBranchContributionsOverview`'s Tier 2: the value
+			// being stored is the canonical mergeTarget any future overview lookup will resolve
+			// to, so skip the wholesale `branchOverviews` invalidation that would otherwise
+			// evict an in-cache entry keyed by `${ref}|${name}`.
+			void svc.branches.storeMergeTargetBranchName?.(branch.name, name, {
+				skipInvalidation: ['branchOverviews'],
+			});
 
 			return name;
 		}),
@@ -173,7 +179,7 @@ export async function getDefaultBranchName(
 ): Promise<string | undefined> {
 	const name = await container.git
 		.getRepositoryService(repoPath)
-		.branches.getDefaultBranchName(remoteName, options?.cancellation);
+		.branches.getDefaultBranchName(remoteName, undefined, options?.cancellation);
 	return name ?? getDefaultBranchNameFromIntegration(repoPath, options);
 }
 

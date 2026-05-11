@@ -67,7 +67,15 @@ export type ConflictDetectionCacheKey = `apply:${string}:${string}:${string}` | 
  * gkConfig keys that participate in the `branchOverviews` cache's mergeTarget/mergeBase lineage.
  * Capture group 1 is the ref name (which may itself contain `.`/`/`).
  */
-const branchOverviewGkConfigKeyPattern = /^branch\.(.+)\.(?:gk-merge-(?:base|target(?:-user)?)|gk-target-base)$/;
+const branchOverviewGkConfigKeysRegex = /^branch\.(.+)\.(?:gk-merge-(?:base|target(?:-user)?)|gk-target-base)$/;
+
+/**
+ * Downstream caches that `deleteGkConfig` may invalidate when a `branch.<ref>.gk-...` key changes.
+ * Callers performing a "self-write" (where the value being written matches what they just resolved,
+ * so the about-to-be-evicted entry is exactly the entry they want to preserve) can opt out by
+ * naming the targets to skip via `skipInvalidation`.
+ */
+export type GkConfigInvalidationTarget = 'branchOverviews' | 'baseBranchName';
 
 /** Per-worktree caches — cleared by repoPath directly */
 interface Caches {
@@ -522,8 +530,8 @@ export class Cache implements Disposable {
 				// Derived from `branch.<ref>.gk-merge-base`/`vscode-merge-base`; clear so external
 				// gkConfig mutations don't leave stale base-branch resolutions cached.
 				keysToClear.add('baseBranchName');
-				// Cached overviews use Tier 1's stored merge target as their key-stability anchor;
-				// stored-target changes must invalidate or readers see stale `mergeTarget`/stats.
+				// Cached overviews are keyed by `${ref}|${mergeTarget}`; bulk gkConfig changes can
+				// affect any of the merge-target sources (stored, base, default), so clear all.
 				keysToClear.add('branchOverviews');
 			}
 
@@ -924,19 +932,45 @@ export class Cache implements Disposable {
 		return factoryPromise;
 	}
 
-	deleteGkConfig(repoPath: string, key: string): void {
+	/**
+	 * @param options.skipInvalidation Downstream caches the caller wants preserved despite this
+	 * write. Use when the value being written is exactly what was just resolved — e.g. the Tier 2
+	 * `storeMergeTargetBranchName` self-write inside `getBranchContributionsOverview` (skip
+	 * `'branchOverviews'`) or the Tier 3 `storeBaseBranchName` self-write inside `getBaseBranchName`
+	 * (skip both `'baseBranchName'` and `'branchOverviews'`). The upstream caches (`gkConfigKeys`,
+	 * `gkConfigPatterns`) always invalidate so subsequent reads of this key see the new value.
+	 */
+	deleteGkConfig(
+		repoPath: string,
+		key: string,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
+	): void {
 		const cacheKey = this.getCommonPath(repoPath);
 		this._caches.gkConfigKeys?.delete(cacheKey, key);
 		this._caches.gkConfigPatterns?.delete(cacheKey);
 
-		// When the change affects a branch's merge-target/base lineage, invalidate that branch's
-		// cached overview so subsequent reads pick up the new stored value rather than stale data.
-		// `getBranchContributionsOverview` keys `branchOverviews` by ref, with Tier 1's stored
-		// target as the key-stability anchor — so any write to those keys must invalidate.
-		const refMatch = key.match(branchOverviewGkConfigKeyPattern);
-		if (refMatch != null) {
-			this._caches.branchOverviews?.delete(cacheKey, refMatch[1]);
+		const refMatch = key.match(branchOverviewGkConfigKeysRegex);
+		if (refMatch == null) return;
+
+		const ref = refMatch[1];
+		const skip = options?.skipInvalidation;
+
+		// `getBaseBranchName` reads `branch.<ref>.gk-merge-base` and caches the resolved value
+		// per-ref. A write to that key must invalidate the cached base or Tier 3 of
+		// `getBranchContributionsOverview` will resolve `mergeTarget` against the pre-write value.
+		if (key.endsWith('.gk-merge-base') && !skip?.includes('baseBranchName')) {
+			this._caches.baseBranchName?.delete(cacheKey, ref);
 		}
+
+		if (skip?.includes('branchOverviews')) return;
+
+		// When the change affects a branch's merge-target/base lineage, invalidate that branch's
+		// cached overviews so subsequent reads pick up the new stored value rather than stale data.
+		// `getBranchContributionsOverview` keys `branchOverviews` by `${ref}|${mergeTarget}`, so
+		// invalidate every entry for the affected ref regardless of which target it resolved to.
+		// Uses `invalidateByKeyPrefix` (not `deleteByKeyPrefix`) so an in-flight factory is still
+		// shared with new callers instead of triggering a duplicate fetch.
+		this._caches.branchOverviews?.invalidateByKeyPrefix(cacheKey, `${ref}|`);
 	}
 
 	async getBranchOverview(

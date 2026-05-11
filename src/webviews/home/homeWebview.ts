@@ -835,7 +835,13 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 		const { branches, worktreesByBranch } = await this.getBranchesData(repo, false, signal);
 		signal?.throwIfAborted();
 
-		return getOverviewWip(this.container, branches, worktreesByBranch, branchIds, { signal: signal });
+		// The home overview is background enrichment (it builds branch cards while the user is
+		// driving the editor). Marking the underlying `git status` per-worktree fan-out as
+		// 'background' lets any user-driven git op (graph nav, blame, etc.) preempt it.
+		return getOverviewWip(this.container, branches, worktreesByBranch, branchIds, {
+			priority: 'background',
+			signal: signal,
+		});
 	}
 
 	private async getOverviewEnrichment(
@@ -856,9 +862,15 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 		const { branches } = getSettledValue(branchesAndWorktreesResult)!;
 		const isPro = getSettledValue(proSubscriptionResult)!;
 
+		// See `getOverviewWip` — same background-priority rationale applies to the per-branch
+		// contribution overview's underlying git ops. The shared utility's fallback path goes
+		// straight to `branches.getBranchContributionsOverview`, whose `branchOverviews` cache
+		// keyed on `${ref}|${mergeTarget}` dedupes concurrent in-flight callers natively, so
+		// no per-webview cache is needed.
 		return getOverviewEnrichment(this.container, branches, branchIds, {
 			isPro: isPro,
 			signal: signal,
+			priority: 'background',
 		});
 	}
 

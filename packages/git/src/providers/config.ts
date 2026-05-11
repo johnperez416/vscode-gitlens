@@ -1,3 +1,4 @@
+import type { GkConfigInvalidationTarget } from '../cache.js';
 import type { GitDir } from '../models/repository.js';
 import type { SigningConfig, ValidationResult } from '../models/signature.js';
 import type { GitUser } from '../models/user.js';
@@ -97,6 +98,7 @@ export interface GitConfigSubProvider {
 		repoPath: string,
 		key: GkConfigKeys | DeprecatedGkConfigKeys,
 		value: string | undefined,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
 	): Promise<void>;
 
 	getSigningConfig?(repoPath: string): Promise<SigningConfig>;

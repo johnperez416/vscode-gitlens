@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { hostname, userInfo } from 'os';
 import { env as process_env } from 'process';
-import type { Cache } from '@gitlens/git/cache.js';
+import type { Cache, GkConfigInvalidationTarget } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
 import { WorkspaceUntrustedError } from '@gitlens/git/errors.js';
 import type { GitDir } from '@gitlens/git/models/repository.js';
@@ -34,6 +34,8 @@ const emptyArray: readonly never[] = Object.freeze([]);
  */
 const gkConfigCacheableSets: readonly { match: RegExp; pattern: string }[] = [
 	{ match: /^branch\..+\.gk-associated-issues$/, pattern: '^branch\\..+\\.gk-associated-issues$' },
+	{ match: /^branch\..+\.gk-merge-base$/, pattern: '^branch\\..+\\.gk-merge-base$' },
+	{ match: /^branch\..+\.gk-merge-target$/, pattern: '^branch\\..+\\.gk-merge-target$' },
 	{ match: /^branch\..+\.gk-merge-target-user$/, pattern: '^branch\\..+\\.gk-merge-target-user$' },
 ];
 
@@ -70,6 +72,13 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		private readonly cache: Cache,
 		private readonly provider: CliGitProviderInternal,
 	) {}
+
+	/**
+	 * Pending `setGkConfig` writes keyed by `(commonPath, key, value, skip-option)`. Concurrent
+	 * callers writing the same `(key, value)` pair share the in-flight Promise so only one
+	 * `git config --set` subprocess actually runs. Cleared on settle.
+	 */
+	private readonly _pendingGkConfigWrites = new Map<string, Promise<void>>();
 
 	@trace()
 	getConfig(
@@ -349,6 +358,31 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		repoPath: string,
 		key: GkConfigKeys | DeprecatedGkConfigKeys,
 		value: string | undefined,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
+	): Promise<void> {
+		// Encode the skip-invalidation option in the dedup key: a self-write (with skip targets)
+		// and a user-driven write of the same `(key, value)` (no skip targets) have different
+		// cache-invalidation semantics, so sharing their Promise would silently let the user-driven
+		// write skip invalidation. Sort the array so callers passing the same targets in different
+		// orders share a single in-flight write.
+		const commonPath = this.cache.getCommonPath(repoPath);
+		const skipKey = options?.skipInvalidation?.length ? options.skipInvalidation.toSorted().join(',') : '';
+		const dedupKey = `${commonPath}\0${key}\0${value ?? ''}\0${skipKey}`;
+
+		const pending = this._pendingGkConfigWrites.get(dedupKey);
+		if (pending != null) return pending;
+
+		const promise = this.setGkConfigCore(repoPath, key, value, options);
+		this._pendingGkConfigWrites.set(dedupKey, promise);
+		void promise.finally(() => this._pendingGkConfigWrites.delete(dedupKey));
+		return promise;
+	}
+
+	private async setGkConfigCore(
+		repoPath: string,
+		key: GkConfigKeys | DeprecatedGkConfigKeys,
+		value: string | undefined,
+		options?: { skipInvalidation?: readonly GkConfigInvalidationTarget[] },
 	): Promise<void> {
 		const scope = getScopedLogger();
 
@@ -362,7 +396,7 @@ export class ConfigGitSubProvider implements GitConfigSubProvider {
 		await this.setConfigCore(repoPath, key, value, { file: gkConfigPath });
 
 		// Invalidate the cached value for this key and clear all regex patterns for this scope
-		this.cache.deleteGkConfig(repoPath, key);
+		this.cache.deleteGkConfig(repoPath, key, options);
 	}
 
 	@debug()

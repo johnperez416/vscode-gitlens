@@ -1,5 +1,6 @@
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
+import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
@@ -38,7 +39,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		repoPath: string,
 		ref1: string,
 		ref2: string,
-		options?: { forkPoint?: boolean },
+		options?: { forkPoint?: boolean; priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<string | undefined> {
 		const scope = getScopedLogger();
@@ -52,6 +53,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 					// cleared on 'heads'/'remotes' events when refs move. Web (no fs watcher) sees up to
 					// `accessTTL` of staleness — acceptable trade-off for the perf win on graph/branch reads.
 					caching: { cache: this.cache.gitResults, options: { accessTTL: 5 * 60 * 1000 } },
+					...(options?.priority != null ? { priority: options.priority } : undefined),
 				},
 				'merge-base',
 				options?.forkPoint ? '--fork-point' : undefined,
@@ -104,6 +106,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 	async getSymbolicReferenceName(
 		repoPath: string,
 		ref: string,
+		options?: { priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<string | undefined> {
 		const supportsEndOfOptions = await this.git.supports('git:rev-parse:end-of-options');
@@ -117,6 +120,7 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 				// gitResults cache is cleared on 'head' events. 60s TTL is the failsafe for watcher
 				// latency / web — matches the other "resolve symbolic state" calls in commits.ts.
 				caching: { cache: this.cache.gitResults, options: { accessTTL: 60 * 1000 } },
+				...(options?.priority != null ? { priority: options.priority } : undefined),
 			},
 			'rev-parse',
 			'--verify',

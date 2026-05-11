@@ -5,6 +5,7 @@ import { serializable } from '@gitlens/utils/decorators/serializable.js';
 import { basename, normalizePath, relative } from '@gitlens/utils/path.js';
 import type { Shape } from '@gitlens/utils/types.js';
 import type { Uri } from '@gitlens/utils/uri.js';
+import type { GitCommandPriority } from '../exec.types.js';
 import { getRepositoryService } from '../repositoryService.js';
 import { getRepositoryOrWorktreePath } from '../utils/repository.utils.js';
 import { shortenRevision } from '../utils/revision.utils.js';
@@ -135,10 +136,14 @@ export class GitWorktree {
 			: GitWorktree.formatDateFromNow(worktree);
 	}
 
-	static async getStatus(worktree: GitWorktree, cancellation?: AbortSignal): Promise<GitStatus | undefined> {
+	static async getStatus(
+		worktree: GitWorktree,
+		options?: { priority?: GitCommandPriority },
+		cancellation?: AbortSignal,
+	): Promise<GitStatus | undefined> {
 		if (worktree.type === 'bare') return undefined;
 		const repo = getRepositoryService(worktree.path);
-		return repo?.status.getStatus(cancellation);
+		return repo?.status.getStatus(options, cancellation);
 	}
 
 	static async hasWorkingChanges(

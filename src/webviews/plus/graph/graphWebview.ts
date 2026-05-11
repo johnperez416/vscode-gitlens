@@ -24,7 +24,6 @@ import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import { rootSha, uncommitted, uncommittedStaged } from '@gitlens/git/models/revision.js';
 import type { GitCommitSearchContext, SearchQuery } from '@gitlens/git/models/search.js';
 import type { GitWorktree } from '@gitlens/git/models/worktree.js';
-import type { BranchContributionsOverview } from '@gitlens/git/providers/branches.js';
 import {
 	getBranchId,
 	getBranchNameWithoutRemote,
@@ -1308,7 +1307,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 						// Build a path -> WIP file lookup so each proposed commit's files carry the
 						// real status/originalPath used for context menus and inline actions.
-						const wipStatus = await svc.status.getStatus(signal);
+						const wipStatus = await svc.status.getStatus(undefined, signal);
 						signal?.throwIfAborted();
 
 						const wipByPath = new Map<string, { status: GitFileStatus; originalPath?: string }>();
@@ -2046,7 +2045,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		return getOverviewEnrichment(this.container, this._graph.branches.values(), params.branchIds, {
 			isPro: isPro,
 			resolveLaunchpad: true,
-			getBranchOverview: (branch, associatedPullRequest) => this.getBranchOverview(branch, associatedPullRequest),
 			// Merge-target is fetched lazily by the overview card on hover (and by the click-to-scope
 			// path in `graph-app`) via `BranchesService.getMergeTargetStatus`, so initial enrichment
 			// doesn't block on ~4 git/integration ops per branch. The resolved value is then merged
@@ -2087,7 +2085,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				const path = getSecondaryWipPath(sha);
 
 				const svc = this.container.git.getRepositoryService(path);
-				const status = await svc.status.getStatus(signal);
+				const status = await svc.status.getStatus(undefined, signal);
 				if (cancellation.token.isCancellationRequested) return;
 
 				const diff = status?.diffStatus;
@@ -4008,35 +4006,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		return { scope: { ...params.scope, mergeBase: mergeBase } };
 	}
 
-	/**
-	 * Session cache of `BranchContributionsOverview` per branch — the canonical "what's on this
-	 * branch" data: merge target name, merge base SHA, contributors, dates, and stats. Shared by
-	 * scope resolution (which needs `mergeBase`), enrichment (which needs contributors + stats),
-	 * and any future consumer that wants this data. The cache holds promises so concurrent callers
-	 * dedupe naturally; a graph refresh recreates the provider and clears it.
-	 *
-	 * Upstream is intentionally NOT part of the key — the scope window represents "commits ON this
-	 * branch", anchored at the branch's merge target (stored → PR base → detected base → default),
-	 * not at the remote tracking pair.
-	 */
-	private readonly _branchOverviewCache = new Map<string, Promise<BranchContributionsOverview | undefined>>();
-
-	private getBranchOverview(
-		branch: GitBranch,
-		associatedPullRequest?: Promise<PullRequest | undefined>,
-	): Promise<BranchContributionsOverview | undefined> {
-		const cacheKey = branch.id;
-		const cached = this._branchOverviewCache.get(cacheKey);
-		if (cached != null) return cached;
-
-		const pr = associatedPullRequest ?? getBranchAssociatedPullRequest(this.container, branch);
-		const promise = this.container.git
-			.getRepositoryService(branch.repoPath)
-			.branches.getBranchContributionsOverview(branch.ref, { associatedPullRequest: pr });
-		this._branchOverviewCache.set(cacheKey, promise);
-		return promise;
-	}
-
 	private async resolveScopeMergeBaseForBranch(
 		repoPath: string,
 		branchName: string,
@@ -4046,7 +4015,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const branch = await svc.branches.getBranch(branchName);
 		if (branch == null) return undefined;
 
-		const overview = await this.getBranchOverview(branch);
+		// Scope resolution is interactive (graph navigation drives it), so keep the default
+		// 'normal' priority. The `branchOverviews` cache keyed on `${ref}|${mergeTarget}` handles
+		// in-flight dedup against any concurrent enrichment fetch.
+		const overview = await svc.branches.getBranchContributionsOverview(branch.ref, {
+			associatedPullRequest: getBranchAssociatedPullRequest(this.container, branch),
+		});
 		if (overview?.mergeBase == null || overview.mergeBaseDate == null) return undefined;
 
 		return { sha: overview.mergeBase, date: overview.mergeBaseDate.getTime() };
@@ -5155,7 +5129,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private async getStagedFileCount(cancellation?: CancellationToken): Promise<number> {
 		if (this.repository == null) return 0;
 		const svc = this.container.git.getRepositoryService(this.repository.path);
-		const status = await svc.status.getStatus(toAbortSignal(cancellation));
+		const status = await svc.status.getStatus(undefined, toAbortSignal(cancellation));
 		if (status?.files == null) return 0;
 		const stagedPaths = new Set<string>();
 		for (const f of status.files) {
@@ -5188,7 +5162,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (cancellation?.isCancellationRequested) return undefined;
 
 		const [statusResult, pausedOpStatusResult] = await Promise.allSettled([
-			hasWorkingChanges ? svc.status.getStatus(toAbortSignal(cancellation)) : undefined,
+			hasWorkingChanges ? svc.status.getStatus(undefined, toAbortSignal(cancellation)) : undefined,
 			svc.pausedOps?.getPausedOperationStatus?.(toAbortSignal(cancellation)),
 		]);
 
@@ -7358,7 +7332,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		signal?.throwIfAborted();
 		if (branch == null || (leftRef !== 'HEAD' && leftRef !== branch.name && leftRef !== branch.ref)) return [];
 
-		const status = await svc.status.getStatus(signal);
+		const status = await svc.status.getStatus(undefined, signal);
 		signal?.throwIfAborted();
 
 		const files: BranchComparisonFile[] = [];

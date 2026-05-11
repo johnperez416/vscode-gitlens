@@ -1,4 +1,5 @@
 import type { Uri } from '@gitlens/utils/uri.js';
+import type { GitCommandPriority } from '../exec.types.js';
 import type { GitBranch } from '../models/branch.js';
 import type { GitReference } from '../models/reference.js';
 import type { GitTag } from '../models/tag.js';
@@ -9,11 +10,16 @@ export interface GitRefsSubProvider {
 		repoPath: string,
 		ref1: string,
 		ref2: string,
-		options?: { forkPoint?: boolean | undefined },
+		options?: { forkPoint?: boolean | undefined; priority?: GitCommandPriority },
 		cancellation?: AbortSignal,
 	): Promise<string | undefined>;
 	getReference(repoPath: string, ref: string, cancellation?: AbortSignal): Promise<GitReference | undefined>;
-	getSymbolicReferenceName?(repoPath: string, ref: string, cancellation?: AbortSignal): Promise<string | undefined>;
+	getSymbolicReferenceName?(
+		repoPath: string,
+		ref: string,
+		options?: { priority?: GitCommandPriority },
+		cancellation?: AbortSignal,
+	): Promise<string | undefined>;
 	hasBranchOrTag(
 		repoPath: string | undefined,
 		options?: {
