@@ -1,29 +1,16 @@
 import type { PropertyValues } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { AgentSessionPhase } from '../../../../../agents/provider.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { AgentSessionState } from '../../../../home/protocol.js';
+import type { AgentSessionCategory } from '../../agentUtils.js';
+import { agentPhaseToCategory, getAgentCategoryLabel } from '../../agentUtils.js';
 import { elementBase, linkBase } from '../styles/lit/base.css.js';
 import '../actions/action-item.js';
 import '../actions/action-nav.js';
 import '../button.js';
 import '../code-icon.js';
 import '../overlays/popover.js';
-
-type AgentPillCategory = 'working' | 'needs-input' | 'idle';
-
-const phaseCategories: Record<AgentSessionPhase, AgentPillCategory> = {
-	working: 'working',
-	waiting: 'needs-input',
-	idle: 'idle',
-};
-
-const categoryLabels: Record<AgentPillCategory, string> = {
-	working: 'Working',
-	'needs-input': 'Needs Input',
-	idle: 'Idle',
-};
 
 function formatElapsed(timestamp: number | undefined): string | undefined {
 	if (timestamp == null) return undefined;
@@ -386,8 +373,8 @@ export class GlAgentStatusPill extends LitElement {
 	}
 
 	override render(): unknown {
-		const category = phaseCategories[this.session.phase];
-		const label = categoryLabels[category];
+		const category = agentPhaseToCategory[this.session.phase];
+		const label = getAgentCategoryLabel(category);
 		const detail = this.session.pendingPermissionDetail;
 		const canResolve = category === 'needs-input' && this.session.isInWorkspace && detail != null;
 
@@ -407,7 +394,7 @@ export class GlAgentStatusPill extends LitElement {
 		`;
 	}
 
-	private renderHoverContent(category: AgentPillCategory, omitActions: boolean): unknown {
+	private renderHoverContent(category: AgentSessionCategory, omitActions: boolean): unknown {
 		switch (category) {
 			case 'working':
 				return this.renderWorkingHover(omitActions);
@@ -422,7 +409,7 @@ export class GlAgentStatusPill extends LitElement {
 	 *  trio. Everything else — working, idle, and the `needs-input` + !canResolve case where the
 	 *  permission can't be resolved inline — gets a single Open Session affordance so the pill is
 	 *  never a full-width dead end. */
-	private renderInlineActions(category: AgentPillCategory, canResolve: boolean): unknown {
+	private renderInlineActions(category: AgentSessionCategory, canResolve: boolean): unknown {
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
 
 		if (category === 'needs-input' && canResolve) {
