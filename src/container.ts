@@ -364,11 +364,17 @@ export class Container {
 	}
 
 	private _ready: boolean = false;
+	private _readyAt: number | undefined;
+	/** Timestamp (ms since epoch) when the container transitioned to ready, or `undefined` if not yet ready. */
+	get readyAt(): number | undefined {
+		return this._readyAt;
+	}
 
 	async ready(): Promise<void> {
 		if (this._ready) throw new Error('Container is already ready');
 
 		this._ready = true;
+		this._readyAt = Date.now();
 		await Promise.allSettled([this.registerGitProviders(), this.registerMcpProviders()]);
 		queueMicrotask(() => this._onReady.fire());
 	}
