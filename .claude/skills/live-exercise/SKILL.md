@@ -131,7 +131,7 @@ The skill never asks "what mode?" at start. Tactical by default (L1 + L2 active,
 
 `launch` VS Code, then for **every** distinct mode/state/context the feature exposes:
 
-1. Maximize real estate: close sidebar/aux bar/bottom panel. `resize_viewport` to 2400×1400+ so layout-at-width issues surface.
+1. Maximize real estate via `execute_command` to close sidebar/aux bar/bottom panel. Do NOT use `resize_window` to grow the window for general auditing — it resizes the actual Electron window and is clamped by the host display. Only resize when a lens explicitly requires testing a specific responsive breakpoint, and prefer sizes ≤ the launch window. For larger headless render surfaces, configure `launch({ screen_resolution })` at startup instead.
 2. Navigate via `execute_command` or programmatic clicks. Shadow-DOM traversal is the hard part — use `evaluate_in_webview` to dispatch synthetic `MouseEvent`s with modifier keys when needed. Wrap multi-line scripts in `(() => { ... })()` and `JSON.stringify` non-primitive returns. `new Error().stack` is often empty in eval context — patch the source method to get useful stack frames.
 3. Apply all active lenses per state:
    - **L1**: exercise interactions, verify handlers fired (`evaluate_in_webview` → command executed / state updated / event dispatched). Capture layout invariants.

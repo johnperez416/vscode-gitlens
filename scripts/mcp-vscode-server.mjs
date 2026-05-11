@@ -39,6 +39,7 @@ let launchTime = null;
 let sessionConfig = {};
 let xvfbProcess = null;
 let consoleBuffer = [];
+let originalWindowSize = null;
 const MAX_CONSOLE_ENTRIES = 500;
 
 // =============================================================================
@@ -369,6 +370,17 @@ async function cleanup() {
 	if (cleaningUp) return;
 	cleaningUp = true;
 	try {
+		if (electronApp && page && originalWindowSize) {
+			try {
+				const win = await electronApp.browserWindow(page);
+				await win.evaluate(
+					(w, [width, height]) => w.setContentSize(width, height),
+					[originalWindowSize.width, originalWindowSize.height],
+				);
+			} catch {
+				// Window may already be closing — safe to ignore
+			}
+		}
 		await electronApp?.close().catch(() => {});
 	} finally {
 		electronApp = null;
@@ -379,6 +391,7 @@ async function cleanup() {
 		userDataDir = null;
 		launchTime = null;
 		consoleBuffer = [];
+		originalWindowSize = null;
 		state = 'idle';
 		cleaningUp = false;
 	}
@@ -625,10 +638,20 @@ server.tool(
 					electronApp = null;
 					page = null;
 					evaluateFn = null;
+					originalWindowSize = null;
 				}
 			});
 
 			page = await electronApp.firstWindow();
+
+			// Snapshot the launch window content size so cleanup() can restore it after any resize_window calls
+			try {
+				const win = await electronApp.browserWindow(page);
+				const [width, height] = await win.evaluate(w => w.getContentSize());
+				originalWindowSize = { width, height };
+			} catch {
+				originalWindowSize = null;
+			}
 
 			// Capture console messages and errors from all frames (including webviews)
 			consoleBuffer = [];
@@ -1472,19 +1495,35 @@ server.tool(
 	},
 );
 
-// --- resize_viewport ---------------------------------------------------------
+// --- resize_window -----------------------------------------------------------
 server.tool(
-	'resize_viewport',
-	'Resize the VS Code window viewport. Useful for testing responsive layouts or getting larger screenshots.',
+	'resize_window',
+	'Resize the VS Code window content area to the given pixel dimensions. Resizes the actual Electron BrowserWindow via setContentSize — clamped by the host display, no viewport emulation. Use only for explicit responsive-breakpoint testing; for a larger headless render surface, configure launch({ screen_resolution }) instead. The launch window size is auto-restored on teardown.',
 	{
-		width: z.number().describe('Viewport width in pixels'),
-		height: z.number().describe('Viewport height in pixels'),
+		width: z.number().describe('Content area width in pixels'),
+		height: z.number().describe('Content area height in pixels'),
 	},
 	async args => {
 		requireReady();
 		try {
-			await page.setViewportSize({ width: args.width, height: args.height });
-			return textResult(`Viewport resized to ${args.width}x${args.height}.`);
+			const win = await electronApp.browserWindow(page);
+			if (originalWindowSize == null) {
+				try {
+					const [w, h] = await win.evaluate(b => b.getContentSize());
+					originalWindowSize = { width: w, height: h };
+				} catch {
+					// Leave null; restore on teardown becomes a no-op
+				}
+			}
+			await win.evaluate((b, [width, height]) => b.setContentSize(width, height), [args.width, args.height]);
+			const [actualW, actualH] = await win.evaluate(b => b.getContentSize());
+			const lines = [`Window content size set to ${actualW}x${actualH}.`];
+			if (actualW !== args.width || actualH !== args.height) {
+				lines.unshift(
+					`Note: requested ${args.width}x${args.height} was clamped to ${actualW}x${actualH} by the host display. For a larger render surface in headless runs, relaunch with launch({ screen_resolution: 'WxHx24' }).`,
+				);
+			}
+			return textResult(lines.join('\n'));
 		} catch (e) {
 			return errorResult(`Resize failed: ${e.message}`);
 		}

@@ -13,26 +13,26 @@ The `vscode-inspector` MCP server provides a **persistent, interactive** session
 
 The server is auto-discovered via `.mcp.json` when Claude Code starts in this repo. When connected, these MCP tools are available:
 
-| Tool                  | Purpose                                                            |
-| --------------------- | ------------------------------------------------------------------ |
-| `launch`              | Start VS Code with GitLens loaded (persistent session)             |
-| `teardown`            | Close VS Code and clean up                                         |
-| `get_status`          | Check if session is running                                        |
-| `screenshot`          | Capture window or webview as inline image (capped at 1920px)       |
-| `execute_command`     | Run any VS Code command by ID                                      |
-| `click`               | Click element by CSS selector (main UI or webview)                 |
-| `type_text`           | Type text into inputs                                              |
-| `press_key`           | Press keyboard shortcuts                                           |
-| `inspect_dom`         | Query DOM elements for text/HTML/attributes/shadowDOM              |
-| `aria_snapshot`       | Get accessibility tree as YAML (supports webview iframes)          |
-| `evaluate`            | Run JS in extension host with vscode API                           |
-| `evaluate_in_webview` | Run JS in webview renderer (DOM, shadow DOM, computed styles)      |
-| `list_webviews`       | Discover all open webviews with titles, dimensions, content status |
-| `wait_for_webview`    | Wait for a webview to finish loading and Lit hydration             |
-| `read_logs`           | Search extension output logs                                       |
-| `read_console`        | Read browser console messages/errors from the main process         |
-| `resize_viewport`     | Resize VS Code window viewport for responsive testing              |
-| `rebuild_and_reload`  | Build extension + restart extension host                           |
+| Tool                  | Purpose                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| `launch`              | Start VS Code with GitLens loaded (persistent session)                               |
+| `teardown`            | Close VS Code and clean up                                                           |
+| `get_status`          | Check if session is running                                                          |
+| `screenshot`          | Capture window or webview as inline image (capped at 1920px)                         |
+| `execute_command`     | Run any VS Code command by ID                                                        |
+| `click`               | Click element by CSS selector (main UI or webview)                                   |
+| `type_text`           | Type text into inputs                                                                |
+| `press_key`           | Press keyboard shortcuts                                                             |
+| `inspect_dom`         | Query DOM elements for text/HTML/attributes/shadowDOM                                |
+| `aria_snapshot`       | Get accessibility tree as YAML (supports webview iframes)                            |
+| `evaluate`            | Run JS in extension host with vscode API                                             |
+| `evaluate_in_webview` | Run JS in webview renderer (DOM, shadow DOM, computed styles)                        |
+| `list_webviews`       | Discover all open webviews with titles, dimensions, content status                   |
+| `wait_for_webview`    | Wait for a webview to finish loading and Lit hydration                               |
+| `read_logs`           | Search extension output logs                                                         |
+| `read_console`        | Read browser console messages/errors from the main process                           |
+| `resize_window`       | Resize VS Code window content area — only for explicit responsive-breakpoint testing |
+| `rebuild_and_reload`  | Build extension + restart extension host                                             |
 
 ### Typical Workflow
 
@@ -218,7 +218,7 @@ Requires `xvfb` package for headless environments: `sudo apt-get install xvfb`
 | Check extension logs                   | `read_logs`                                                 | `--logs <pattern>`               |
 | Check main process console errors      | `read_console { level: "error" }`                           | _(N/A)_                          |
 | See what the UI looks like             | `screenshot`                                                | `--screenshot <path>`            |
-| Test responsive layout                 | `resize_viewport`                                           | _(N/A)_                          |
+| Test a specific responsive breakpoint  | `resize_window`                                             | _(N/A)_                          |
 
 ### GitLens Webview Reference
 
@@ -276,7 +276,7 @@ screenshot { target: "webview", webview_title: "Home" }
 
 This captures just the webview content instead of the entire VS Code window. All screenshots are automatically capped at 1920px to stay within Claude's 2000px multi-image limit — no configuration needed.
 
-Use `resize_viewport` if you need a specific window size for responsive testing.
+Use `resize_window` only when explicitly testing a responsive breakpoint — it resizes the actual Electron window and is clamped by the host display. For larger headless render surfaces, use `launch({ screen_resolution })` instead.
 
 ### Troubleshooting
 
