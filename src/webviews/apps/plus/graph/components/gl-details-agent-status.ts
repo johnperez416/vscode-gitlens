@@ -106,12 +106,14 @@ export class GlDetailsAgentStatus extends LitElement {
 
 			/* ---------- Banner ---------- */
 
+			/* Banner sits inside the section but stays visible when the section is collapsed —
+			   the actionable subset escapes the collapse while idle rows tuck away. */
 			.banner {
 				display: flex;
 				align-items: center;
 				gap: 0.8rem;
-				padding: 0.8rem var(--gl-panel-padding-right, 1rem) 0.8rem var(--gl-panel-padding-left, 1.2rem);
-				border-bottom: 1px solid var(--gl-metadata-bar-border);
+				padding: 0.6rem 0.8rem;
+				border-radius: 0.4rem;
 				background: linear-gradient(
 					to right,
 					color-mix(in srgb, var(--banner-accent, var(--gl-agent-idle)) 14%, transparent),
@@ -414,11 +416,16 @@ export class GlDetailsAgentStatus extends LitElement {
 				gap: 0.6rem;
 				padding: 0.2rem;
 				min-width: 24rem;
+				/* Bound the popover so long detail strings (errors, multi-line prompts) truncate
+				   via ellipsis instead of stretching the popover to the viewport edge. */
+				max-width: min(44rem, 60vw);
 			}
 
 			.section__hover-row {
 				display: grid;
-				grid-template-columns: auto 1fr auto;
+				/* minmax(0, 1fr) lets the column shrink below its min-content size, which is
+				   what allows text-overflow: ellipsis on the name/detail spans to engage. */
+				grid-template-columns: auto minmax(0, 1fr) auto;
 				column-gap: 0.6rem;
 				row-gap: 0.1rem;
 				align-items: center;
@@ -468,6 +475,7 @@ export class GlDetailsAgentStatus extends LitElement {
 
 			.section__hover-detail {
 				grid-column: 2 / -1;
+				min-width: 0;
 				font-size: 0.9em;
 				color: var(--vscode-descriptionForeground);
 				white-space: nowrap;
@@ -682,13 +690,7 @@ export class GlDetailsAgentStatus extends LitElement {
 		const sessions = this.sessions;
 		if (sessions == null || sessions.length === 0) return nothing;
 
-		const counts = this.tally(sessions);
-		const hasActionable = counts['needs-input'] > 0 || counts.working > 0;
-
-		return html`
-			${this._bannerSnapshot != null ? this.renderBanner(this._bannerSnapshot, hasActionable) : nothing}
-			${this.renderSection(sessions, counts)}
-		`;
+		return this.renderSection(sessions, this.tally(sessions));
 	}
 
 	/* ---------- Banner ---------- */
@@ -704,15 +706,14 @@ export class GlDetailsAgentStatus extends LitElement {
 		const { top, counts } = snapshot;
 		const topCategory = phaseToCategory[top.phase];
 
+		// Idle count intentionally omitted — the section heading's cluster summary directly above
+		// already surfaces it, so repeating it here is just noise.
 		const summaryParts: string[] = [];
 		if (counts['needs-input'] > 0) {
 			summaryParts.push(`${counts['needs-input']} needs input`);
 		}
 		if (counts.working > 0) {
 			summaryParts.push(`${counts.working} working`);
-		}
-		if (counts.idle > 0) {
-			summaryParts.push(`${counts.idle} idle`);
 		}
 
 		const elapsed = formatElapsed(top.phaseSinceTimestamp);
@@ -737,7 +738,7 @@ export class GlDetailsAgentStatus extends LitElement {
 					</span>
 				</span>
 				<div class="banner__text">
-					<span class="banner__title">${summaryParts.join(' · ') || 'Agents on this branch'}</span>
+					<span class="banner__title">${summaryParts.join(' · ') || 'Agents'}</span>
 					${subtitleParts.length
 						? html`<span class="banner__subtitle">${subtitleParts.join(' — ')}</span>`
 						: nothing}
@@ -836,6 +837,7 @@ export class GlDetailsAgentStatus extends LitElement {
 	private renderSection(sessions: AgentSessionState[], counts: Record<Category, number>): unknown {
 		const { fresh, stale } = this.partitionStaleIdle(sessions);
 		const visible = this._showStale ? sessions : fresh;
+		const hasActionable = counts['needs-input'] > 0 || counts.working > 0;
 
 		return html`
 			<div class="section">
@@ -843,6 +845,7 @@ export class GlDetailsAgentStatus extends LitElement {
 					${this.renderSectionHeading(sessions, counts)}
 					<div slot="content" class="section__hover">${sessions.map(s => this.renderHoverRow(s))}</div>
 				</gl-popover>
+				${this._bannerSnapshot != null ? this.renderBanner(this._bannerSnapshot, hasActionable) : nothing}
 				${this._collapsed
 					? nothing
 					: html`<div id="section__list" class="section__list">
@@ -871,7 +874,7 @@ export class GlDetailsAgentStatus extends LitElement {
 					class="section__heading-chevron"
 					icon=${collapsed ? 'chevron-right' : 'chevron-down'}
 				></code-icon>
-				<span class="section__heading-label">Agents on this branch</span>
+				<span class="section__heading-label">Agents</span>
 				<span class="section__cluster">
 					<span class="section__cluster-dots">
 						${visibleDots.map(
