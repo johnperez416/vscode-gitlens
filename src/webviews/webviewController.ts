@@ -203,6 +203,15 @@ export class WebviewController<
 	private _replayBuffer: IpcMessage[] = [];
 	private _replayWindowTimer: ReturnType<typeof setTimeout> | undefined;
 
+	/**
+	 * Refresh coalescing: `refresh(force=true)` tears down the iframe and re-renders the HTML, which is
+	 * destructive while the iframe is mid-render. Coalesce in-flight calls and drop rapid back-to-back
+	 * calls within {@link refreshCoalesceMs} of the previous refresh completing.
+	 */
+	private static readonly refreshCoalesceMs = 1000;
+	private _refreshing: Promise<void> | undefined;
+	private _lastRefreshCompletedAt = 0;
+
 	/** Used to cancel pending ipc promise operations */
 	private cancellation: CancellationTokenSource | undefined;
 	private disposable: Disposable | undefined;
@@ -566,6 +575,37 @@ export class WebviewController<
 
 	@trace()
 	async refresh(force?: boolean): Promise<void> {
+		// Capture the caller for diagnosis. `refresh(force=true)` tears down the iframe, so finding
+		// unexpected callers is critical. Stack is sliced to skip the Error+refresh frames so the first
+		// useful frame is the actual caller. Debug-level so it's off by default but available with
+		// outputLevel=debug for users hitting reload-loops in the wild.
+		Logger.debug(
+			`WebviewController(${this.id}|${this.instanceId}): refresh(force=${force ?? false}) called from:\n${
+				new Error().stack?.split('\n').slice(2).join('\n') ?? '<no stack>'
+			}`,
+		);
+
+		// In-flight coalesce: piggyback on an existing refresh rather than tearing down the iframe twice.
+		if (this._refreshing != null) return this._refreshing;
+
+		// Post-refresh quiet window: drop rapid back-to-back invocations. Protects against a second
+		// invocation (VS Code title-bar command double-dispatch, user double-click, or a late async
+		// caller) firing shortly after the previous refresh completes and tearing down a mid-render iframe.
+		if (Date.now() - this._lastRefreshCompletedAt < WebviewController.refreshCoalesceMs) {
+			Logger.info(
+				`WebviewController(${this.id}|${this.instanceId}): refresh coalesced (within ${WebviewController.refreshCoalesceMs}ms of previous)`,
+			);
+			return;
+		}
+
+		this._refreshing = this.refreshCore(force).finally(() => {
+			this._lastRefreshCompletedAt = Date.now();
+			this._refreshing = undefined;
+		});
+		return this._refreshing;
+	}
+
+	private async refreshCore(force?: boolean): Promise<void> {
 		this.cancellation?.cancel();
 		this.cancellation = new CancellationTokenSource();
 
@@ -687,12 +727,18 @@ export class WebviewController<
 					// return the resolved bootstrap because they explicitly await it.
 					state: e.params.bootstrap ? this.provider.includeBootstrap?.(false) : undefined,
 				});
+				// Start the replay window BEFORE flushing pending so any pending IpcMessages flushed below land in
+				// the replay buffer. Deferred-bootstrap providers (e.g. Graph's deferRows path) push the initial
+				// rows notification BEFORE first-ready; without this ordering it would never make it into the buffer
+				// and a subsequent panel-layout-settle reconnect would replay state minus the rows — empty graph.
+				if (!isReconnect) {
+					this.startReplayWindow();
+				}
 				this.sendPendingIpcNotifications();
 				if (isReconnect) {
 					this.replayBufferedMessages();
 					void this.provider.onReconnect?.();
 				} else {
-					this.startReplayWindow();
 					void this.provider.onReady?.();
 				}
 
@@ -1082,17 +1128,40 @@ export class WebviewController<
 			return;
 		}
 
-		const ipcs = [...this._pendingIpcNotifications.values(), ...this._pendingIpcPromiseNotifications.values()].sort(
-			(a, b) => a.timestamp - b.timestamp,
-		);
+		// Preserve the IpcNotification type alongside each pending entry so we can decide buffer eligibility
+		// below. Promise-settled entries carry no type — they're addressed at specific call ids and aren't
+		// independently replayable.
+		const typedEntries = Array.from(this._pendingIpcNotifications.entries(), ([type, value]) => ({
+			type: type,
+			...value,
+		}));
+		const untyped = Array.from(this._pendingIpcPromiseNotifications.values(), value => ({
+			type: undefined,
+			...value,
+		}));
+		const ipcs = [...typedEntries, ...untyped].sort((a, b) => a.timestamp - b.timestamp);
 		this._pendingIpcNotifications.clear();
 		this._pendingIpcPromiseNotifications.clear();
 
-		for (const { msg } of ipcs.values()) {
+		for (const { type, msg } of ipcs) {
 			if (typeof msg === 'function') {
 				void msg();
-			} else {
-				void this.postMessage(msg);
+				continue;
+			}
+			void this.postMessage(msg);
+			// Mirror notify()'s success-path buffer push for pending IpcMessages that just got flushed —
+			// otherwise pre-first-ready notifications (e.g. Graph's deferred-rows microtask firing during
+			// HTML generation) never enter the replay buffer and a panel-layout-settle reconnect would
+			// deliver bootstrap without them.
+			if (
+				this._replayEnabled &&
+				type != null &&
+				(type as IpcNotification<unknown>) !== WebviewReadyRequest.response
+			) {
+				if (type.reset) {
+					this._replayBuffer.length = 0;
+				}
+				this._replayBuffer.push(msg);
 			}
 		}
 	}
