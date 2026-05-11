@@ -4,13 +4,23 @@ import { customElement, property } from 'lit/decorators.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { AgentSessionState } from '../../../../home/protocol.js';
 import type { AgentSessionCategory } from '../../agentUtils.js';
-import { agentPhaseToCategory, getAgentCategoryLabel } from '../../agentUtils.js';
+import {
+	agentPhaseToCategory,
+	describeAgentSession,
+	formatAgentElapsed,
+	getAgentCategoryLabel,
+} from '../../agentUtils.js';
 import { elementBase, linkBase } from '../styles/lit/base.css.js';
 import '../actions/action-item.js';
 import '../actions/action-nav.js';
 import '../button.js';
 import '../code-icon.js';
 import '../overlays/popover.js';
+
+interface AgentPillSummary {
+	category: AgentSessionCategory;
+	sessions: readonly AgentSessionState[];
+}
 
 function formatElapsed(timestamp: number | undefined): string | undefined {
 	if (timestamp == null) return undefined;
@@ -360,18 +370,100 @@ export class GlAgentStatusPill extends LitElement {
 				color: var(--vscode-descriptionForeground);
 				flex: none;
 			}
+
+			.hover-summary {
+				display: flex;
+				flex-direction: column;
+				gap: 0.6rem;
+				min-width: 24rem;
+				max-width: min(44rem, 60vw);
+				max-height: 28rem;
+				overflow-y: auto;
+			}
+
+			.hover-summary-row {
+				display: grid;
+				/* minmax(0, 1fr) lets the name column shrink below its min-content size, enabling
+				   ellipsis on long session names. Right column auto-sizes to the phase label. */
+				grid-template-columns: auto minmax(0, 1fr) auto;
+				column-gap: 0.6rem;
+				row-gap: 0.1rem;
+				align-items: center;
+			}
+
+			.hover-summary-row + .hover-summary-row {
+				padding-top: 0.6rem;
+				border-top: 1px solid
+					var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+			}
+
+			.hover-summary-row__dot {
+				width: 0.7rem;
+				height: 0.7rem;
+				border-radius: 50%;
+				flex: none;
+			}
+			.hover-summary-row__dot--working {
+				background-color: var(--gl-agent-pill-working-color);
+			}
+			.hover-summary-row__dot--needs-input {
+				background-color: var(--gl-agent-pill-attention-color);
+			}
+			.hover-summary-row__dot--idle {
+				background-color: var(--gl-agent-pill-idle-color);
+			}
+
+			.hover-summary-row__name {
+				min-width: 0;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				font-weight: 600;
+			}
+
+			.hover-summary-row__phase {
+				font-size: 0.85em;
+				color: var(--vscode-descriptionForeground);
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+				white-space: nowrap;
+			}
+
+			.hover-summary-row__phase--needs-input {
+				color: var(--gl-agent-pill-attention-color);
+				font-weight: 600;
+			}
+
+			.hover-summary-row__detail {
+				grid-column: 2 / -1;
+				min-width: 0;
+				font-size: 0.9em;
+				color: var(--vscode-descriptionForeground);
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 		`,
 	];
 
 	@property({ type: Object })
-	session!: AgentSessionState;
+	session?: AgentSessionState;
+
+	/** Aggregated rendering: one pill standing in for multiple sessions sharing a category. The
+	 *  pill renders the category label with a count suffix (e.g. "Working · 3"), and the hover
+	 *  popover lists the underlying sessions. Set this OR `session`, not both — `summary` wins
+	 *  when both are provided. */
+	@property({ attribute: false })
+	summary?: AgentPillSummary;
 
 	/** When set, the pill renders full-width with the category-aware action row inline on the
 	 *  right of the label. The hover popover still surfaces the rich detail (header, last prompt,
 	 *  tool context) but drops the action row to avoid duplicating the inline buttons.
 	 *
 	 *  Falls back to compact rendering when `needs-input` cannot resolve inline (`!isInWorkspace`
-	 *  or no `pendingPermissionDetail`) — a full-width pill with no actions would be a dead-end. */
+	 *  or no `pendingPermissionDetail`) — a full-width pill with no actions would be a dead-end.
+	 *
+	 *  Ignored in summary mode — summary pills never surface inline actions. */
 	@property({ type: Boolean, reflect: true })
 	full = false;
 
@@ -386,14 +478,20 @@ export class GlAgentStatusPill extends LitElement {
 		// `:host([full-active])` style block only applies when a session is actually mounted
 		// (avoids a layout flash before `.session` arrives). Setting the attribute pre-render
 		// keeps the styles in sync on the first paint without a one-frame `updated()` lag.
-		this.toggleAttribute('full-active', this.full && this.session != null);
+		// Summary mode never goes full — it has no per-session inline actions to surface.
+		this.toggleAttribute('full-active', this.full && this.summary == null && this.session != null);
 	}
 
 	override render(): unknown {
-		const category = agentPhaseToCategory[this.session.phase];
+		if (this.summary != null) return this.renderSummary();
+
+		const session = this.session;
+		if (session == null) return nothing;
+
+		const category = agentPhaseToCategory[session.phase];
 		const label = getAgentCategoryLabel(category);
-		const detail = this.session.pendingPermissionDetail;
-		const canResolve = category === 'needs-input' && this.session.isInWorkspace && detail != null;
+		const detail = session.pendingPermissionDetail;
+		const canResolve = category === 'needs-input' && session.isInWorkspace && detail != null;
 
 		return html`
 			<gl-popover placement="bottom" hoist>
@@ -402,23 +500,70 @@ export class GlAgentStatusPill extends LitElement {
 						<span class="pill__dot"></span>
 						${label}
 					</span>
-					${this.full ? this.renderInlineActions(category, canResolve) : nothing}
+					${this.full ? this.renderInlineActions(session, category, canResolve) : nothing}
 				</span>
 				<div slot="content" class="hover-card" tabindex="-1">
-					${this.renderHoverContent(category, this.full)}
+					${this.renderHoverContent(session, category, this.full)}
 				</div>
 			</gl-popover>
 		`;
 	}
 
-	private renderHoverContent(category: AgentSessionCategory, omitActions: boolean): unknown {
+	private renderSummary(): unknown {
+		const { category, sessions } = this.summary!;
+		const baseLabel = getAgentCategoryLabel(category);
+		const count = sessions.length;
+		const label = count > 1 ? `${baseLabel} · ${count}` : baseLabel;
+
+		return html`
+			<gl-popover placement="bottom" hoist>
+				<span slot="anchor" class=${`pill pill--${category}`} tabindex="0">
+					<span class="pill__label">
+						<span class="pill__dot"></span>
+						${label}
+					</span>
+				</span>
+				<div slot="content" class="hover-card" tabindex="-1">
+					<div class="hover-summary">${sessions.map(s => this.renderSummaryRow(s, category))}</div>
+				</div>
+			</gl-popover>
+		`;
+	}
+
+	/** Phase column is retained per row because the elapsed-time suffix is the per-session
+	 *  signal — every row shares the category, but each carries its own "how long". */
+	private renderSummaryRow(session: AgentSessionState, category: AgentSessionCategory): unknown {
+		const elapsed = formatAgentElapsed(session.phaseSinceTimestamp);
+		const phaseLabel = getAgentCategoryLabel(category);
+		const detail = describeAgentSession(session, category, elapsed, {
+			awaitingPrefix: 'short',
+			idleFallback: 'lastPrompt',
+		});
+
+		return html`
+			<div class="hover-summary-row">
+				<span class=${`hover-summary-row__dot hover-summary-row__dot--${category}`}></span>
+				<span class="hover-summary-row__name" title=${session.name}>${session.name}</span>
+				<span class=${`hover-summary-row__phase hover-summary-row__phase--${category}`}>
+					${phaseLabel}${elapsed != null ? ` · ${elapsed}` : ''}
+				</span>
+				${detail ? html`<span class="hover-summary-row__detail" title=${detail}>${detail}</span>` : nothing}
+			</div>
+		`;
+	}
+
+	private renderHoverContent(
+		session: AgentSessionState,
+		category: AgentSessionCategory,
+		omitActions: boolean,
+	): unknown {
 		switch (category) {
 			case 'working':
-				return this.renderWorkingHover(omitActions);
+				return this.renderWorkingHover(session, omitActions);
 			case 'needs-input':
-				return this.renderNeedsInputHover(omitActions);
+				return this.renderNeedsInputHover(session, omitActions);
 			case 'idle':
-				return this.renderIdleHover(omitActions);
+				return this.renderIdleHover(session, omitActions);
 		}
 	}
 
@@ -426,22 +571,26 @@ export class GlAgentStatusPill extends LitElement {
 	 *  trio. Everything else — working, idle, and the `needs-input` + !canResolve case where the
 	 *  permission can't be resolved inline — gets a single Open Session affordance so the pill is
 	 *  never a full-width dead end. */
-	private renderInlineActions(category: AgentSessionCategory, canResolve: boolean): unknown {
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
+	private renderInlineActions(
+		session: AgentSessionState,
+		category: AgentSessionCategory,
+		canResolve: boolean,
+	): unknown {
+		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
 		if (category === 'needs-input' && canResolve) {
-			const detail = this.session.pendingPermissionDetail!;
+			const detail = session.pendingPermissionDetail!;
 			const allowHref = createCommandLink('gitlens.agents.resolvePermission', {
-				sessionId: this.session.id,
+				sessionId: session.id,
 				decision: 'allow' as const,
 			});
 			const denyHref = createCommandLink('gitlens.agents.resolvePermission', {
-				sessionId: this.session.id,
+				sessionId: session.id,
 				decision: 'deny' as const,
 			});
 			const alwaysAllowHref = detail.hasSuggestions
 				? createCommandLink('gitlens.agents.resolvePermission', {
-						sessionId: this.session.id,
+						sessionId: session.id,
 						decision: 'allow' as const,
 						alwaysAllow: true,
 					})
@@ -463,29 +612,29 @@ export class GlAgentStatusPill extends LitElement {
 		`;
 	}
 
-	private renderWorkingHover(omitActions: boolean): unknown {
-		const elapsed = formatElapsed(this.session.phaseSinceTimestamp);
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
+	private renderWorkingHover(session: AgentSessionState, omitActions: boolean): unknown {
+		const elapsed = formatElapsed(session.phaseSinceTimestamp);
+		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
 		return html`
 			<div class="hover-header">
 				<span class="hover-header__dot hover-header__dot--working"></span>
-				<span class="hover-header__text">${this.session.name}</span>
+				<span class="hover-header__text">${session.name}</span>
 				${elapsed != null ? html`<span class="hover-header__elapsed">${elapsed}</span>` : nothing}
 			</div>
-			${this.session.lastPrompt
+			${session.lastPrompt
 				? html`
 						<div class="hover-section">
 							<span class="hover-section__label">Last Prompt</span>
-							<span class="hover-prompt">${this.session.lastPrompt}</span>
+							<span class="hover-prompt">${session.lastPrompt}</span>
 						</div>
 					`
 				: nothing}
-			${this.session.status === 'tool_use' && this.session.statusDetail
+			${session.status === 'tool_use' && session.statusDetail
 				? html`
 						<div class="hover-section">
 							<span class="hover-section__label">Current Tool</span>
-							<span class="hover-section__value">${this.session.statusDetail}</span>
+							<span class="hover-section__value">${session.statusDetail}</span>
 						</div>
 					`
 				: nothing}
@@ -502,29 +651,29 @@ export class GlAgentStatusPill extends LitElement {
 		`;
 	}
 
-	private renderNeedsInputHover(omitActions: boolean): unknown {
-		const elapsed = formatElapsed(this.session.phaseSinceTimestamp);
-		const detail = this.session.pendingPermissionDetail;
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
+	private renderNeedsInputHover(session: AgentSessionState, omitActions: boolean): unknown {
+		const elapsed = formatElapsed(session.phaseSinceTimestamp);
+		const detail = session.pendingPermissionDetail;
+		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
-		const canResolve = this.session.isInWorkspace && detail != null;
+		const canResolve = session.isInWorkspace && detail != null;
 		const allowHref = canResolve
 			? createCommandLink('gitlens.agents.resolvePermission', {
-					sessionId: this.session.id,
+					sessionId: session.id,
 					decision: 'allow' as const,
 				})
 			: undefined;
 		const alwaysAllowHref =
 			canResolve && detail.hasSuggestions
 				? createCommandLink('gitlens.agents.resolvePermission', {
-						sessionId: this.session.id,
+						sessionId: session.id,
 						decision: 'allow' as const,
 						alwaysAllow: true,
 					})
 				: undefined;
 		const denyHref = canResolve
 			? createCommandLink('gitlens.agents.resolvePermission', {
-					sessionId: this.session.id,
+					sessionId: session.id,
 					decision: 'deny' as const,
 				})
 			: undefined;
@@ -532,14 +681,14 @@ export class GlAgentStatusPill extends LitElement {
 		return html`
 			<div class="hover-header">
 				<span class="hover-header__dot hover-header__dot--needs-input"></span>
-				<span class="hover-header__text">${this.session.name}</span>
+				<span class="hover-header__text">${session.name}</span>
 				${elapsed != null ? html`<span class="hover-header__elapsed">${elapsed}</span>` : nothing}
 			</div>
-			${this.session.lastPrompt
+			${session.lastPrompt
 				? html`
 						<div class="hover-section">
 							<span class="hover-section__label">Last Prompt</span>
-							<span class="hover-prompt">${this.session.lastPrompt}</span>
+							<span class="hover-prompt">${session.lastPrompt}</span>
 						</div>
 					`
 				: nothing}
@@ -621,19 +770,19 @@ export class GlAgentStatusPill extends LitElement {
 		`;
 	}
 
-	private renderIdleHover(omitActions: boolean): unknown {
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(this.session.id));
+	private renderIdleHover(session: AgentSessionState, omitActions: boolean): unknown {
+		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
 		return html`
 			<div class="hover-header">
 				<span class="hover-header__dot hover-header__dot--idle"></span>
-				<span class="hover-header__text">${this.session.name}</span>
+				<span class="hover-header__text">${session.name}</span>
 			</div>
-			${this.session.lastPrompt
+			${session.lastPrompt
 				? html`
 						<div class="hover-section">
 							<span class="hover-section__label">Last Prompt</span>
-							<span class="hover-prompt">${this.session.lastPrompt}</span>
+							<span class="hover-prompt">${session.lastPrompt}</span>
 						</div>
 					`
 				: nothing}

@@ -16,6 +16,7 @@ import {
 } from '../../../../../plus/launchpad/models/launchpad.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type {
+	AgentSessionState,
 	BranchRef,
 	CreatePullRequestCommandArgs,
 	GetOverviewBranch,
@@ -25,7 +26,7 @@ import type {
 } from '../../../../home/protocol.js';
 import type { HomeState } from '../../../home/state.js';
 import { homeStateContext } from '../../../home/state.js';
-import { getWorktreeBasename, matchAgentSessionsForBranch } from '../../../shared/agentUtils.js';
+import { agentPhaseToCategory, getWorktreeBasename, matchAgentSessionsForBranch } from '../../../shared/agentUtils.js';
 import { renderBranchName } from '../../../shared/components/branch-name.js';
 import type { GlCard } from '../../../shared/components/card/card.js';
 import { GlElement, observe } from '../../../shared/components/element.js';
@@ -846,10 +847,45 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 		});
 		if (sessions == null || sessions.length === 0) return nothing;
 
+		if (this.expanded) {
+			return html`
+				<div class="branch-item__agents">
+					<code-icon icon="hubot"></code-icon>
+					${sessions.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
+				</div>
+			`;
+		}
+
+		// Actionable (`needs-input`) sessions never aggregate — each one needs its own Allow/Deny
+		// popover. Working and idle sessions collapse into one summary pill per category.
+		const needsInput: AgentSessionState[] = [];
+		const working: AgentSessionState[] = [];
+		const idle: AgentSessionState[] = [];
+		for (const s of sessions) {
+			const cat = agentPhaseToCategory[s.phase];
+			if (cat === 'needs-input') {
+				needsInput.push(s);
+			} else if (cat === 'working') {
+				working.push(s);
+			} else {
+				idle.push(s);
+			}
+		}
+
 		return html`
 			<div class="branch-item__agents">
 				<code-icon icon="hubot"></code-icon>
-				${sessions.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
+				${needsInput.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
+				${working.length > 0
+					? html`<gl-agent-status-pill
+							.summary=${{ category: 'working', sessions: working }}
+						></gl-agent-status-pill>`
+					: nothing}
+				${idle.length > 0
+					? html`<gl-agent-status-pill
+							.summary=${{ category: 'idle', sessions: idle }}
+						></gl-agent-status-pill>`
+					: nothing}
 			</div>
 		`;
 	}
