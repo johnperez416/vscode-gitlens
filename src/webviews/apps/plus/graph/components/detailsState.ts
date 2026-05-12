@@ -38,7 +38,7 @@ import type {
 } from '../../../../plus/graph/graphService.js';
 import type { BranchMergeTargetStatus } from '../../../../rpc/services/branches.js';
 import type { AiModelInfo } from '../../../../rpc/services/types.js';
-import type { OverviewBranchIssue } from '../../../../shared/overviewBranches.js';
+import type { OverviewBranchIssue, OverviewBranchPullRequest } from '../../../../shared/overviewBranches.js';
 import { createSignalGroup } from '../../../shared/state/signals.js';
 
 /** Selection-shape vocabulary. Identifies which kind of selection the details panel is showing. */
@@ -68,6 +68,8 @@ function createDurableState() {
 	const wipIssues = signal<OverviewBranchIssue[] | undefined>(undefined);
 	const wipMergeTarget = signal<BranchMergeTargetStatus | undefined>(undefined);
 	const wipMergeTargetLoading = signal(false);
+	const wipPullRequest = signal<OverviewBranchPullRequest | undefined>(undefined);
+	const wipPullRequestLoading = signal(false);
 
 	// Compare (2-commit) fetched data
 	const commitFrom = signal<CommitDetails | undefined>(undefined);
@@ -162,6 +164,8 @@ function createDurableState() {
 		wipIssues: wipIssues,
 		wipMergeTarget: wipMergeTarget,
 		wipMergeTargetLoading: wipMergeTargetLoading,
+		wipPullRequest: wipPullRequest,
+		wipPullRequestLoading: wipPullRequestLoading,
 
 		commitFrom: commitFrom,
 		commitTo: commitTo,

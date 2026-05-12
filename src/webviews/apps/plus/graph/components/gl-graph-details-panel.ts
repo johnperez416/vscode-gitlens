@@ -514,6 +514,10 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				.issues=${this._state.wipIssues.get()}
 				.mergeTargetStatus=${this._state.wipMergeTarget.get()}
 				.mergeTargetStatusLoading=${this._state.wipMergeTargetLoading.get()}
+				.pullRequest=${this._state.wipPullRequest.get()}
+				.pullRequestLoading=${this._state.wipPullRequestLoading.get()}
+				.dateFormat=${this._state.preferences.get()?.dateFormat}
+				.dateStyle=${this._state.preferences.get()?.dateStyle}
 				@toggle-mode=${this.handleToggleMode}
 				@refresh-wip=${this.handleRefreshWip}
 				@switch-branch=${this.handleSwitchBranch}
@@ -524,6 +528,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				@push=${this.handlePush}
 				@fetch=${this.handleFetch}
 				@remove-associated-issue=${this.handleRemoveAssociatedIssue}
+				@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
 			></gl-details-wip-header>
 			${branchAgentSessions != null && activeMode == null
 				? html`<gl-details-agent-status .sessions=${branchAgentSessions}></gl-details-agent-status>`
@@ -762,6 +767,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				this._actions.setBranchCompareActiveView(e.detail.view, repoPath)}
 			@request-enrichment=${() => this._actions.requestBranchCompareEnrichment(repoPath)}
 			@open-multiple-changes=${this.handleOpenMultipleChanges}
+			@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
 		></gl-details-compare-mode-panel>`;
 	}
 
@@ -869,6 +875,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			@change-files-layout=${this.handleChangeFilesLayout}
 			@toggle-mode=${this.handleToggleMode}
 			@open-multiple-changes=${this.handleOpenMultipleChanges}
+			@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
 		></gl-details-commit-panel>`;
 	}
 
@@ -941,6 +948,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			@change-files-layout=${this.handleChangeFilesLayout}
 			@toggle-mode=${this.handleToggleMode}
 			@open-multiple-changes=${this.handleOpenMultipleChanges}
+			@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
 		></gl-details-multicommit-panel>`;
 	}
 
@@ -1157,6 +1165,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	private handleRemoveAssociatedIssue = (e: CustomEvent<{ entityId: string }>) =>
 		void this._actions.removeAssociatedIssue(e.detail.entityId);
+
+	private handleOpenPullRequestDetails = (e: CustomEvent<{ id: string; providerId: string | undefined }>) =>
+		this._actions.openPullRequestDetails(e.detail.id || undefined, e.detail.providerId);
 
 	private handleStashSave = () => this._actions.stashSave(this.effectiveRepoPath);
 

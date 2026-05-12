@@ -271,7 +271,7 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 	}
 
 	private onOpenPullRequest(pr: NonNullable<NonNullable<State['branchState']>['pr']>): void {
-		this._ipc.sendCommand(OpenPullRequestDetailsCommand, { id: pr.id });
+		this._ipc.sendCommand(OpenPullRequestDetailsCommand, { id: pr.id, providerId: pr.provider?.id });
 	}
 
 	private onSearchOpenInView() {

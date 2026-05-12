@@ -745,6 +745,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 								name=${name}
 								url=${autolink.url}
 								identifier="${autolink.prefix}${autolink.id}"
+								openOnRemote
 							></gl-autolink-chip>`;
 						})
 					: nothing}
@@ -760,6 +761,10 @@ export class GlDetailsCompareModePanel extends LitElement {
 									.date=${item.closed ? item.closedDate : item.createdDate}
 									.dateFormat=${this.preferences?.dateFormat}
 									.dateStyle=${this.preferences?.dateStyle}
+									.itemId=${item.id}
+									.providerId=${item.provider?.id}
+									?details=${item.type === 'pullrequest'}
+									openOnRemote
 								></gl-autolink-chip>`,
 						)
 					: nothing}

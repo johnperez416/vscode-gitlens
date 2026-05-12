@@ -601,6 +601,7 @@ export class GlCommitDetailsApp extends SignalWatcherWebviewApp {
 									actions?.executeFileAction(e.detail, e.detail.showOptions)}
 								@open-multiple-changes=${(e: CustomEvent<OpenMultipleChangesArgs>) =>
 									actions?.openMultipleChanges(e.detail)}
+								@gl-issue-pull-request-details=${() => actions?.openPullRequestDetails()}
 							></gl-details-commit-panel>`,
 						() =>
 							html`<gl-details-wip-panel

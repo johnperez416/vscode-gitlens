@@ -149,6 +149,7 @@ import { getRemoteIconUri } from '../../../git/utils/-webview/icons.js';
 import { countConflictMarkers } from '../../../git/utils/-webview/mergeConflicts.utils.js';
 import { getReferenceFromBranch } from '../../../git/utils/-webview/reference.utils.js';
 import {
+	getBestRemoteWithIntegration,
 	getRemoteIntegration,
 	getRemoteProviderUrl,
 	remoteSupportsIntegration,
@@ -3266,11 +3267,26 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@ipcCommand(OpenPullRequestDetailsCommand)
 	@debug()
-	private async onOpenPullRequestDetails(_params: IpcParams<typeof OpenPullRequestDetailsCommand>) {
-		// TODO: a hack for now, since we aren't using the params at all right now and always opening the current branch's PR
+	private async onOpenPullRequestDetails(params: IpcParams<typeof OpenPullRequestDetailsCommand>) {
 		const repo = this.repository;
 		if (repo == null) return undefined;
 
+		// id+providerId path: resolve the PR by id via the matching integration so the chip's
+		// actual PR opens — regardless of which branch is currently checked out.
+		if (params.id && params.providerId) {
+			const remote = await getBestRemoteWithIntegration(repo.path, {
+				filter: r => r.provider.id === params.providerId,
+			});
+			if (remote != null) {
+				const integration = await getRemoteIntegration(remote);
+				const pr = await integration?.getPullRequest(remote.provider.repoDesc, params.id);
+				if (pr != null) {
+					return this.container.views.pullRequest.showPullRequest(pr, repo.path);
+				}
+			}
+		}
+
+		// Fallback: resolve via the repo's current branch (legacy callers without id/provider).
 		const branch = await repo.git.branches.getBranch();
 		if (branch == null) return undefined;
 

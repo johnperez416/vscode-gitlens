@@ -126,6 +126,11 @@ export const detailsWipHeaderStyles = css`
 		min-height: 2.4rem;
 	}
 
+	.graph-details-header__pull-request {
+		flex: 0 1 auto;
+		min-width: 0;
+	}
+
 	.graph-details-header__issues {
 		display: flex;
 		align-items: center;

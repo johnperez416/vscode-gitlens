@@ -303,13 +303,8 @@ export const detailsBaseStyles = [
 		}
 
 		/* Media query hiding */
-		.mq-hide-sm,
-		gl-autolink-chip::part(label) {
-			/* Will be hidden at narrow widths */
-		}
 		@media (max-width: 300px) {
-			.mq-hide-sm,
-			gl-autolink-chip::part(label) {
+			.mq-hide-sm {
 				display: none !important;
 			}
 		}

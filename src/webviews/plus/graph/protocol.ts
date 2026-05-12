@@ -359,6 +359,9 @@ export const GetMoreRowsCommand = new IpcCommand<GetMoreRowsParams>(scope, 'rows
 
 export interface OpenPullRequestDetailsParams {
 	id?: string;
+	/** Provider id (e.g. 'github') — when supplied with `id`, the host resolves the PR via the
+	 *  matching integration instead of falling back to the current-branch lookup. */
+	providerId?: string;
 }
 export const OpenPullRequestDetailsCommand = new IpcCommand<OpenPullRequestDetailsParams>(
 	scope,

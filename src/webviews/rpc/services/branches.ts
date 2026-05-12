@@ -7,18 +7,31 @@
  */
 
 import type { GitBranch } from '@gitlens/git/models/branch.js';
+import type { PullRequest } from '@gitlens/git/models/pullRequest.js';
 import type { GitWorktree } from '@gitlens/git/models/worktree.js';
 import type { Container } from '../../../container.js';
 import {
 	getAssociatedIssuesForBranch,
 	removeAssociatedIssueFromBranch,
 } from '../../../git/utils/-webview/branch.issue.utils.js';
-import { getBranchEnrichedAutolinks } from '../../../git/utils/-webview/branch.utils.js';
+import {
+	getBranchAssociatedPullRequest,
+	getBranchEnrichedAutolinks,
+} from '../../../git/utils/-webview/branch.utils.js';
 import { getReferenceFromBranch } from '../../../git/utils/-webview/reference.utils.js';
 import { getWorktreesByBranch } from '../../../git/utils/-webview/worktree.utils.js';
-import type { OverviewBranch, OverviewBranchIssue, OverviewBranchMergeTarget } from '../../shared/overviewBranches.js';
+import type {
+	OverviewBranch,
+	OverviewBranchIssue,
+	OverviewBranchMergeTarget,
+	OverviewBranchPullRequest,
+} from '../../shared/overviewBranches.js';
 import { toOverviewBranch } from '../../shared/overviewBranches.js';
-import { getAutolinkIssuesInfo, getBranchMergeTargetStatusInfo } from '../../shared/overviewEnrichment.utils.js';
+import {
+	getAutolinkIssuesInfo,
+	getBranchMergeTargetStatusInfo,
+	getPullRequestInfo,
+} from '../../shared/overviewEnrichment.utils.js';
 
 export interface BranchMergeTargetStatus {
 	/** Shape compatible with gl-merge-target-status's `branch` prop. */
@@ -39,6 +52,7 @@ export interface BranchEnrichment {
 	autolinks: Promise<OverviewBranchIssue[]>;
 	issues: Promise<OverviewBranchIssue[]>;
 	mergeTargetStatus: Promise<OverviewBranchMergeTarget | undefined>;
+	pullRequest: Promise<OverviewBranchPullRequest | undefined>;
 }
 
 export class BranchesService {
@@ -66,6 +80,10 @@ export class BranchesService {
 		const opened = branch.current || worktreesByBranch.get(branch.id)?.opened === true;
 		const overview = toOverviewBranch(branch, worktreesByBranch, opened);
 
+		// Shared associated-PR fetch so the merge-target and PR legs don't fire two
+		// integration calls for the same branch.
+		const associatedPR = getBranchAssociatedPullRequest(this.container, branch, { avatarSize: 64 });
+
 		return {
 			branch: {
 				reference: overview.reference,
@@ -81,7 +99,8 @@ export class BranchesService {
 			// in-flight cancellation checks honor the same abort.
 			autolinks: this.fetchAutolinksLeg(branch, signal),
 			issues: this.fetchIssuesLeg(branch, signal),
-			mergeTargetStatus: getBranchMergeTargetStatusInfo(this.container, branch, signal),
+			mergeTargetStatus: getBranchMergeTargetStatusInfo(this.container, branch, signal, associatedPR),
+			pullRequest: this.fetchPullRequestLeg(branch, associatedPR, signal),
 		};
 	}
 
@@ -118,5 +137,15 @@ export class BranchesService {
 				entityId: i.nodeId,
 			})) ?? []
 		);
+	}
+
+	private async fetchPullRequestLeg(
+		branch: GitBranch,
+		associatedPullRequest: Promise<PullRequest | undefined>,
+		signal?: AbortSignal,
+	): Promise<OverviewBranchPullRequest | undefined> {
+		const pr = await getPullRequestInfo(this.container, branch, undefined, associatedPullRequest);
+		signal?.throwIfAborted();
+		return pr;
 	}
 }

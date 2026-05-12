@@ -13,7 +13,7 @@ declare global {
 	}
 
 	interface GlobalEventHandlersEventMap {
-		'gl-issue-pull-request-details': CustomEvent<void>;
+		'gl-issue-pull-request-details': CustomEvent<{ id: string; providerId: string | undefined }>;
 	}
 }
 
@@ -79,6 +79,9 @@ export class IssuePullRequest extends GlElement {
 			grid-column: 3;
 			grid-row: 1 / 3;
 			margin: 0;
+			display: flex;
+			align-items: center;
+			gap: 0.2rem;
 		}
 
 		.badge {
@@ -136,6 +139,16 @@ export class IssuePullRequest extends GlElement {
 	@property()
 	identifier = '';
 
+	/** Numeric id of the PR/issue (no `#` prefix). Carried on the `gl-issue-pull-request-details`
+	 *  event so listeners can route by chip when multiple chips share a panel. */
+	@property({ attribute: 'item-id' })
+	itemId?: string;
+
+	/** Provider id (e.g. 'github') — carried on the `gl-issue-pull-request-details` event so the
+	 *  host can resolve the PR by id via the matching integration. */
+	@property({ attribute: 'provider-id' })
+	providerId?: string;
+
 	@property({ type: Boolean, reflect: true })
 	compact?: boolean;
 
@@ -150,6 +163,9 @@ export class IssuePullRequest extends GlElement {
 
 	@property({ type: Boolean })
 	details = false;
+
+	@property({ type: Boolean })
+	openOnRemote = false;
 
 	private get typeLabel() {
 		switch (this.type) {
@@ -194,12 +210,22 @@ export class IssuePullRequest extends GlElement {
 			</p>
 			${this.renderReviewDecision()}
 			${when(
-				this.details === true,
+				this.details === true || this.openOnRemote === true,
 				() => html`
 					<p class="details">
-						<gl-button appearance="toolbar" tooltip="Open Details" @click=${() => this.onDetailsClicked()}
-							><code-icon icon="eye"></code-icon
-						></gl-button>
+						${this.details
+							? html`<gl-button
+									appearance="toolbar"
+									tooltip="Open Details"
+									@click=${() => this.onDetailsClicked()}
+									><code-icon icon="eye"></code-icon
+								></gl-button>`
+							: nothing}
+						${this.openOnRemote && this.url
+							? html`<gl-button appearance="toolbar" tooltip="Open on Remote" href=${this.url}
+									><code-icon icon="globe"></code-icon
+								></gl-button>`
+							: nothing}
 					</p>
 				`,
 			)}
@@ -236,6 +262,9 @@ export class IssuePullRequest extends GlElement {
 	}
 
 	private onDetailsClicked() {
-		this.emit('gl-issue-pull-request-details');
+		this.emit('gl-issue-pull-request-details', {
+			id: this.itemId ?? '',
+			providerId: this.providerId,
+		});
 	}
 }

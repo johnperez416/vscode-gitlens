@@ -4,7 +4,7 @@ import type { AssociateIssueWithBranchCommandArgs } from '../../../../../plus/st
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { Wip } from '../../../../plus/graph/detailsProtocol.js';
 import type { BranchMergeTargetStatus } from '../../../../rpc/services/branches.js';
-import type { OverviewBranchIssue } from '../../../../shared/overviewBranches.js';
+import type { OverviewBranchIssue, OverviewBranchPullRequest } from '../../../../shared/overviewBranches.js';
 import { elementBase, metadataBarVarsBase } from '../../../shared/components/styles/lit/base.css.js';
 import { detailsWipHeaderStyles } from './gl-details-wip-header.css.js';
 import '../../shared/components/merge-rebase-status.js';
@@ -33,6 +33,10 @@ export class GlDetailsWipHeader extends LitElement {
 	@property({ type: Array }) issues?: OverviewBranchIssue[];
 	@property({ type: Object }) mergeTargetStatus?: BranchMergeTargetStatus;
 	@property({ type: Boolean }) mergeTargetStatusLoading = false;
+	@property({ type: Object }) pullRequest?: OverviewBranchPullRequest;
+	@property({ type: Boolean }) pullRequestLoading = false;
+	@property() dateFormat?: string;
+	@property() dateStyle?: string;
 
 	override render() {
 		const wip = this.wip;
@@ -112,7 +116,7 @@ export class GlDetailsWipHeader extends LitElement {
 											colorized
 										></gl-tracking-pill>`
 									: nothing}
-								${this.renderMergeTargetStatus()}
+								${this.renderMergeTargetStatus()}${this.renderAssociatedPullRequest()}
 							</div>
 							<div class="branch-ops">
 								${this.renderBranchStateAction()}${this.renderFetchAction()}
@@ -225,6 +229,33 @@ export class GlDetailsWipHeader extends LitElement {
 		</span>`;
 	}
 
+	private renderAssociatedPullRequest() {
+		if (this.wip?.branch == null) return nothing;
+		const pr = this.pullRequest;
+		// Skip entirely when no PR and not loading — many branches don't have a PR.
+		if (pr == null) return nothing;
+
+		const status = pr.state === 'merged' || pr.state === 'closed' ? pr.state : 'opened';
+		return html`<gl-autolink-chip
+			class="graph-details-header__pull-request"
+			type="pr"
+			name=${pr.title}
+			url=${pr.url}
+			identifier="#${pr.id}"
+			status=${status}
+			.date=${pr.updatedDate}
+			.dateFormat=${this.dateFormat}
+			.dateStyle=${this.dateStyle}
+			.author=${pr.authorName}
+			?isDraft=${pr.draft ?? false}
+			.reviewDecision=${pr.reviewDecision}
+			.itemId=${pr.id}
+			.providerId=${pr.providerId}
+			details
+			openOnRemote
+		></gl-autolink-chip>`;
+	}
+
 	private renderIssuesRow() {
 		const branchReference = this.wip?.branch?.reference ?? this.mergeTargetStatus?.branch.reference;
 		if (branchReference == null) return nothing;
@@ -256,6 +287,7 @@ export class GlDetailsWipHeader extends LitElement {
 			url=${i.url}
 			identifier=${identifier}
 			status=${status}
+			openOnRemote
 		></gl-autolink-chip>`;
 
 		if (!associated || i.entityId == null) return chip;

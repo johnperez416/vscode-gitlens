@@ -866,6 +866,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 						name="${name}"
 						url="${autolink.url}"
 						identifier="${autolink.prefix}${autolink.id}"
+						openOnRemote
 					></gl-autolink-chip>`;
 				}),
 			)}
@@ -884,6 +885,10 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 							.author=${pr.author?.name}
 							?isDraft=${pr.isDraft}
 							.reviewDecision=${pr.reviewDecision}
+							.itemId=${pr.id}
+							.providerId=${pr.provider?.id}
+							details
+							openOnRemote
 						></gl-autolink-chip>`,
 				),
 			)}
@@ -899,6 +904,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 							.date=${issue.closed ? issue.closedDate : issue.createdDate}
 							.dateFormat="${this.preferences?.dateFormat}"
 							.dateStyle="${this.preferences?.dateStyle}"
+							openOnRemote
 						></gl-autolink-chip>`,
 				),
 			)}

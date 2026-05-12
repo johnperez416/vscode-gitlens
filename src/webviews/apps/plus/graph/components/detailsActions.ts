@@ -40,11 +40,12 @@ import type {
 	ScopeSelection,
 } from '../../../../plus/graph/graphService.js';
 import type { BranchMergeTargetStatus } from '../../../../rpc/services/branches.js';
-import type { OverviewBranchIssue } from '../../../../shared/overviewBranches.js';
+import type { OverviewBranchIssue, OverviewBranchPullRequest } from '../../../../shared/overviewBranches.js';
 import type { FileChangeListItemDetail } from '../../../commitDetails/components/gl-details-base.js';
 import { fetchCommitEnrichment } from '../../../shared/actions/commitEnrichment.js';
 import type { OpenMultipleChangesArgs } from '../../../shared/actions/file.js';
 import * as fileActions from '../../../shared/actions/file.js';
+import * as prActions from '../../../shared/actions/pr.js';
 import {
 	enrichmentGuard,
 	fireAndForget,
@@ -140,6 +141,9 @@ interface WipBranchEnrichmentCacheEntry {
 	 *  Distinguishes "haven't fetched yet" from "fetched and got nothing", same convention
 	 *  as `hasPullRequest` / `hasSignature` on the commit cache. */
 	hasMergeTarget?: boolean;
+	pullRequest?: OverviewBranchPullRequest;
+	/** Sentinel paired with `pullRequest` — distinguishes "haven't fetched" from "fetched, no PR". */
+	hasPullRequest?: boolean;
 }
 
 interface CommitEnrichmentCacheEntry {
@@ -594,12 +598,22 @@ export class DetailsActions {
 				this.state.wipMergeTarget.set(undefined);
 				this.state.wipMergeTargetLoading.set(true);
 			}
+			// PullRequest — same sentinel convention as mergeTarget.
+			if (cached.hasPullRequest) {
+				this.state.wipPullRequest.set(cached.pullRequest);
+				this.state.wipPullRequestLoading.set(false);
+			} else {
+				this.state.wipPullRequest.set(undefined);
+				this.state.wipPullRequestLoading.set(true);
+			}
 		} else {
 			// First visit to this branch — clear any prior-branch values and show loading.
 			this.state.wipAutolinks.set(undefined);
 			this.state.wipIssues.set(undefined);
 			this.state.wipMergeTarget.set(undefined);
 			this.state.wipMergeTargetLoading.set(true);
+			this.state.wipPullRequest.set(undefined);
+			this.state.wipPullRequestLoading.set(true);
 		}
 
 		// Single RPC, three deferred legs. The outer Promise resolves once the host has the
@@ -620,6 +634,7 @@ export class DetailsActions {
 				if (enrichment == null) {
 					clearTimeout(maxWaitTimer);
 					this.state.wipMergeTargetLoading.set(false);
+					this.state.wipPullRequestLoading.set(false);
 					return;
 				}
 
@@ -666,15 +681,49 @@ export class DetailsActions {
 						if (signal.aborted) return;
 						this.state.wipMergeTargetLoading.set(false);
 					});
+
+				void enrichment.pullRequest
+					.then(
+						enrichmentGuard(this.resources.wip, pr => {
+							if (signal.aborted) return;
+							this._wipEnrichmentCache.update(cacheKey, {
+								pullRequest: pr,
+								hasPullRequest: true,
+							});
+							this.state.wipPullRequest.set(pr);
+						}),
+						noopUnlessReal,
+					)
+					.finally(() => {
+						if (signal.aborted) return;
+						this.state.wipPullRequestLoading.set(false);
+					});
 			}),
 			(e: unknown) => {
 				clearTimeout(maxWaitTimer);
 				if (!signal.aborted) {
 					this.state.wipMergeTargetLoading.set(false);
+					this.state.wipPullRequestLoading.set(false);
 				}
 				noopUnlessReal(e);
 			},
 		);
+	}
+
+	/**
+	 * Open a pull request in the Pull Request sidebar view by `(repoPath, id, providerId)`.
+	 *
+	 * When all three are present, the host resolves the PR by id via the matching integration —
+	 * unambiguous regardless of which branch/worktree is currently checked out. Falls back to
+	 * the WIP branch's PR when no id/providerId are passed (legacy behavior; used by callers
+	 * that don't yet have id/provider context).
+	 */
+	openPullRequestDetails(id?: string, providerId?: string): void {
+		const wip = this.state.wip.get();
+		const repoPath = wip?.repo?.path ?? wip?.branch?.repoPath;
+		if (!repoPath) return;
+
+		prActions.openPullRequestDetails(this.services.pullRequests, repoPath, id ?? '', providerId ?? '');
 	}
 
 	/** Re-fetch WIP branch enrichment in response to out-of-band git-config changes. */

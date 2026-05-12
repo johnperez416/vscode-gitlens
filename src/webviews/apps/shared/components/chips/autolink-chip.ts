@@ -68,10 +68,23 @@ export class GlAutolinkChip extends LitElement {
 	@property({ type: Boolean })
 	details = false;
 
+	@property({ type: Boolean })
+	openOnRemote = false;
+
+	/** Numeric id of the PR/issue (no `#` prefix). Passed through to `<issue-pull-request>` so the
+	 *  `gl-issue-pull-request-details` event detail can identify this chip. */
+	@property({ attribute: 'item-id' })
+	itemId?: string;
+
+	/** Provider id (e.g. 'github') — passed through to `<issue-pull-request>` so listeners can
+	 *  resolve the PR by id without falling back to current-branch lookup. */
+	@property({ attribute: 'provider-id' })
+	providerId?: string;
+
 	override render(): unknown {
 		const { icon, modifier } = getAutolinkIcon(this.type, this.status, this.isDraft);
 
-		return html`<gl-popover hoist>
+		return html`<gl-popover hoist trigger="hover focus click">
 			<gl-action-chip
 				exportparts="icon"
 				slot="anchor"
@@ -95,6 +108,9 @@ export class GlAutolinkChip extends LitElement {
 					?isDraft=${this.isDraft}
 					.reviewDecision=${this.reviewDecision}
 					?details=${this.details}
+					?openOnRemote=${this.openOnRemote}
+					.itemId=${this.itemId}
+					.providerId=${this.providerId}
 				></issue-pull-request>
 			</div>
 		</gl-popover>`;

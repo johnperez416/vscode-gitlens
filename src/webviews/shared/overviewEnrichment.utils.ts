@@ -90,6 +90,7 @@ export async function getBranchMergeTargetStatusInfo(
 	container: Container,
 	branch: GitBranch,
 	cancellation?: AbortSignal,
+	associatedPullRequest?: Promise<PullRequest | undefined>,
 ): Promise<OverviewBranchMergeTarget | undefined> {
 	// Forward cancellation and bound the PR-based merge-target lookup. Without these the
 	// integration call (e.g. GitHub PR fetch) can take seconds-to-indefinite when slow,
@@ -97,7 +98,7 @@ export async function getBranchMergeTargetStatusInfo(
 	// On timeout, getBranchMergeTargetInfo's paused result is ignored below and we fall through
 	// to baseBranch/defaultBranch — a usable answer instead of a stuck spinner.
 	const info = await getBranchMergeTargetInfo(container, branch, {
-		associatedPullRequest: getBranchAssociatedPullRequest(container, branch),
+		associatedPullRequest: associatedPullRequest ?? getBranchAssociatedPullRequest(container, branch),
 		cancellation: cancellation,
 		timeout: 5000,
 	});
@@ -205,6 +206,10 @@ export async function getPullRequestInfo(
 		state: pr.state,
 		title: pr.title,
 		draft: pr.isDraft,
+		authorName: pr.author?.name,
+		updatedDate: pr.updatedDate?.getTime(),
+		reviewDecision: pr.reviewDecision,
+		providerId: pr.provider.id,
 		launchpad: getLaunchpadItemInfo(container, pr, launchpadPromise),
 	};
 }
@@ -426,7 +431,7 @@ export async function getOverviewEnrichment(
 			// recent-branch cards can show merged status. Callers that defer this work to hover-time
 			// (graph overview cards) opt out via `skipMergeTarget`.
 			if (!skipMergeTarget) {
-				promises.mergeTarget = getBranchMergeTargetStatusInfo(container, branch, signal);
+				promises.mergeTarget = getBranchMergeTargetStatusInfo(container, branch, signal, associatedPR);
 			}
 		}
 

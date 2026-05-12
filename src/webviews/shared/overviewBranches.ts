@@ -138,6 +138,15 @@ export interface OverviewBranchPullRequest {
 	state: string;
 	url: string;
 	draft?: boolean;
+	/** Author display name — for rich popover/tooltip content. */
+	authorName?: string;
+	/** Last-updated timestamp (ms) — for rich popover/tooltip content. */
+	updatedDate?: number;
+	/** Reviewer decision ('Approved' | 'ChangesRequested' | 'ReviewRequired') — for rich popover. */
+	reviewDecision?: string;
+	/** Provider id (e.g. 'github') — lets the host resolve the PR by id without relying on the
+	 *  repo's current-branch fallback. */
+	providerId?: string;
 	launchpad?: Promise<OverviewBranchLaunchpadItem | undefined>;
 }
 
