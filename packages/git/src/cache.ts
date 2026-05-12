@@ -20,7 +20,7 @@ import type { ParsedGitDiffHunks } from './models/diff.js';
 import type { GitLog } from './models/log.js';
 import type { ConflictDetectionResult } from './models/mergeConflicts.js';
 import type { GitPausedOperationStatus } from './models/pausedOperationStatus.js';
-import type { GitBranchReference } from './models/reference.js';
+import type { GitBranchReference, GitRefTip, RefRecord } from './models/reference.js';
 import type { GitRemote } from './models/remote.js';
 import type { RemoteProvider } from './models/remoteProvider.js';
 import type { GitDir, RepositoryChange } from './models/repository.js';
@@ -117,6 +117,8 @@ interface SharedCaches {
 	gkConfigPatterns: RepoPromiseCacheMap<string, Map<string, string>> | undefined;
 	initialCommitSha: PromiseMap<RepoPath, string | undefined> | undefined;
 	logShas: RepoPromiseCacheMap<string, string[]> | undefined;
+	refs: PromiseMap<RepoPath, RefRecord[]> | undefined;
+	refTips: PromiseMap<RepoPath, GitRefTip[]> | undefined;
 	remotes: PromiseMap<RepoPath, GitRemote[]> | undefined;
 	sharedBranches: PromiseMap<RepoPath, PagedResult<GitBranch>> | undefined;
 	stashes: RepoPromiseCacheMap<string, GitStash> | undefined;
@@ -145,6 +147,8 @@ const sharedCacheKeys: ReadonlySet<keyof AllCaches> = new Set(
 		'gkConfigPatterns',
 		'initialCommitSha',
 		'logShas',
+		'refs',
+		'refTips',
 		'remotes',
 		'sharedBranches',
 		'stashes',
@@ -188,6 +192,8 @@ function createEmptyCaches(): AllCaches {
 		pausedOperationStatus: undefined,
 		resolvedRevisions: undefined,
 		reachability: undefined,
+		refs: undefined,
+		refTips: undefined,
 		remotes: undefined,
 		sharedBranches: undefined,
 		stashes: undefined,
@@ -406,6 +412,14 @@ export class Cache implements Disposable {
 		}));
 	}
 
+	get refs(): PromiseMap<RepoPath, RefRecord[]> {
+		return (this._caches.refs ??= new PromiseMap<RepoPath, RefRecord[]>());
+	}
+
+	get refTips(): PromiseMap<RepoPath, GitRefTip[]> {
+		return (this._caches.refTips ??= new PromiseMap<RepoPath, GitRefTip[]>());
+	}
+
 	get reachability(): RepoPromiseCacheMap<string, GitCommitReachability | undefined> {
 		return (this._caches.reachability ??= new RepoPromiseCacheMap<string, GitCommitReachability | undefined>({
 			accessTTL: 1000 * 60 * 60, // 60 minutes
@@ -503,6 +517,8 @@ export class Cache implements Disposable {
 				keysToClear.add('defaultBranchName');
 				keysToClear.add('initialCommitSha');
 				keysToClear.add('logShas');
+				keysToClear.add('refs');
+				keysToClear.add('refTips');
 			}
 
 			if (types.includes('config')) {
@@ -559,6 +575,8 @@ export class Cache implements Disposable {
 			}
 			if (types.includes('tags')) {
 				keysToClear.add('tags');
+				keysToClear.add('refs');
+				keysToClear.add('refTips');
 			}
 
 			if (types.includes('tracking')) {
@@ -1126,6 +1144,42 @@ export class Cache implements Disposable {
 		factory: (commonPath: string) => PromiseOrValue<number | undefined>,
 	): Promise<number | undefined> {
 		return this.getSharedSimple(this.lastFetched, repoPath, factory);
+	}
+
+	getRefs(
+		repoPath: string,
+		factory: (
+			commonPath: string,
+			cacheable: CacheController,
+			cancellation?: AbortSignal,
+		) => PromiseOrValue<RefRecord[]>,
+		cancellation?: AbortSignal,
+	): Promise<RefRecord[]> {
+		// Raw ref records are repoPath-agnostic (no per-worktree binding to remap), so we key only
+		// by commonPath and skip the per-worktree mapper that `getBranches`/`getTags` need.
+		const commonPath = this.getCommonPath(repoPath);
+		return this.refs.getOrCreate(
+			commonPath,
+			(cacheable, signal) => Promise.resolve(factory(commonPath, cacheable, signal)),
+			cancellation,
+		);
+	}
+
+	getRefTips(
+		repoPath: string,
+		factory: (
+			commonPath: string,
+			cacheable: CacheController,
+			cancellation?: AbortSignal,
+		) => PromiseOrValue<GitRefTip[]>,
+		cancellation?: AbortSignal,
+	): Promise<GitRefTip[]> {
+		const commonPath = this.getCommonPath(repoPath);
+		return this.refTips.getOrCreate(
+			commonPath,
+			(cacheable, signal) => Promise.resolve(factory(commonPath, cacheable, signal)),
+			cancellation,
+		);
 	}
 
 	async getRemotes(

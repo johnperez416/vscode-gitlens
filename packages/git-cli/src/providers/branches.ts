@@ -42,7 +42,6 @@ import type { GitResult } from '../exec/exec.types.js';
 import type { Git } from '../exec/git.js';
 import { getGitCommandError, gitConfigsBranch, gitConfigsLog, GitError, GitErrors, GitWarnings } from '../exec/git.js';
 import { parseMergeTreeConflict } from '../parsers/mergeTreeParser.js';
-import { getBranchParser } from '../parsers/refParser.js';
 
 /** Minimum time between writes to the config for last accessed/modified dates */
 const dateMetadataStaleThresholdMs = 5 * 60 * 1000; // 5 minutes
@@ -169,27 +168,22 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			// own cancellation when bypassing the cache (e.g. paging-cursor path).
 			signal ??= cancellation;
 			try {
-				const supported = await this.git.supported('git:for-each-ref');
-				const parser = getBranchParser(supported);
+				const [recordsResult, supportedResult, defaultWorktreePathResult, metadataMapResult] =
+					await Promise.allSettled([
+						this.provider.refs.getRefs(commonPath, signal),
+						this.git.supported('git:for-each-ref'),
+						this.provider.config.getDefaultWorktreePath?.(commonPath),
+						this.getBranchMetadataMap(commonPath),
+					]);
 
-				const [gitResult, defaultWorktreePathResult, metadataMapResult] = await Promise.allSettled([
-					this.git.run(
-						{ cwd: commonPath, cancellation: signal },
-						'for-each-ref',
-						...parser.arguments,
-						'refs/heads/',
-						'refs/remotes/',
-					),
-					this.provider.config.getDefaultWorktreePath?.(commonPath),
-					this.getBranchMetadataMap(commonPath),
-				]);
-
-				const result = getSettledValue(gitResult);
+				const records = getSettledValue(recordsResult) ?? [];
+				const supported = getSettledValue(supportedResult) ?? [];
 				const metadataMap = getSettledValue(metadataMapResult) ?? new Map<string, BranchMetadata>();
 				const defaultWorktreePath = getSettledValue(defaultWorktreePathResult);
+				const worktreePathSupported = supported.includes('git:for-each-ref:worktreePath');
 
 				// If we don't get any data, assume the repo doesn't have any commits yet so check if we have a current branch
-				if (!result?.stdout) {
+				if (!records.length) {
 					const current = await this.getCurrentBranch(
 						commonPath,
 						metadataMap,
@@ -203,25 +197,28 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 
 				const branches: GitBranch[] = [];
 
-				for (const entry of parser.parse(result.stdout)) {
+				for (const record of records) {
+					const fullName = record.name;
+					// Filter to branches and remote-tracking branches; skip tags from the unified records.
+					if (!fullName.startsWith('refs/heads/') && !fullName.startsWith('refs/remotes/')) continue;
 					// Skip HEAD refs in remote branches
-					if (isRemoteHEAD(entry.name)) continue;
+					if (isRemoteHEAD(fullName)) continue;
 
-					const upstream = parseUpstream(entry.upstream, entry.upstreamTracking);
+					const upstream = parseUpstream(record.upstream, record.upstreamTracking);
 
-					const metadata = metadataMap.get(parseRefName(entry.name).name);
-					const worktreePath = entry.worktreePath ? normalizePath(entry.worktreePath) : undefined;
+					const metadata = metadataMap.get(parseRefName(fullName).name);
+					const worktreePath = record.worktreePath ? normalizePath(record.worktreePath) : undefined;
 
 					branches.push(
 						new GitBranch(
 							commonPath,
-							entry.name,
+							fullName,
 							false, // Don't trust %(HEAD) for current as it's per-worktree -- we will set it later
-							entry.date ? new Date(entry.date) : undefined,
+							record.committerDate ? new Date(record.committerDate) : undefined,
 							metadata,
-							entry.sha,
+							record.objectname,
 							upstream,
-							supported.includes('git:for-each-ref:worktreePath')
+							worktreePathSupported
 								? worktreePath
 									? { path: worktreePath, isDefault: worktreePath === defaultWorktreePath }
 									: false

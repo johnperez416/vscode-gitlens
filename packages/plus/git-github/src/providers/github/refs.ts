@@ -1,7 +1,7 @@
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
-import type { GitReference } from '@gitlens/git/models/reference.js';
+import type { GitReference, GitRefTip } from '@gitlens/git/models/reference.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import type { GitTag } from '@gitlens/git/models/tag.js';
 import type { GitRefsSubProvider } from '@gitlens/git/providers/refs.js';
@@ -89,6 +89,30 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 		}
 
 		return createReference(ref, repoPath, { refType: 'revision' });
+	}
+
+	@debug()
+	getRefTips(
+		_repoPath: string,
+		_options?: { include?: ReadonlyArray<'heads' | 'remotes' | 'tags'> },
+		_cancellation?: AbortSignal,
+	): Promise<GitRefTip[]> {
+		// Not implemented for GitHub virtual repos — current consumers (timeline slice-by-branch)
+		// gate this off via `!repo.virtual`. A future implementation can use GraphQL `refs` /
+		// `commit.associatedRefs`.
+		return Promise.resolve([]);
+	}
+
+	@debug()
+	getRefsContainingShas(
+		_repoPath: string,
+		_shas: ReadonlySet<string> | readonly string[],
+		_oldestSha: string,
+		_options?: { include?: ReadonlyArray<'heads' | 'remotes' | 'tags'> },
+		_cancellation?: AbortSignal,
+	): Promise<Map<string, GitRefTip[]>> {
+		// See `getRefTips` — gated off for virtual repos until GraphQL `commit.associatedRefs` lands.
+		return Promise.resolve(new Map<string, GitRefTip[]>());
 	}
 
 	@debug()

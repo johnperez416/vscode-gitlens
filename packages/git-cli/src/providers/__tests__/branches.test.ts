@@ -34,16 +34,28 @@ suite('BranchesGitSubProvider Test Suite', () => {
 			run(..._args: any[]) {
 				return Promise.resolve(createGitResult(''));
 			}
+			async *stream(..._args: any[]): AsyncGenerator<string> {
+				// Default: empty stream. Tests override with `.callsFake(...)`.
+			}
 		}
 
 		gitStub = sandbox.createStubInstance(MockGit) as unknown as sinon.SinonStubbedInstance<Git>;
 
 		const context = {} as unknown as GitServiceContext;
-		// Mock cache with conflictDetection that bypasses caching and calls the factory directly
+		// Mock cache with caches that bypass and call the factory directly
 		const cache = {
 			conflictDetection: {
 				getOrCreate: (_repoPath: string, _key: string, factory: () => Promise<unknown>) => factory(),
 			},
+			getRefs: (
+				repoPath: string,
+				factory: (
+					commonPath: string,
+					cacheable: { invalidate: () => void },
+					cancellation?: AbortSignal,
+				) => Promise<unknown>,
+				cancellation?: AbortSignal,
+			) => factory(repoPath, { invalidate: () => {} }, cancellation),
 		} as unknown as Cache;
 		const provider = {} as unknown as CliGitProviderInternal;
 
