@@ -172,6 +172,7 @@ import { showComparisonPicker } from '../../../quickpicks/comparisonPicker.js';
 import { showContributorsPicker } from '../../../quickpicks/contributorsPicker.js';
 import { showReferencePicker2 } from '../../../quickpicks/referencePicker.js';
 import { getRepositoryPickerTitleAndPlaceholder, showRepositoryPicker } from '../../../quickpicks/repositoryPicker.js';
+import { showRevisionFilesPicker } from '../../../quickpicks/revisionFilesPicker.js';
 import { fromAbortSignal, toAbortSignal } from '../../../system/-webview/cancellation.js';
 import {
 	executeActionCommand,
@@ -217,7 +218,9 @@ import type { WebviewPanelShowCommandArgs, WebviewShowOptions } from '../../webv
 import { isSerializedState } from '../../webviewsController.js';
 import type { ComposerCommandArgs } from '../composer/registration.js';
 import * as branchRefCommands from '../shared/branchRefCommands.js';
+import type { ChoosePathParams, DidChoosePathParams } from '../timeline/protocol.js';
 import type { TimelineCommandArgs } from '../timeline/registration.js';
+import { buildTimelineDataset } from '../timeline/timelineDataset.js';
 import type { GraphComposeIntegration } from './compose/integration.js';
 import {
 	checkForAbandonedComposeStashes,
@@ -1550,7 +1553,49 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				onSidebarInvalidated: this._sidebarInvalidatedEvent.subscribe(buffer, tracker),
 				onWorktreeStateChanged: this._sidebarWorktreeEvent.subscribe(buffer, tracker),
 			},
+			graphTimeline: {
+				getDataset: async (scope, config, signal) => {
+					const result = await buildTimelineDataset(this.container, scope, config, signal);
+					return {
+						dataset: result.dataset,
+						scope: result.scope,
+						repository: result.repository,
+						access: result.access,
+					};
+				},
+				getShasForPath: async (repoPath, path, signal) => {
+					const repo = this.container.git.getRepository(repoPath);
+					if (repo == null) return [];
+					const shas = await repo.git.commits.getLogShas?.(
+						undefined,
+						{ all: true, pathOrUri: path, limit: 0 },
+						signal,
+					);
+					if (signal?.aborted) return [];
+					return shas != null ? [...shas] : [];
+				},
+				choosePath: params => this.onTimelineChoosePath(params),
+			},
 		} satisfies GraphServices);
+	}
+
+	private async onTimelineChoosePath(params: ChoosePathParams): Promise<DidChoosePathParams> {
+		const { repoUri: repoPath, ref, title, initialPath } = params;
+		const repo = this.container.git.getRepository(repoPath);
+		if (repo == null) return { picked: undefined };
+
+		const picked = await showRevisionFilesPicker(this.container, createReference(ref?.ref ?? 'HEAD', repo.path), {
+			allowFolders: true,
+			initialPath: initialPath,
+			title: title,
+		});
+
+		return {
+			picked:
+				picked != null
+					? { type: picked.type, relativePath: this.container.git.getRelativePath(picked.uri, repo.uri) }
+					: undefined,
+		};
 	}
 
 	private async getCoreCommitDetails(commit: GitCommit): Promise<CommitDetails> {
@@ -1768,6 +1813,18 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							'gitlens.showGraphPage',
 							undefined,
 							this.repository,
+						),
+				),
+				// Opens the standalone Visual History editor at the current repo from the in-graph
+				// timeline mode's "Open in Editor" toolbox button. Plain `registerCommand` (not the
+				// webview-context-aware decorator path) because the button click has no row context
+				// to provide.
+				registerCommand(
+					`${this.host.id}.openTimelineInTab`,
+					() =>
+						void executeCommand<TimelineCommandArgs | undefined>(
+							'gitlens.visualizeHistory',
+							this.repository != null ? { type: 'repo', uri: this.repository.uri } : undefined,
 						),
 				),
 			);
@@ -3261,7 +3318,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			return;
 		}
 
-		await this.updateGraphWithMoreRows(this._graph, params.id, this._search);
+		await this.updateGraphWithMoreRows(this._graph, params.id, this._search, params.limit);
 		void this.notifyDidChangeRows(sendSelectedRows);
 	}
 
@@ -5272,7 +5329,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const useNaturalLanguageSearch = this.container.storage.get('graph:useNaturalLanguageSearch', true);
 		const featurePreview = this.getFeaturePreview();
 
-		const storedPanels = this.container.storage.getWorkspace('graph:state')?.panels;
+		const storedGraphState = this.container.storage.getWorkspace('graph:state');
+		const storedPanels = storedGraphState?.panels;
 
 		// Resolve working tree stats outside the state literal so we can update the dedup cache
 		// only when the underlying fetch produced real data. If it returned undefined (cancelled/
@@ -5349,6 +5407,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			sidebarPosition: storedPanels?.sidebar?.position,
 			minimapVisible: storedPanels?.minimap?.visible ?? true,
 			minimapPosition: storedPanels?.minimap?.position,
+			timelinePeriod: storedGraphState?.timeline?.period,
+			timelineSliceBy: storedGraphState?.timeline?.sliceBy,
+			timelineShowAllBranches: storedGraphState?.timeline?.showAllBranches,
 		};
 		return result;
 	}
@@ -5683,7 +5744,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				search?: GitGraphSearch;
 		  }
 		| undefined;
-	private async updateGraphWithMoreRows(graph: GitGraph, id: string | undefined, search?: GitGraphSearch) {
+	private async updateGraphWithMoreRows(
+		graph: GitGraph,
+		id: string | undefined,
+		search?: GitGraphSearch,
+		limitOverride?: number,
+	) {
 		if (this._pendingRowsQuery != null) {
 			const { id: pendingId, search: pendingSearch } = this._pendingRowsQuery;
 			if (pendingSearch === search && (pendingId === id || (pendingId != null && id == null))) {
@@ -5701,11 +5767,13 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const cancellation = cancellable.token;
 
 		this._pendingRowsQuery = {
-			promise: this.updateGraphWithMoreRowsCore(graph, id, search, cancellation).catch((ex: unknown) => {
-				if (cancellation.isCancellationRequested) return;
+			promise: this.updateGraphWithMoreRowsCore(graph, id, search, cancellation, limitOverride).catch(
+				(ex: unknown) => {
+					if (cancellation.isCancellationRequested) return;
 
-				throw ex;
-			}),
+					throw ex;
+				},
+			),
 			cancellable: cancellable,
 			id: id,
 			search: search,
@@ -5731,10 +5799,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		id: string | undefined,
 		search?: GitGraphSearch,
 		cancellation?: CancellationToken,
+		limitOverride?: number,
 	) {
 		const { defaultItemLimit, pageItemLimit } = configuration.get('graph');
 
-		let limit = pageItemLimit ?? defaultItemLimit;
+		let limit = limitOverride ?? pageItemLimit ?? defaultItemLimit;
 		let targetId = id;
 
 		// Determine the last search result (for auto-loading more search results)

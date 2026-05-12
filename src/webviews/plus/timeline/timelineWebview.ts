@@ -3,25 +3,15 @@ import { Disposable, EventEmitter, Uri, ViewColumn, window } from 'vscode';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import type { GitFileChange } from '@gitlens/git/models/fileChange.js';
 import { uncommitted } from '@gitlens/git/models/revision.js';
-import { getChangedFilesCount } from '@gitlens/git/utils/commit.utils.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
-import {
-	createRevisionRange,
-	isUncommitted,
-	isUncommittedStaged,
-	shortenRevision,
-} from '@gitlens/git/utils/revision.utils.js';
+import { isUncommitted, isUncommittedStaged, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { getScopedCounter } from '@gitlens/utils/counter.js';
-import { createFromDateDelta } from '@gitlens/utils/date.js';
 import { debounce } from '@gitlens/utils/debounce.js';
 import { trace } from '@gitlens/utils/decorators/log.js';
-import { map } from '@gitlens/utils/iterable.js';
 import { flatten } from '@gitlens/utils/object.js';
 import { basename } from '@gitlens/utils/path.js';
-import { batch, getSettledValue } from '@gitlens/utils/promise.js';
 import { SubscriptionManager } from '@gitlens/utils/subscriptionManager.js';
 import { areUrisEqual } from '@gitlens/utils/uri.js';
-import { getAvatarUri, getCachedAvatarUri } from '../../../avatars.js';
 import { proBadge } from '../../../constants.js';
 import type {
 	TimelineShownTelemetryContext,
@@ -30,7 +20,6 @@ import type {
 } from '../../../constants.telemetry.js';
 import type { Container } from '../../../container.js';
 import type { FileSelectedEvent } from '../../../eventBus.js';
-import type { FeatureAccess, RepoFeatureAccess } from '../../../features.js';
 import {
 	openChanges,
 	openChangesWithWorking,
@@ -39,10 +28,7 @@ import {
 } from '../../../git/actions/commit.js';
 import { ensureWorkingUri } from '../../../git/gitUri.utils.js';
 import type { GlRepository } from '../../../git/models/repository.js';
-import { getCommitDate } from '../../../git/utils/-webview/commit.utils.js';
 import { getReference } from '../../../git/utils/-webview/reference.utils.js';
-import { toRepositoryShape } from '../../../git/utils/-webview/repository.utils.js';
-import { getPseudoCommitsWithStats } from '../../../git/utils/-webview/statusFile.utils.js';
 import { Directive } from '../../../quickpicks/items/directive.js';
 import type { ReferencesQuickPickIncludes } from '../../../quickpicks/referencePicker.js';
 import { showReferencePicker2 } from '../../../quickpicks/referencePicker.js';
@@ -69,16 +55,14 @@ import type {
 	State,
 	TimelineConfig,
 	TimelineDatasetResult,
-	TimelineDatum,
 	TimelineInitialContext,
-	TimelinePeriod,
 	TimelineScope,
 	TimelineScopeSerialized,
-	TimelineScopeType,
 	TimelineServices,
 } from './protocol.js';
 import { DidChangeNotification } from './protocol.js';
 import type { TimelineWebviewShowingArgs } from './registration.js';
+import { buildTimelineDataset, buildWipDatums } from './timelineDataset.js';
 import {
 	areTimelineScopesEqual,
 	areTimelineScopesEquivalent,
@@ -312,6 +296,7 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 
 				// --- View-specific data ---
 				getDataset: (scope, config, signal) => this.getDatasetForRpc(scope, config, signal),
+				getWip: (scope, signal) => buildWipDatums(this.container, scope, signal),
 
 				// --- View-specific event (host-driven, requires VS Code API) ---
 				onScopeChanged: createRpcEventSubscription<ScopeChangedEvent | undefined>(
@@ -399,62 +384,26 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 		config: TimelineConfig,
 		signal?: AbortSignal,
 	): Promise<TimelineDatasetResult> {
-		const scope = deserializeTimelineScope(scopeSerialized);
+		const result = await buildTimelineDataset(this.container, scopeSerialized, config, signal);
 
-		const { git } = this.container;
-		if (git.isDiscoveringRepositories) {
-			await git.isDiscoveringRepositories;
+		// Side-effects layered on top of the shared dataset builder
+		const { repo, scopeRef: scope } = result;
+		if (repo != null && scope != null) {
+			const prevScope = this._currentScope;
+			this._currentScope = scope;
+			if (!areTimelineScopesEqual(scope, prevScope)) {
+				this.host.sendTelemetryEvent('timeline/scope/changed');
+			}
+
+			this.ensureRepoWatching(repo);
+			this.updateViewTitle(scope, repo);
 		}
-		signal?.throwIfAborted();
-
-		const repo = git.getRepository(scope.uri) ?? (await git.getOrOpenRepository(scope.uri, { closeOnOpen: true }));
-		if (repo == null) {
-			const access = await this.container.subscription.getSubscription();
-			return {
-				dataset: [],
-				scope: scopeSerialized,
-				repository: undefined,
-				access: { allowed: false, subscription: { current: access } },
-			};
-		}
-
-		// Reconstruct the correct scope URI from the repo URI + relativePath.
-		// The webview may have changed relativePath (via choosePath/changeScope) without
-		// updating the serialized URI, so we must rebuild it here.
-		if (scopeSerialized.relativePath && scope.type !== 'repo') {
-			scope.uri = Uri.joinPath(repo.uri, scopeSerialized.relativePath);
-		}
-
-		// Enrich scope: resolve type, head, base, relativePath
-		if (areUrisEqual(scope.uri, repo.uri)) {
-			scope.type = 'repo';
-		}
-		scope.head ??= getReference(await repo.git.branches.getBranch());
-		scope.base ??= scope.head;
-		const relativePath = git.getRelativePath(scope.uri, repo.uri);
-		const enrichedScope = serializeTimelineScope(scope as Required<TimelineScope>, relativePath);
-		signal?.throwIfAborted();
-
-		// Track scope for operational methods
-		const prevScope = this._currentScope;
-		this._currentScope = scope;
-		if (!areTimelineScopesEqual(scope, prevScope)) {
-			this.host.sendTelemetryEvent('timeline/scope/changed');
-		}
-
-		// Side-effects
-		this.ensureRepoWatching(repo);
-		this.updateViewTitle(scope, repo);
-
-		const access = await git.access('timeline', repo.uri);
-		signal?.throwIfAborted();
-		const dataset = await this.computeDataset(scope, repo, config, access);
 
 		return {
-			dataset: dataset,
-			scope: enrichedScope,
-			repository: { ...toRepositoryShape(repo), ref: scope.head },
-			access: access,
+			dataset: result.dataset,
+			scope: result.scope,
+			repository: result.repository,
+			access: result.access,
 		};
 	}
 
@@ -720,130 +669,6 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 		}
 	}
 
-	private async computeDataset(
-		scope: TimelineScope,
-		repo: GlRepository,
-		config: TimelineConfig,
-		access: RepoFeatureAccess | FeatureAccess,
-	): Promise<TimelineDatum[]> {
-		if (access.allowed === false) {
-			return generateRandomTimelineDataset(scope.type);
-		}
-
-		let ref;
-		if (!config.showAllBranches) {
-			ref = scope.head?.ref;
-			if (ref) {
-				if (scope.base?.ref != null && scope.base?.ref !== ref) {
-					ref = createRevisionRange(ref, scope.base?.ref, '..');
-				}
-			} else {
-				ref = scope.base?.ref;
-			}
-		}
-
-		const [contributorsResult, statusFilesResult, currentUserResult] = await Promise.allSettled([
-			repo.git.contributors.getContributors(ref, {
-				all: config.showAllBranches,
-				pathspec: scope.type === 'repo' ? undefined : scope.uri.fsPath,
-				since: getPeriodDate(config.period)?.toISOString(),
-				stats: true,
-			}),
-			repo.virtual
-				? undefined
-				: scope.type !== 'repo'
-					? repo.git.status.getStatusForPath?.(scope.uri, { renames: scope.type === 'file' })
-					: repo.git.status.getStatus().then(s => s?.files),
-			repo.git.config.getCurrentUser(),
-		]);
-
-		const currentUser = getSettledValue(currentUserResult);
-
-		const dataset: TimelineDatum[] = [];
-
-		const result = getSettledValue(contributorsResult);
-		if (result != null) {
-			for (const contributor of result.contributors) {
-				if (contributor.contributions == null) continue;
-
-				// Pre-resolve the avatar URI per author once — gravatar lookup is an md5 hash of the
-				// email; binding it once per contributor avoids re-hashing per commit.
-				const email = contributor.email;
-				const avatarUri = email != null ? (getCachedAvatarUri(email) ?? getAvatarUri(email)) : undefined;
-				const avatarUrl = avatarUri instanceof Uri ? avatarUri.toString() : undefined;
-
-				for (const contribution of contributor.contributions) {
-					dataset.push({
-						author: contributor.name,
-						current: contributor.current || undefined,
-						email: email,
-						avatarUrl: avatarUrl,
-						sha: contribution.sha,
-						date: contribution.date.toISOString(),
-						message: contribution.message,
-
-						files: contribution.files,
-						additions: contribution.additions,
-						deletions: contribution.deletions,
-
-						sort: contribution.date.getTime(),
-					});
-				}
-			}
-		}
-
-		if (config.showAllBranches && config.sliceBy === 'branch' && scope.type !== 'repo' && !repo.virtual) {
-			const shas = new Set<string>(
-				await repo.git.commits.getLogShas?.(`^${scope.head?.ref ?? 'HEAD'}`, {
-					all: true,
-					pathOrUri: scope.uri,
-					limit: 0,
-				}),
-			);
-
-			const commitsUnreachableFromHEAD = dataset.filter(d => shas.has(d.sha));
-			await batch(
-				commitsUnreachableFromHEAD,
-				10, // Process 10 commits at a time
-				async datum => {
-					datum.branches = await repo.git.branches.getBranchesWithCommits([datum.sha], undefined, {
-						all: true,
-						mode: 'contains',
-					});
-				},
-			);
-		}
-
-		const statusFiles = getSettledValue(statusFilesResult);
-		const relativePath = this.container.git.getRelativePath(scope.uri, repo.uri);
-
-		const pseudoCommits = await getPseudoCommitsWithStats(this.container, statusFiles, relativePath, currentUser);
-		if (pseudoCommits?.length) {
-			dataset.splice(0, 0, ...map(pseudoCommits, c => createDatum(c, scope.type)));
-		} else if (dataset.length) {
-			// Attribute the no-changes Working Tree placeholder to the current Git user — these
-			// are the user's *potential* working changes, even when there aren't any. Using
-			// `dataset[0]` here picked an arbitrary recent committer, which mislabeled the empty
-			// placeholder as "+0 lines by Keith Daulton" or whoever happened to commit last.
-			dataset.splice(0, 0, {
-				author: currentUser?.name ?? dataset[0].author,
-				current: currentUser != null || undefined,
-				email: currentUser?.email,
-				files: 0,
-				additions: 0,
-				deletions: 0,
-				sha: '', // Special case for working tree when there are no working changes
-				date: new Date().toISOString(),
-				message: 'Working Tree',
-				sort: Date.now(),
-			} satisfies TimelineDatum);
-		}
-
-		dataset.sort((a, b) => b.sort - a.sort);
-
-		return dataset;
-	}
-
 	private getOpenEditorShowOptions(): (TextDocumentShowOptions & { sourceViewColumn?: ViewColumn }) | undefined {
 		if (this.host.is('view')) return undefined;
 
@@ -960,109 +785,4 @@ export class TimelineWebviewProvider implements WebviewProvider<State, State, Ti
 				break;
 		}
 	}
-}
-
-function createDatum(commit: GitCommit, scopeType: TimelineScopeType): TimelineDatum {
-	let additions: number | undefined;
-	let deletions: number | undefined;
-	let files: number | undefined;
-
-	const stats = getCommitStats(commit, scopeType);
-	if (stats != null) {
-		({ additions, deletions } = stats);
-	}
-	if (scopeType === 'file') {
-		files = undefined;
-	} else if (commit.stats != null) {
-		files = getChangedFilesCount(commit.stats.files);
-	}
-
-	const email = commit.author.email;
-	// Prefer the cached avatar URI so we don't pay a remote-provider lookup per commit; the cached
-	// path returns synchronously and the webview falls back to initials if avatarUrl is missing.
-	const avatarUri = email != null ? (getCachedAvatarUri(email) ?? getAvatarUri(email)) : undefined;
-
-	return {
-		author: commit.author.name,
-		current: commit.author.current || undefined,
-		email: email,
-		avatarUrl: avatarUri instanceof Uri ? avatarUri.toString() : undefined,
-		files: files,
-		additions: additions,
-		deletions: deletions,
-		sha: commit.sha,
-		date: getCommitDate(commit).toISOString(),
-		message: commit.message ?? commit.summary,
-		sort: getCommitDate(commit).getTime(),
-	};
-}
-
-function getCommitStats(
-	commit: GitCommit,
-	scopeType: TimelineScopeType,
-): { additions: number; deletions: number } | undefined {
-	if (scopeType === 'file') {
-		return commit.file?.stats ?? (getChangedFilesCount(commit.stats?.files) === 1 ? commit.stats : undefined);
-	}
-	return commit.stats;
-}
-
-function getPeriodDate(period: TimelinePeriod): Date | undefined {
-	if (period === 'all') return undefined;
-
-	const [number, unit] = period.split('|');
-
-	let date;
-	switch (unit) {
-		case 'D':
-			date = createFromDateDelta(new Date(), { days: -parseInt(number, 10) });
-			break;
-		case 'M':
-			date = createFromDateDelta(new Date(), { months: -parseInt(number, 10) });
-			break;
-		case 'Y':
-			date = createFromDateDelta(new Date(), { years: -parseInt(number, 10) });
-			break;
-		default:
-			date = createFromDateDelta(new Date(), { months: -3 });
-			break;
-	}
-
-	// If we are more than 1/2 way through the day, then set the date to the next day
-	if (date.getHours() >= 12) {
-		date.setDate(date.getDate() + 1);
-	}
-	date.setHours(0, 0, 0, 0);
-	return date;
-}
-
-function generateRandomTimelineDataset(itemType: TimelineScopeType): TimelineDatum[] {
-	const dataset: TimelineDatum[] = [];
-	const authors = ['Eric Amodio', 'Justin Roberts', 'Keith Daulton', 'Ramin Tadayon', 'Ada Lovelace', 'Grace Hopper'];
-
-	const count = 10;
-	for (let i = 0; i < count; i++) {
-		// Generate a random date between now and 3 months ago
-		const date = new Date(Date.now() - Math.floor(Math.random() * (3 * 30 * 24 * 60 * 60 * 1000)));
-		const author = authors[Math.floor(Math.random() * authors.length)];
-
-		// Generate random additions/deletions between 1 and 20, but ensure we have a tiny and large commit
-		const additions = i === 0 ? 2 : i === count - 1 ? 50 : Math.floor(Math.random() * 20) + 1;
-		const deletions = i === 0 ? 1 : i === count - 1 ? 25 : Math.floor(Math.random() * 20) + 1;
-
-		dataset.push({
-			sha: Math.random().toString(16).substring(2, 10),
-			author: author,
-			date: date.toISOString(),
-			message: `Commit message for changes by ${author}`,
-
-			files: itemType === 'file' ? undefined : Math.floor(Math.random() * (additions + deletions)) + 1,
-			additions: additions,
-			deletions: deletions,
-
-			sort: date.getTime(),
-		});
-	}
-
-	return dataset.sort((a, b) => b.sort - a.sort);
 }

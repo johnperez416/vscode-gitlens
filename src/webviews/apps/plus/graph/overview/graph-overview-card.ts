@@ -709,8 +709,6 @@ export class GlGraphOverviewCard extends LitElement {
 
 		const promise = (async (): Promise<OverviewBranchMergeTarget | undefined> => {
 			try {
-				// `services.branches` is a supertalk Remote — `await` once to resolve the proxy,
-				// then invoke the method. Same shape detailsResolver uses (`detailsResolver.ts:39`).
 				const branches = await services.branches;
 				const enrichment = await branches.getBranchEnrichment(repoPath, branchName);
 				return await enrichment?.mergeTargetStatus;

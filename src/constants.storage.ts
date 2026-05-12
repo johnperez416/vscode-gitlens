@@ -12,7 +12,8 @@ import type { OrganizationSettings } from './plus/gk/models/organization.js';
 import type { PaidSubscriptionPlanIds, Subscription } from './plus/gk/models/subscription.js';
 import type { IntegrationConnectedKey } from './plus/integrations/models/integration.js';
 import type { DeepLinkServiceState } from './uris/deepLinks/deepLink.js';
-import type { GraphSidebarPanel } from './webviews/plus/graph/protocol.js';
+import type { GraphDisplayMode, GraphSidebarPanel } from './webviews/plus/graph/protocol.js';
+import type { TimelinePeriod, TimelineSliceBy } from './webviews/plus/timeline/protocol.js';
 
 export type SecretKeys =
 	| IntegrationAuthenticationKeys
@@ -374,6 +375,7 @@ export interface StoredGraphColumn {
 }
 
 export interface StoredGraphState {
+	displayMode?: GraphDisplayMode;
 	panels?: {
 		details?: {
 			visible?: boolean;
@@ -389,6 +391,11 @@ export interface StoredGraphState {
 			visible?: boolean;
 			position?: number;
 		};
+	};
+	timeline?: {
+		period?: TimelinePeriod;
+		sliceBy?: TimelineSliceBy;
+		showAllBranches?: boolean;
 	};
 }
 

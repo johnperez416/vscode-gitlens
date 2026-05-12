@@ -295,7 +295,6 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		// awaiting RPCs. Cheaper than AbortController plumbing for a small fan-out.
 		const token = ++this._selectionRecomputeToken;
 
-		// `services.<sub>` from the supertalk Remote<> is itself a Promise — resolve once.
 		const repository = await services.repository;
 		if (token !== this._selectionRecomputeToken) return;
 

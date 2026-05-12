@@ -12,7 +12,10 @@ const day = (offset: number, overrides: Partial<TimelineDatum> = {}): TimelineDa
 	additions: overrides.additions,
 	deletions: overrides.deletions,
 	branches: overrides.branches,
-	sort: offset,
+	// Mirror what production producers do — `sort` is the parsed ms timestamp, same value as
+	// `date`. `expandRows` reads `commit.sort` directly to avoid per-row Date parsing, so the
+	// helper must produce a real ms value (not a small ordering integer) or day-binning collapses.
+	sort: Date.UTC(2026, 0, 1 + offset),
 });
 
 suite('timelineData Test Suite', () => {
@@ -96,6 +99,25 @@ suite('timelineData Test Suite', () => {
 			// must shrink accordingly even when the change magnitude is large.
 			const tight = bubbleRadius(900, 0, metrics, 3, 12);
 			assert.ok(tight <= 12, `expected ≤ 12, got ${tight}`);
+		});
+
+		test('uses magnitudeAnchorLines floor when p99 is small (sparse datasets)', () => {
+			// Regression: with 3 commits sized [50, 100, 200], p99 = sums[1] = 100 — small enough
+			// that without an anchor floor, log1p(200)/log1p(100) = 1.15 → clamped to 1.0 → max
+			// bubble for what's actually a 200-line commit. Anchor at 500 prevents the runaway.
+			const sparse: BubbleMetrics = { p99: 100, max: 200 };
+			const r = bubbleRadius(200, 0, sparse, 4, 50);
+			// log1p(200)/log1p(500) ≈ 5.30 / 6.22 ≈ 0.852 → 4 + (50-4) * 0.852 ≈ 43.2
+			assert.ok(r < 50, `expected anchor to keep r below max (50), got ${r}`);
+			assert.ok(r > 30, `expected anchor to keep r reasonably large (>30), got ${r}`);
+		});
+
+		test('p99 wins over anchor when dataset has substantial commits', () => {
+			// Dense dataset: p99 = 2000 > 500 anchor → behavior unchanged from pre-anchor.
+			// Verifies the anchor doesn't shrink bubbles in datasets where it shouldn't apply.
+			const dense: BubbleMetrics = { p99: 2000, max: 5000 };
+			const r2000 = bubbleRadius(2000, 0, dense, 4, 50);
+			assert.strictEqual(r2000, 50, `2000-line commit at p99 should hit max, got ${r2000}`);
 		});
 	});
 
@@ -239,6 +261,60 @@ suite('timelineData Test Suite', () => {
 			});
 			assert.strictEqual(vm.additions[0], 30);
 			assert.strictEqual(vm.deletions[0], 20);
+		});
+
+		test('binned timestamps are non-decreasing even when a bin rep gets reassigned to a later commit', () => {
+			// Two authors commit early in the same hour. Then Alice commits late in the same hour
+			// with a huge changeset — the bin (hour, Alice) reassigns its representative to the
+			// late commit. Now: bin (hour, Alice) has rep ts ≈ 0:55, bin (hour, Bob) has rep ts ≈
+			// 0:05. Both bins share the same `binStart`, so a naive sort by `binStart` keeps map
+			// insertion order — bin Alice was created first, so `vm.timestamps` ends up [0:55,
+			// 0:05]: non-monotonic. The canvas drawer's `visibleIndexRange()` does a binary
+			// search on `vm.timestamps`, so the wrong range is culled and Alice's bubble silently
+			// disappears even though `shaToIndex` still resolves correctly — the symptom the user
+			// reported was an empty selection ring with no underlying bubble.
+			const baseHour = Date.UTC(2026, 0, 1, 12, 0, 0);
+			const aliceSmallEarly: TimelineDatum = {
+				sha: 'alice-small',
+				author: 'Alice',
+				date: new Date(baseHour + 5 * 60 * 1000).toISOString(),
+				message: '',
+				files: undefined,
+				additions: 1,
+				deletions: 0,
+				sort: baseHour + 5 * 60 * 1000,
+			};
+			const bobSmall: TimelineDatum = {
+				sha: 'bob-small',
+				author: 'Bob',
+				date: new Date(baseHour + 8 * 60 * 1000).toISOString(),
+				message: '',
+				files: undefined,
+				additions: 1,
+				deletions: 0,
+				sort: baseHour + 8 * 60 * 1000,
+			};
+			const aliceHugeLate: TimelineDatum = {
+				sha: 'alice-huge',
+				author: 'Alice',
+				date: new Date(baseHour + 55 * 60 * 1000).toISOString(),
+				message: '',
+				files: undefined,
+				additions: 1000,
+				deletions: 0,
+				sort: baseHour + 55 * 60 * 1000,
+			};
+			const vm = buildViewModel({
+				dataset: [aliceSmallEarly, bobSmall, aliceHugeLate],
+				sliceBy: 'author',
+				binUnit: 'hour',
+			});
+			for (let i = 1; i < vm.timestamps.length; i++) {
+				assert.ok(
+					vm.timestamps[i] >= vm.timestamps[i - 1],
+					`timestamps must be non-decreasing for binary-search culling; got [${vm.timestamps[i - 1]}, ${vm.timestamps[i]}] at i=${i}`,
+				);
+			}
 		});
 	});
 

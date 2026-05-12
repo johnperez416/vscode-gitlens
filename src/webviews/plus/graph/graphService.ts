@@ -5,6 +5,13 @@ import type { GlCommands } from '../../../constants.commands.js';
 import type { ExplainResult } from '../../commitDetails/commitDetailsService.js';
 import type { SharedWebviewServices } from '../../rpc/services/common.js';
 import type { RpcEventSubscription } from '../../rpc/services/types.js';
+import type {
+	ChoosePathParams,
+	DidChoosePathParams,
+	TimelineConfig,
+	TimelineDatasetResult,
+	TimelineScopeSerialized,
+} from '../timeline/protocol.js';
 import type { CommitDetails, CommitFileChange, CompareDiff, Wip } from './detailsProtocol.js';
 import type { DidGetCountParams, DidGetSidebarDataParams, GraphSidebarPanel } from './protocol.js';
 
@@ -267,7 +274,33 @@ export interface GraphSidebarService {
 	onWorktreeStateChanged: RpcEventSubscription<{ changes: Record<string, boolean | undefined> }>;
 }
 
+export interface GraphTimelineService {
+	/**
+	 * Fetch the dataset for the Graph webview's Timeline display mode. Delegates to the same
+	 * shared `buildTimelineDataset` builder the standalone Visual History webview uses, so the
+	 * data is identical across surfaces.
+	 */
+	getDataset(
+		scope: TimelineScopeSerialized,
+		config: TimelineConfig,
+		signal?: AbortSignal,
+	): Promise<TimelineDatasetResult>;
+	/**
+	 * Return all SHAs (across branches) of commits that touched a given path. One
+	 * `git log --all --pretty=%H -- <path>` under the hood — way cheaper than `getDataset` for
+	 * the embedded Graph timeline, where the webview already has per-commit reachability and
+	 * stats from `graphState.rows` and only needs a SHA filter. Returns SHAs in
+	 * topological-newest-first order so callers don't need to re-sort.
+	 */
+	getShasForPath(repoPath: string, path: string, signal?: AbortSignal): Promise<readonly string[]>;
+	/** Show the file/folder revision picker; result is what the user chose (or `undefined` if
+	 *  they cancelled). The Graph timeline mode lets users scope the visualization to a path
+	 *  the same way the standalone Visual History does. */
+	choosePath(params: ChoosePathParams): Promise<DidChoosePathParams>;
+}
+
 export interface GraphServices extends SharedWebviewServices {
 	readonly graphInspect: GraphInspectService;
 	readonly sidebar: GraphSidebarService;
+	readonly graphTimeline: GraphTimelineService;
 }

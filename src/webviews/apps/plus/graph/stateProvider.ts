@@ -115,6 +115,18 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	accessor activeSidebarPanel: AppState['activeSidebarPanel'];
 
 	@signalState()
+	accessor displayMode: AppState['displayMode'];
+
+	@signalState()
+	accessor timelinePeriod: AppState['timelinePeriod'];
+
+	@signalState()
+	accessor timelineSliceBy: AppState['timelineSliceBy'];
+
+	@signalState()
+	accessor timelineShowAllBranches: AppState['timelineShowAllBranches'];
+
+	@signalState()
 	accessor detailsVisible: AppState['detailsVisible'];
 
 	@signalState()

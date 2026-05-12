@@ -102,6 +102,23 @@ export interface TimelineConfig {
 	period: TimelinePeriod;
 	showAllBranches: boolean;
 	sliceBy: TimelineSliceBy;
+	/**
+	 * Additional branch names to include in the contributor walk when `showAllBranches` is false.
+	 * Used by the embedded Graph timeline mode to mirror the Graph's `branchesVisibility` filter
+	 * (smart / favorited / current → a small list of refs). The host loops `getContributors` per ref
+	 * and dedupes commits by sha. Ignored when `showAllBranches` is true (the `--all` walk covers
+	 * everything).
+	 */
+	additionalBranches?: string[];
+	/**
+	 * When set, the host uses `since: now - loadedSpanMs` as the contributor walk cutoff INSTEAD
+	 * of the `period`-derived `since`. Used by the standalone Visual History for progressive
+	 * loading: initial fetch covers the period (windowSpanMs), and the chart's `gl-load-more`
+	 * event extends the span on demand as the user pans into older history. The embedded Graph
+	 * timeline builds its dataset from `graphState.rows` directly and never calls `getDataset`,
+	 * so it doesn't set this.
+	 */
+	loadedSpanMs?: number;
 }
 
 /** Scope change event from host (tab change, file selection). */
@@ -148,6 +165,13 @@ export interface TimelineViewService {
 		config: TimelineConfig,
 		signal?: AbortSignal,
 	): Promise<TimelineDatasetResult>;
+	/**
+	 * Get just the working-tree (WIP) pseudo-commit row(s) for a scope. Cheap focused fetch
+	 * driven by working-tree change events — lets the webview patch the dataset's leading WIP
+	 * row in place instead of re-running the full `getDataset` (which re-walks contributors and
+	 * runs the per-commit branch-discovery loop on every file save).
+	 */
+	getWip(scope: TimelineScopeSerialized, signal?: AbortSignal): Promise<TimelineDatum[]>;
 
 	// --- View-specific event (host-driven, requires VS Code API) ---
 	/** Fires when the active tab or selected file changes. */

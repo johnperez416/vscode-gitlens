@@ -54,6 +54,7 @@ import type {
 	GetOverviewWipResponse,
 	OverviewBranch,
 } from '../../shared/overviewBranches.js';
+import type { TimelinePeriod, TimelineSliceBy } from '../timeline/protocol.js';
 
 /** Prefix for synthetic row ids + shas that represent a secondary-worktree WIP row. */
 export const secondaryWipShaPrefix = 'worktree-wip::';
@@ -141,6 +142,9 @@ export const supportedRefMetadataTypes: GraphRefMetadataType[] = ['upstream', 'p
 
 export type GraphSidebarPanel = 'agents' | 'branches' | 'overview' | 'remotes' | 'stashes' | 'tags' | 'worktrees';
 
+/** Top-level rendering mode for the Graph webview. New modes (e.g. 'treemap') plug in here. */
+export type GraphDisplayMode = 'graph' | 'timeline';
+
 export interface GraphOverviewData {
 	active: OverviewBranch[];
 	recent: OverviewBranch[];
@@ -209,6 +213,7 @@ export interface State extends WebviewState<'gitlens.graph' | 'gitlens.views.gra
 	canInstallClaudeHook?: boolean;
 
 	// Persisted UI state (from `graph:state` workspace memento)
+	displayMode?: GraphDisplayMode;
 	detailsVisible?: boolean;
 	detailsPosition?: number;
 	detailsBottomPosition?: number;
@@ -217,6 +222,10 @@ export interface State extends WebviewState<'gitlens.graph' | 'gitlens.views.gra
 	sidebarPosition?: number;
 	minimapVisible?: boolean;
 	minimapPosition?: number;
+	// Persisted Timeline-mode chart options (when `displayMode === 'timeline'`).
+	timelinePeriod?: TimelinePeriod;
+	timelineSliceBy?: TimelineSliceBy;
+	timelineShowAllBranches?: boolean;
 
 	// Props below are computed in the webview (not passed)
 	activeDay?: number;
@@ -354,6 +363,12 @@ export const GetMissingRefsMetadataCommand = new IpcCommand<GetMissingRefsMetada
 
 export interface GetMoreRowsParams {
 	id?: string;
+	/** Override the host's configured page size (`gitlens.graph.pageItemLimit`) for this single
+	 *  request. Used by the embedded Visual History when the user picks `All time` so we burn
+	 *  through the repo's history in fewer, larger chunks instead of paying per-RPC overhead
+	 *  on the default 200-row page size. Falls back to the host's configured limit when
+	 *  unspecified. */
+	limit?: number;
 }
 export const GetMoreRowsCommand = new IpcCommand<GetMoreRowsParams>(scope, 'rows/get');
 

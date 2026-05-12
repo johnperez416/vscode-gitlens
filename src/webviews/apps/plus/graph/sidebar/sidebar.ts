@@ -5,11 +5,12 @@ import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
-import type { GraphSidebarPanel } from '../../../../plus/graph/protocol.js';
+import type { GraphDisplayMode, GraphSidebarPanel } from '../../../../plus/graph/protocol.js';
 import { emitTelemetrySentEvent } from '../../../shared/telemetry.js';
 import { graphStateContext } from '../context.js';
 import { sidebarActionsContext } from './sidebarContext.js';
 import type { SidebarActions } from './sidebarState.js';
+import '../../../shared/components/button.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/overlays/tooltip.js';
 
@@ -29,8 +30,20 @@ const icons: Icon[] = [
 	{ type: 'tags', icon: 'gl-tags-view', tooltip: 'Tags' },
 ];
 
+// Single Visualizations toggle — always shows the chart icon. Selected/unselected state (driven by
+// `aria-checked` on `<gl-button>`) telegraphs "Timeline mode is on" vs. off, so the icon stays
+// consistent and the user doesn't have to learn that the icon flips.
+const visualizationsTooltip: Record<GraphDisplayMode, string> = {
+	graph: 'Switch to Visual History',
+	timeline: 'Switch to Commit Graph',
+};
+
 export interface GraphSidebarToggleEventDetail {
 	panel: GraphSidebarPanel;
+}
+
+export interface GraphSidebarDisplayModeChangeEventDetail {
+	mode: GraphDisplayMode;
 }
 
 export type GraphSidebarTogglePinnedEventDetail = void;
@@ -137,6 +150,17 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		.mode-toggle {
 			padding: 0.6rem 0;
 		}
+
+		.item.dimmed {
+			opacity: 0.4;
+		}
+
+		/* Visualization toggle — uses <gl-button> for the checked/unchecked styling. Sits at the
+		   bottom of the rail just above the pin toggle; the parent's 1.4rem flex gap is enough
+		   to read it as its own group. */
+		.display-mode-toggle {
+			margin: 0 auto;
+		}
 	`;
 
 	get include(): undefined | IconTypes[] {
@@ -169,8 +193,10 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 	private _suppressTransition = true;
 
 	override render(): unknown {
+		const displayMode: GraphDisplayMode = this._state.displayMode ?? 'graph';
+		const isGraphMode = displayMode === 'graph';
 		return html`<section class="sidebar">
-			${this.sidebarVisible && this.activePanel != null
+			${isGraphMode && this.sidebarVisible && this.activePanel != null
 				? html`<div
 						class=${classMap({
 							indicator: true,
@@ -181,12 +207,49 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 			${repeat(
 				icons,
 				i => i.type,
-				i => this.renderIcon(i),
+				i => this.renderIcon(i, isGraphMode),
 			)}
 			<div class="spacer"></div>
-			${this.renderPinToggle()}
+			${this.renderVisualizationsToggle(displayMode)} ${this.renderPinToggle()}
 		</section>`;
 	}
+
+	private renderVisualizationsToggle(current: GraphDisplayMode) {
+		const tooltip = visualizationsTooltip[current];
+		const isTimeline = current === 'timeline';
+		// `gl-button` ships its own checked/unchecked state via `aria-checked`. Keeping the icon
+		// constant (always the chart icon) so the button's selected fill — not an icon swap — is
+		// what telegraphs "Timeline mode is on".
+		return html`<gl-button
+			class="display-mode-toggle"
+			appearance="toolbar"
+			role="switch"
+			aria-checked=${isTimeline ? 'true' : 'false'}
+			aria-label=${tooltip}
+			tooltip=${tooltip}
+			tooltipPlacement="right"
+			@click=${this.handleVisualizationsToggle}
+		>
+			<code-icon icon="graph-scatter"></code-icon>
+		</gl-button>`;
+	}
+
+	private handleVisualizationsToggle = (): void => {
+		const current = this._state.displayMode ?? 'graph';
+		const next: GraphDisplayMode = current === 'graph' ? 'timeline' : 'graph';
+		this.dispatchEvent(
+			new CustomEvent<GraphSidebarDisplayModeChangeEventDetail>('gl-graph-sidebar-display-mode-change', {
+				detail: { mode: next },
+				bubbles: true,
+				composed: true,
+			}),
+		);
+
+		emitTelemetrySentEvent<'graph/action/sidebar'>(this, {
+			name: 'graph/action/sidebar',
+			data: { action: `displayMode:${next}` },
+		});
+	};
 
 	private renderPinToggle() {
 		const tooltip = this.pinned ? 'Unpin Side Bar' : 'Pin Side Bar';
@@ -264,15 +327,21 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		indicator.style.setProperty('--indicator-height', `${targetRect.height}px`);
 	}
 
-	private renderIcon(icon: Icon) {
+	private renderIcon(icon: Icon, enabled: boolean) {
 		if (this.include != null && !this.include.includes(icon.type)) return;
 
-		const isActive = this.sidebarVisible && this.activePanel === icon.type;
+		const isActive = enabled && this.sidebarVisible && this.activePanel === icon.type;
 
 		return html`<gl-tooltip placement="right" content="${icon.tooltip}">
 			<button
-				class=${classMap({ item: true, active: isActive, overview: icon.type === 'overview' })}
+				class=${classMap({
+					item: true,
+					active: isActive,
+					overview: icon.type === 'overview',
+					dimmed: !enabled,
+				})}
 				@click=${() => this.handleIconClick(icon)}
+				?disabled=${!enabled}
 				aria-pressed=${isActive}
 			>
 				<code-icon icon="${icon.icon}"></code-icon>

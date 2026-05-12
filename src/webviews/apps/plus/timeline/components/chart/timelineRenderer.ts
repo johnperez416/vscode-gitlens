@@ -1,3 +1,4 @@
+import type { TimelineSliceBy } from '../../../../../plus/timeline/protocol.js';
 import type { TimelineViewModel } from './timelineData.js';
 
 // Bigger rows by default than the original V8 spec — the legacy chart's "lush" feel came from
@@ -36,7 +37,20 @@ export const railLeftOffsetPx = 8;
 // both the rail (occupying the swimlane vertical band) and the Y2 axis (occupying the volume
 // vertical band) within the same gutter column. Sized just past the avatar diameter (~28px) +
 // hover scale — any wider and the rail's right padding pushes the chart away from the avatars.
+// Used as the floor for `pickRailColumnWidth` and as the default when callers don't supply a
+// `gutterLeft` override.
 export const railColumnWidthPx = 36;
+// Upper bound for the rail column when sliceBy='branch' on a wide chart — sized for ~10-12 chars
+// of branch name plus the 24px icon and a comfortable inter-pill gap. Going wider eats into the
+// chart without revealing meaningfully more name (most branch names that don't fit by here also
+// don't fit by 200px).
+export const railColumnWidthMaxPx = 160;
+// Chart cssWidth at which `pickRailColumnWidth` starts ramping up from the floor in branch mode.
+// Below this we keep the icon-only rail because there isn't enough chart left over to justify
+// stealing pixels for partial branch names.
+const railWidthRampStartPx = 480;
+// Chart cssWidth at which the ramp tops out at `railColumnWidthMaxPx` for branch mode.
+const railWidthRampEndPx = 800;
 // Volume strip height adapts to the canvas height so a tall editor pane gets the full bar chart,
 // while a short panel collapses it to a thin strip and gives the swimlanes the breathing room.
 export const minVolumeHeightPx = 14;
@@ -104,8 +118,9 @@ export interface TimelineLayout {
 	axisStripTop: number;
 	axisStripBottom: number;
 
-	/** Volume bars rise upward from `volumeTop` (= X-axis baseline = `axisStripBottom`), so the
-	 * volume strip reads as the lower half of a shared chart rather than as a separate panel. */
+	/** Volume bars grow UPWARD from `volumeBottom` toward the X-axis baseline at `volumeTop`
+	 * (= `axisStripBottom`). Heavy commits' bars reach toward the X-axis and visually connect
+	 * to the bubbles above; small commits stay short near `volumeBottom`. */
 	volumeTop: number;
 	volumeBottom: number;
 
@@ -179,6 +194,10 @@ export interface TimelineDrawState {
 	brushRange?: { startX: number; endX: number };
 	scrollbarOpacity?: number;
 	loading?: boolean;
+	/** Directional "more history" indicators drawn into the axis strip when the dataset extends
+	 *  past the viewport on that side. Purely visual — no hit-testing or interaction. */
+	historyBefore?: boolean;
+	historyAfter?: boolean;
 }
 
 /**
@@ -203,6 +222,21 @@ export function pickMinRowHeight(cssHeight: number): number {
 	const t = span > 0 ? (cssHeight - compactRowHeightCanvasHeightPx) / span : 1;
 	const clamped = Math.max(0, Math.min(1, t));
 	return Math.round(compactRowHeightPx + clamped * (minRowHeight - compactRowHeightPx));
+}
+
+/**
+ * Rail column width for the current chart width and slice mode. Author mode is always
+ * `railColumnWidthPx` — avatars are 24px and any extra column is dead space. Branch mode ramps
+ * linearly from `railColumnWidthPx` at `railWidthRampStartPx` (and below) to `railColumnWidthMaxPx`
+ * at `railWidthRampEndPx` (and above) so partial branch names become visible without hover when
+ * there's enough chart width to justify the trade-off.
+ */
+export function pickRailColumnWidth(cssWidth: number, sliceBy: TimelineSliceBy): number {
+	if (sliceBy !== 'branch') return railColumnWidthPx;
+	const span = railWidthRampEndPx - railWidthRampStartPx;
+	const t = span > 0 ? (cssWidth - railWidthRampStartPx) / span : 1;
+	const clamped = Math.max(0, Math.min(1, t));
+	return Math.round(railColumnWidthPx + clamped * (railColumnWidthMaxPx - railColumnWidthPx));
 }
 
 export function computeLayout(
@@ -271,10 +305,11 @@ export function computeLayout(
 	const bottomBufferPx = sliceCount > 0 ? Math.round(rowHeightFloor * 0.22) : 0;
 	const swimlaneBottom = axisStripTop;
 	const swimlaneRegionHeight = Math.max(0, swimlaneBottom - swimlaneTop);
-	// Horizontal scrollbar sits *on top of* the X-axis line — its bottom edge meets the line, so
-	// the scrollbar shares vertical space with the X-axis labels (the label strip is the
-	// "scroll lane") instead of straddling the line and visually splitting it.
-	const horizontalScrollbarTop = horizontalScrollbarHeight > 0 ? volumeTop - horizontalScrollbarHeight : cssHeight;
+	// Horizontal scrollbar anchors to the *top* of the X-axis label strip — leaves the bottom of
+	// the strip clear for the date labels, which sit just above the X-axis line. Previously the
+	// scrollbar anchored to the bottom (`volumeTop - height`), which caused it to overlap the
+	// labels and made both harder to read.
+	const horizontalScrollbarTop = horizontalScrollbarHeight > 0 ? axisStripTop : cssHeight;
 
 	// Pick the row height that lets every slice fit the visible region — bounded by the
 	// canvas-height-adaptive floor (compact panels go below the lush default rather than auto-
@@ -287,11 +322,11 @@ export function computeLayout(
 	const rowHeight = Math.max(rowHeightFloor, Math.min(maxRowHeight, idealRowHeight));
 	const virtualSwimlaneHeight = topBufferPx + sliceCount * rowHeight + bottomBufferPx;
 	// Inset for the *data range* — bubble centers (and X-axis labels/ticks) project onto
-	// `[chartLeft + dataInsetX, chartRight - dataInsetX]`. Sized to roughly half the row's max
-	// bubble radius — typical bubbles sit comfortably inside the chart, never reaching into the
-	// rail or right gutter. (Hover-scaled halos can still extend INTO the gutters because the
-	// host's swimlane clip is open horizontally — the rail's frosted backdrop blurs those.)
-	const dataInsetX = Math.round(rowHeight * 0.5);
+	// `[chartLeft + dataInsetX, chartRight - dataInsetX]`. Derived from `clampRadiusToRow` (the
+	// max possible bubble radius for this row height) plus the standard edge padding, so a
+	// max-radius bubble at the chart edge never overflows into the rail or right gutter
+	// regardless of how the row-height ↔ radius cap ratio is tuned in `clampRadiusToRow`.
+	const dataInsetX = Math.round(clampRadiusToRow(rowHeight) + bubbleEdgePaddingPx);
 
 	return {
 		width: cssWidth,
@@ -580,11 +615,9 @@ export function verticalScrollbarDeltaToScrollY(deltaY: number, lo: TimelineLayo
  * targeting roughly one label every `targetSpacingPx` pixels. Snaps to common calendar units (day,
  * week, month, year) so labels don't fall on awkward intermediate timestamps.
  */
-export function pickAxisTickStep(
-	domainMs: number,
-	chartWidthPx: number,
-	targetSpacingPx = 80,
-): { stepMs: number; unit: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year' } {
+export type AxisTickStep = { stepMs: number; unit: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year' };
+
+export function pickAxisTickStep(domainMs: number, chartWidthPx: number, targetSpacingPx = 80): AxisTickStep {
 	if (chartWidthPx <= 0 || domainMs <= 0) return { stepMs: dayMs, unit: 'day' };
 	const targetTickCount = Math.max(2, Math.floor(chartWidthPx / targetSpacingPx));
 	const ideal = domainMs / targetTickCount;
@@ -699,32 +732,56 @@ export function getAxisTicks(
 ): AxisTick[] {
 	if (newest <= oldest) return [];
 
-	const step = pickAxisTickStep(newest - oldest, lo.chartWidth);
-	const ticks: AxisTick[] = [];
-	let lastRightEdgeX = -Infinity;
-	let lastYear: number | undefined;
-	let isFirstLabel = true;
+	const buildTicksForStep = (step: AxisTickStep): AxisTick[] => {
+		const ticks: AxisTick[] = [];
+		let lastRightEdgeX = -Infinity;
+		let lastYear: number | undefined;
+		let isFirstLabel = true;
 
-	for (const t of iterateAxisTicks(oldest, newest, step)) {
-		const x = tsToX(t, oldest, newest, lo);
-		if (Number.isNaN(x) || x < lo.chartLeft || x > lo.chartRight) continue;
+		for (const t of iterateAxisTicks(oldest, newest, step)) {
+			const x = tsToX(t, oldest, newest, lo);
+			if (Number.isNaN(x) || x < lo.chartLeft || x > lo.chartRight) continue;
 
-		const date = new Date(t);
-		const year = date.getFullYear();
-		const showYear = isFirstLabel || year !== lastYear;
-		const label = formatTick(date, step.unit, { showYear: showYear });
-		const labelW = measureLabelWidth(label);
-		const leftEdgeX = x - labelW / 2;
-		const rightEdgeX = x + labelW / 2;
+			const date = new Date(t);
+			const year = date.getFullYear();
+			const showYear = isFirstLabel || year !== lastYear;
+			const label = formatTick(date, step.unit, { showYear: showYear });
+			const labelW = measureLabelWidth(label);
+			const leftEdgeX = x - labelW / 2;
+			const rightEdgeX = x + labelW / 2;
 
-		if (leftEdgeX < lastRightEdgeX + 6) continue;
-		lastRightEdgeX = rightEdgeX;
-		lastYear = year;
-		isFirstLabel = false;
+			if (leftEdgeX < lastRightEdgeX + 6) continue;
+			lastRightEdgeX = rightEdgeX;
+			lastYear = year;
+			isFirstLabel = false;
 
-		ticks.push({ timestamp: t, x: x, label: label, unit: step.unit });
+			// Round `x` for the DOM axis-overlay to consume — browsers position elements at
+			// fractional `left:` differently from how canvas antialiases at the same float, so
+			// the unrounded value can leave a tick label 0.5-1px off from the bubble underneath
+			// it. Bubbles keep their fractional `cx` for accurate timestamp positioning; only
+			// the tick label snaps to the nearest pixel.
+			ticks.push({ timestamp: t, x: Math.round(x), label: label, unit: step.unit });
+		}
+
+		return ticks;
+	};
+
+	// Step demotion ladder. `pickAxisTickStep` optimizes label density for typical-size datasets,
+	// but on narrow time bands (e.g. a 3-day file history rendered on a sidebar) the picked step
+	// can be coarser than the visible range — `iterateAxisTicks` snaps to the next boundary
+	// (e.g. start-of-week) which falls outside `[oldest, newest]`, leaving the chart with zero
+	// ticks. When that happens, demote one step at a time until at least two ticks survive.
+	const ladder: AxisTickStep[] = [
+		pickAxisTickStep(newest - oldest, lo.chartWidth),
+		{ stepMs: weekMs, unit: 'week' },
+		{ stepMs: dayMs, unit: 'day' },
+		{ stepMs: hourMs, unit: 'hour' },
+	];
+	let ticks: AxisTick[] = [];
+	for (const step of ladder) {
+		ticks = buildTicksForStep(step);
+		if (ticks.length >= 2) break;
 	}
-
 	return ticks;
 }
 
@@ -934,10 +991,11 @@ export function drawVolume(ctx: CanvasRenderingContext2D, state: TimelineDrawSta
 	const newest = zoomRange?.newest ?? viewModel.newest;
 	const yMax = Math.max(1, viewModel.yMaxAdd + viewModel.yMaxDel);
 
-	// X-axis baseline is the TOP of the volume strip — bars grow downward from it. (Note this
-	// inverts the usual histogram convention — but it visually composes with the swimlane sitting
-	// above, so the X axis acts as a shared baseline for both halves of the chart.)
-	const baselineY = lo.volumeTop;
+	// Bars grow UPWARD from the bottom of the volume strip — matches the conventional histogram
+	// orientation (taller = bigger). Heavy commits' bars rise toward the X-axis (where the
+	// bubbles live above), giving the most-salient values visual proximity to the time/contributor
+	// region; light commits stay short near the bottom and don't compete for attention.
+	const baselineY = lo.volumeBottom;
 
 	if (newest <= oldest || viewModel.commits.length === 0) return;
 
@@ -991,14 +1049,16 @@ export function drawVolume(ctx: CanvasRenderingContext2D, state: TimelineDrawSta
 		const barWidth = isVolumeFocus ? 4 : 2;
 		const barX = isVolumeFocus ? px - 1 : px;
 
-		// Stack additions then deletions, both growing downward from the shared X-axis baseline.
+		// Stack additions then deletions, both growing UPWARD from the shared bottom baseline.
+		// Additions sit at the bottom (foundation), deletions stack on top — preserves the
+		// "additions touch the baseline" relationship from the previous downward layout.
 		if (aH > 0) {
 			ctx.fillStyle = theme.additions;
-			ctx.fillRect(barX, baselineY, barWidth, aH);
+			ctx.fillRect(barX, baselineY - aH, barWidth, aH);
 		}
 		if (dH > 0) {
 			ctx.fillStyle = theme.deletions;
-			ctx.fillRect(barX, baselineY + aH, barWidth, dH);
+			ctx.fillRect(barX, baselineY - aH - dH, barWidth, dH);
 		}
 	}
 	ctx.globalAlpha = 1;
@@ -1174,6 +1234,54 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, state: TimelineDrawSt
 
 	// Vertical scrollbar overlay (V8). Only drawn when the swimlane content overflows the visible region.
 	drawVerticalScrollbar(ctx, lo, scrollY, theme);
+
+	// Directional "more history" chevrons on the X-axis edges (V8). Drawn inside the dataInsetX
+	// gutter on each side so they live in the empty space between chartLeft/chartRight and the
+	// outermost tick label — no overlap with axis text.
+	drawAxisChevrons(ctx, state);
+}
+
+/** Visual-only indicators on the X-axis edges signaling "more history exists in this direction".
+ *  Drawn into the axis-label strip's vertical center, anchored inside the dataInsetX gutter on
+ *  each side so they never overlap tick labels. The chart's `_hasHistoryBefore`/`_hasHistoryAfter`
+ *  getters decide visibility; this just paints when the host says to. */
+function drawAxisChevrons(ctx: CanvasRenderingContext2D, state: TimelineDrawState): void {
+	const { layout: lo, theme, historyBefore, historyAfter } = state;
+	if (!historyBefore && !historyAfter) return;
+	const stripHeight = lo.axisStripBottom - lo.axisStripTop;
+	if (stripHeight <= 0) return;
+
+	const cy = (lo.axisStripTop + lo.axisStripBottom) / 2;
+	// Chevron size scales with the axis strip height so it stays readable across compact and full
+	// layouts. Capped so the chevron stays inside the gutter (dataInsetX is typically 8-14px).
+	const half = Math.max(3, Math.min(5, Math.floor(stripHeight / 4)));
+	// Center the chevron horizontally within the dataInsetX gutter on each side, so the tick at
+	// `oldest`/`newest` (drawn at chartLeft + dataInsetX / chartRight - dataInsetX) has room to
+	// the right/left of the chevron without overlap.
+	const insetMid = Math.max(half + 2, Math.round(lo.dataInsetX / 2));
+
+	ctx.save();
+	ctx.strokeStyle = theme.axisLabelMuted;
+	ctx.lineWidth = 1.5;
+	ctx.lineCap = 'round';
+	ctx.lineJoin = 'round';
+	if (historyBefore) {
+		const x = lo.chartLeft + insetMid;
+		ctx.beginPath();
+		ctx.moveTo(x + half * 0.6, cy - half);
+		ctx.lineTo(x - half * 0.6, cy);
+		ctx.lineTo(x + half * 0.6, cy + half);
+		ctx.stroke();
+	}
+	if (historyAfter) {
+		const x = lo.chartRight - insetMid;
+		ctx.beginPath();
+		ctx.moveTo(x - half * 0.6, cy - half);
+		ctx.lineTo(x + half * 0.6, cy);
+		ctx.lineTo(x - half * 0.6, cy + half);
+		ctx.stroke();
+	}
+	ctx.restore();
 }
 
 export interface HorizontalScrollbarGeometry {
@@ -1194,11 +1302,14 @@ export function getHorizontalScrollbarGeometry(
 	const fullSpan = fullNewest - fullOldest;
 	if (lo.horizontalScrollbarTop >= lo.height || fullSpan <= 0) return undefined;
 
-	// Sits at the bottom edge of the swimlane region (just above the X-axis line), overlaying the
-	// X-axis label band. Sized to VS Code's scrollbar height so it reads as a system-native
-	// affordance — the labels stay visible behind the translucent track when zoomed in.
-	const trackHeight = horizontalScrollbarHeightPx;
-	const trackTop = lo.horizontalScrollbarTop;
+	// Spans (almost) the full X-axis label band — 2px inset top and bottom so the track has
+	// a hairline of breathing room from the strip's edges instead of butting flush against the
+	// swimlane above and the X-axis line below. The labels remain visible through the
+	// translucent track and the scrollbar reads as a clear "scroll lane".
+	const stripHeight = lo.axisStripBottom - lo.axisStripTop;
+	const inset = stripHeight >= horizontalScrollbarHeightPx + 4 ? 2 : 0;
+	const trackHeight = Math.max(horizontalScrollbarHeightPx, stripHeight - inset * 2);
+	const trackTop = lo.horizontalScrollbarTop + inset;
 	const trackLeft = lo.chartLeft;
 	const trackRight = lo.chartRight;
 	const trackWidth = trackRight - trackLeft;

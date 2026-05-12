@@ -102,6 +102,8 @@ type InternalScmGroupedViewCommands =
 	| 'gitlens.views.scm.grouped.welcome.dismiss'
 	| 'gitlens.views.scm.grouped.welcome.restore';
 
+type InternalGraphWebviewViewCommands = 'gitlens.views.graph.openTimelineInTab';
+
 type InternalTimelineWebviewViewCommands = 'gitlens.views.timeline.openInTab';
 
 type InternalViewCommands = 'gitlens.views.loadMoreChildren';
@@ -178,6 +180,7 @@ type InternalGlCommands =
 	| 'gitlens.visualizeHistory'
 	| InternalAgentCommands
 	| InternalGraphWebviewCommands
+	| InternalGraphWebviewViewCommands
 	| InternalHomeWebviewCommands
 	| InternalLaunchPadCommands
 	| InternalPlusCommands

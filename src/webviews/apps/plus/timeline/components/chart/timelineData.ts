@@ -1,6 +1,24 @@
+import { isUncommitted } from '@gitlens/git/utils/revision.utils.js';
 import type { TimelineDatum, TimelineSliceBy } from '../../../../../plus/timeline/protocol.js';
 
 const hourMs = 60 * 60 * 1000;
+
+/** True when a `TimelineDatum` is a synthetic working-tree row (the empty-sha "Working Tree"
+ *  placeholder or a real WIP pseudo-commit). Used by surfaces that need to skip-over or
+ *  replace the leading WIP run when patching the dataset. */
+export function isPseudoCommitDatum(d: TimelineDatum): boolean {
+	return !d.sha || isUncommitted(d.sha);
+}
+
+/**
+ * Floor for the `bubbleMagnitude` denominator. On sparse datasets (n < ~10), `p99` lands on a
+ * small commit and every bubble normalizes to ~1.0 — even modest changes render at `radiusMax`.
+ * Anchoring against `max(p99, magnitudeAnchorLines)` lets a "medium-sized" commit (~500 lines)
+ * be the smallest possible scale denominator, so a 60-line change in a 3-commit file no longer
+ * looks like a 5,000-line refactor would in a busy file. Dense datasets are unaffected because
+ * their p99 is far above this floor.
+ */
+export const magnitudeAnchorLines = 500;
 
 /**
  * The packed view model the renderer iterates every frame. Each commit (or bin, when LOD is active)
@@ -162,8 +180,11 @@ function expandRows(
 	const rows: ExpandedRow[] = [];
 
 	for (const commit of dataset) {
-		const ts = new Date(commit.date).getTime();
-		if (Number.isNaN(ts)) continue;
+		// `commit.sort` is already the parsed millisecond timestamp — set by the dataset producers
+		// (`timelineDataset.ts` for RPC mode; `gl-graph-timeline.ts:getWindowedDataPromise` for the
+		// graph-rows-derived mode). Avoids N redundant `new Date(commit.date)` allocations per build.
+		const ts = commit.sort;
+		if (!Number.isFinite(ts)) continue;
 
 		const sliceNames =
 			sliceBy === 'branch' ? (commit.branches?.length ? commit.branches : [defaultBranch]) : [commit.author];
@@ -251,13 +272,20 @@ export function bubbleMagnitude(
 	metrics: BubbleMetrics,
 ): number {
 	const total = (additions ?? 0) + (deletions ?? 0);
-	if (total <= 0 || metrics.p99 <= 0) return 0;
+	if (total <= 0) return 0;
+	// Degenerate metrics (`{p99: 0, max: 0}` from an empty / all-zero dataset) — return 0 so the
+	// caller renders `radiusMin`. `max <= 0` is the canonical "no real data" signal from both
+	// `computeBubbleMetrics` and `computeBinMetrics`; checking it (instead of `p99 <= 0`) keeps
+	// the anchor-floor logic below from kicking in on degenerate datasets.
+	if (metrics.max <= 0) return 0;
 
-	// Log-normalize against p99 so a single huge outlier doesn't squash everyone else flat. The
-	// sqrt that used to wrap this was over-compressing small commits *upward* (a 1-line change
-	// landed at ~30% of max radius); without it, tiny commits read as tiny and the variance
-	// across the dataset is much wider.
-	const norm = Math.log1p(total) / Math.log1p(metrics.p99);
+	// Log-normalize against `max(p99, magnitudeAnchorLines)` so:
+	// - busy files: p99 wins (e.g. 5,000) and behavior is unchanged from before
+	// - sparse files (n < ~10): the anchor wins so every bubble doesn't normalize to ~1.0 and
+	//   render at `radiusMax`. A 60-line commit in a 3-commit file should still look small,
+	//   not max-sized.
+	const denom = Math.max(metrics.p99, magnitudeAnchorLines);
+	const norm = Math.log1p(total) / Math.log1p(denom);
 	return Math.min(1, Math.max(0, norm));
 }
 
@@ -409,7 +437,17 @@ function packBinned(rows: ExpandedRow[], slices: TimelineSlice[], binUnit: Timel
 		}
 	}
 
-	const sortedBins = [...binsByKey.values()].sort((a, b) => a.binStart - b.binStart);
+	// Sort by representative timestamp, NOT `binStart` — `viewModel.timestamps[i]` carries the
+	// rep's actual ts (`timestamps[i] = b.representative.timestamp`), and downstream consumers
+	// rely on that array being monotonically non-decreasing: the canvas-drawing path uses
+	// `visibleIndexRange()` (binary search on `timestamps`) to cull off-screen commits, so a
+	// non-monotonic array produces garbage culling and the visible bubble for a commit silently
+	// disappears even though `shaToIndex` still resolves correctly (so the selection ring still
+	// draws — leaving an empty ring with no underlying bubble). Sorting by `binStart` alone
+	// breaks this whenever a bin's rep gets reassigned to a later commit in that bin AND a
+	// different-slice bin sharing the same `binStart` keeps its earlier rep — then map
+	// insertion order puts the later-rep bin before the earlier-rep bin in `vm.timestamps`.
+	const sortedBins = [...binsByKey.values()].sort((a, b) => a.representative.timestamp - b.representative.timestamp);
 
 	// Compute bubble metrics over BIN totals (not individual commits). Sums of multiple commits
 	// trivially exceed any single-commit p99, so reusing the dataset-wide metrics here would clip
@@ -429,8 +467,12 @@ function packBinned(rows: ExpandedRow[], slices: TimelineSlice[], binUnit: Timel
 
 	let yMaxAdd = 0;
 	let yMaxDel = 0;
-	let oldest = n > 0 ? sortedBins[0].binStart : 0;
-	let newest = n > 0 ? sortedBins[0].binStart : 0;
+	// oldest/newest must track the bubble *positions* (representative timestamps), not bin starts.
+	// Bubbles are drawn at `representative.timestamp` which can sit later than the bin's start
+	// (e.g. day-bin starts at 00:00 but its representative commit is at 14:30) — using binStart
+	// as the domain max would project the rightmost bubble past `chartRight` and clip it off.
+	let oldest = n > 0 ? sortedBins[0].representative.timestamp : 0;
+	let newest = n > 0 ? sortedBins[0].representative.timestamp : 0;
 
 	for (let i = 0; i < n; i++) {
 		const b = sortedBins[i];
@@ -459,11 +501,11 @@ function packBinned(rows: ExpandedRow[], slices: TimelineSlice[], binUnit: Timel
 		if (b.deletions > yMaxDel) {
 			yMaxDel = b.deletions;
 		}
-		if (b.binStart < oldest) {
-			oldest = b.binStart;
+		if (b.representative.timestamp < oldest) {
+			oldest = b.representative.timestamp;
 		}
-		if (b.binStart > newest) {
-			newest = b.binStart;
+		if (b.representative.timestamp > newest) {
+			newest = b.representative.timestamp;
 		}
 	}
 
@@ -517,6 +559,36 @@ function binStartFor(unit: TimelineBinUnit): (ts: number) => number {
  * with diameters of ~12px overlap heavily on dense rows, so we start aggregating to the next coarser
  * unit early. Coarse thresholds on purpose — a smoother gradient would thrash bin sizes during zoom.
  */
+/** Cheap dataset-domain probe — returns just the values `_ensureViewModel` needs to pick a bin
+ *  unit (oldest/newest timestamp, expanded row count). Avoids running the full `expandRows +
+ *  packIndividual` pipeline twice when binning will replace the result. The expanded count
+ *  matches what `expandRows` produces (sliceBy='branch' multiplies commits with branches; default
+ *  is 1 row per commit). */
+export function probeViewModelDomain(
+	dataset: readonly TimelineDatum[],
+	sliceBy: TimelineSliceBy,
+): { oldest: number; newest: number; expandedCount: number } {
+	let oldest = Number.POSITIVE_INFINITY;
+	let newest = Number.NEGATIVE_INFINITY;
+	let expandedCount = 0;
+	for (const c of dataset) {
+		const ts = c.sort;
+		if (!Number.isFinite(ts)) continue;
+		if (ts < oldest) {
+			oldest = ts;
+		}
+		if (ts > newest) {
+			newest = ts;
+		}
+		expandedCount += sliceBy === 'branch' ? c.branches?.length || 1 : 1;
+	}
+	if (!Number.isFinite(oldest)) {
+		oldest = 0;
+		newest = 0;
+	}
+	return { oldest: oldest, newest: newest, expandedCount: expandedCount };
+}
+
 export function chooseBinUnit(pxPerCommit: number): TimelineBinUnit {
 	if (pxPerCommit >= 6) return 'none';
 	if (pxPerCommit >= 1.5) return 'hour';

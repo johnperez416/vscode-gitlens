@@ -33,7 +33,7 @@ export function createTimelineState(storage?: HostStorage) {
 		version: 1,
 	});
 
-	const period = persisted<TimelinePeriod>('period', '1|Y');
+	const period = persisted<TimelinePeriod>('period', '1|M');
 	const showAllBranches = persisted('showAllBranches', false);
 	const sliceBy = persisted<TimelineSliceBy>('sliceBy', 'author');
 	const scope = persisted<TimelineScopeSerialized | undefined>('scope', undefined);
@@ -44,12 +44,24 @@ export function createTimelineState(storage?: HostStorage) {
 	const repositories = signal<{ count: number; openCount: number }>({ count: 0, openCount: 0 });
 	const access = signal<FeatureAccess | undefined>(undefined);
 
-	// ── Infrastructure ──
+	/** Currently-loaded history span (ms) for the dataset. `null` means "use period-derived
+	 *  span" (initial state and after period change). When the chart fires `gl-load-more`
+	 *  (user zoomed past the loaded oldest), we bump this by `period * extensionChunkRatio`
+	 *  and re-fetch, so older history pages in without re-loading what's already on screen. */
+	const loadedSpanMs = signal<number | null>(null);
+	/** Actual visible-time-range span (ms) reported by the chart's `gl-visible-range-changed`
+	 *  event. Drives the header pill's label so it shows the live span (through zoom/pan)
+	 *  instead of the static period setting. `undefined` until the chart emits the first range. */
+	const visibleSpanMs = signal<number | undefined>(undefined);
+	/** True while an extension fetch is in flight. Drives the chart's edge-gradient affordance
+	 *  (no full-canvas spinner) so existing rows stay interactive during paging. */
+	const loadingMore = signal<boolean>(false);
+	/** False once an extension fetch returned the same number of rows as before — we've reached
+	 *  the start of history for this scope. Resets to `true` on scope/period change. */
+	const hasMore = signal<boolean>(true);
 
 	/** RPC connection error (distinct from dataset resource fetch errors). */
 	const error = signal<string | undefined>(undefined);
-
-	// ── Derived helpers ──
 
 	const allowed = computed<boolean | 'mixed'>(() => {
 		return access.get()?.allowed ?? true;
@@ -89,6 +101,10 @@ export function createTimelineState(storage?: HostStorage) {
 		repository: repository,
 		repositories: repositories,
 		access: access,
+		loadedSpanMs: loadedSpanMs,
+		visibleSpanMs: visibleSpanMs,
+		loadingMore: loadingMore,
+		hasMore: hasMore,
 
 		// Infrastructure
 		error: error,

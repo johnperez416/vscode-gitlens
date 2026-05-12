@@ -18,6 +18,7 @@ import { debounce } from '@gitlens/utils/debounce.js';
 import type { CommitDetails } from '../../../commitDetails/protocol.js';
 import type {
 	DidRequestOpenCompareModeParams,
+	GraphDisplayMode,
 	GraphMinimapMarkerTypes,
 	GraphSidebarPanel,
 } from '../../../plus/graph/protocol.js';
@@ -33,6 +34,10 @@ import type { TelemetryContext } from '../../shared/contexts/telemetry.js';
 import { telemetryContext } from '../../shared/contexts/telemetry.js';
 import { emitTelemetrySentEvent } from '../../shared/telemetry.js';
 import type { GlGraphDetailsPanel } from './components/gl-graph-details-panel.js';
+import type {
+	GlGraphTimelineCommitSelectDetail,
+	GlGraphTimelineConfigChangeDetail,
+} from './components/gl-graph-timeline.js';
 import type { AppState } from './context.js';
 import { graphServicesContext, graphStateContext } from './context.js';
 import type { GlGraphHeader } from './graph-header.js';
@@ -41,7 +46,7 @@ import type { GlGraphHover } from './hover/graphHover.js';
 import type { GlGraphMinimapContainer, GraphMinimapConfigChangeEventDetail } from './minimap/minimap-container.js';
 import type { GraphMinimapDaySelectedEventDetail, GraphMinimapWheelEvent } from './minimap/minimap.js';
 import type { GlGraphSidebarPanel, GraphSidebarPanelSelectEventDetail } from './sidebar/sidebar-panel.js';
-import type { GraphSidebarToggleEventDetail } from './sidebar/sidebar.js';
+import type { GraphSidebarDisplayModeChangeEventDetail, GraphSidebarToggleEventDetail } from './sidebar/sidebar.js';
 import { getOverviewBranchSelectionSha } from './utils/branchSelection.utils.js';
 import { getCommitDateFromRow } from './utils/row.utils.js';
 import './gate.js';
@@ -56,6 +61,7 @@ import '../../shared/components/mcp-banner.js';
 import '../../shared/components/button.js';
 import '../../shared/components/code-icon.js';
 import './components/gl-graph-details-panel.js';
+import './components/gl-graph-timeline.js';
 
 const sidebarDefaultPct = 20;
 const sidebarMinPct = 15;
@@ -414,6 +420,8 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	}
 
 	private renderGraphPaneContent() {
+		const displayMode: GraphDisplayMode = this.graphState.displayMode ?? 'graph';
+		const isTimeline = displayMode === 'timeline';
 		return html`
 			<div class="graph__graph-pane-body">
 				${when(
@@ -425,13 +433,25 @@ export class GraphApp extends SignalWatcher(LitElement) {
 							?pinned=${this.graphState.config?.sidebarPinned ?? true}
 							@gl-graph-sidebar-toggle=${this.handleSidebarToggle}
 							@gl-graph-sidebar-toggle-pinned=${this.handleSidebarTogglePinned}
+							@gl-graph-sidebar-display-mode-change=${this.handleDisplayModeChange}
 						></gl-graph-sidebar>`,
 				)}
-				${this.graphState.config?.sidebar
-					? this.renderSidebarSplit()
-					: html`<div class="graph__graph-content">${this.renderGraphMain()}</div>`}
+				${isTimeline
+					? html`<div class="graph__graph-content">${this.renderTimelineMain()}</div>`
+					: this.graphState.config?.sidebar
+						? this.renderSidebarSplit()
+						: html`<div class="graph__graph-content">${this.renderGraphMain()}</div>`}
 			</div>
 		`;
+	}
+
+	private renderTimelineMain() {
+		const placement: 'editor' | 'view' = this.graphState.webviewId === 'gitlens.graph' ? 'editor' : 'view';
+		return html`<gl-graph-timeline
+			placement=${placement}
+			@gl-graph-timeline-commit-select=${this.handleTimelineCommitSelect}
+			@gl-graph-timeline-config-change=${this.handleTimelineConfigChange}
+		></gl-graph-timeline>`;
 	}
 
 	private renderSidebarSplit() {
@@ -533,6 +553,8 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private persistStateNow(): void {
 		if (this.services == null) return;
 		const gs = this.graphState;
+		// `displayMode` is intentionally NOT persisted — every session starts in Graph mode.
+		// Toggling to Timeline is an in-memory affordance only; users opt back in per session.
 		const state = {
 			panels: {
 				details: {
@@ -546,6 +568,11 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					activePanel: gs.activeSidebarPanel,
 				},
 				minimap: { visible: gs.minimapVisible, position: gs.minimapPosition },
+			},
+			timeline: {
+				period: gs.timelinePeriod,
+				sliceBy: gs.timelineSliceBy,
+				showAllBranches: gs.timelineShowAllBranches,
 			},
 		};
 		void (async () => {
@@ -762,6 +789,48 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		this._ipc.sendCommand(UpdateGraphConfigurationCommand, { changes: { sidebarPinned: next } });
 	};
 
+	private handleDisplayModeChange = (e: CustomEvent<GraphSidebarDisplayModeChangeEventDetail>): void => {
+		const gs = this.graphState;
+		if (gs.displayMode === e.detail.mode) return;
+		gs.displayMode = e.detail.mode;
+		// `renderGraphPaneContent` short-circuits the sidebar split when `displayMode !== 'graph'`, so
+		// the user's `sidebarVisible` setting is preserved automatically and restored on return.
+		this.persistState();
+	};
+
+	private handleTimelineCommitSelect = (e: CustomEvent<GlGraphTimelineCommitSelectDetail>): void => {
+		const { sha, repoPath, datum } = e.detail;
+		const fallbackRepoPath = repoPath || this.fallbackRepoPath || '';
+
+		// Build a lightweight commit shell from the timeline datum so the details panel can paint
+		// synchronously, mirroring the eager commitLite flow that graph row clicks use.
+		const commitLite = datum != null ? toCommitLiteFromTimelineDatum(datum, fallbackRepoPath) : undefined;
+
+		const effectiveSha = sha === '' ? uncommitted : sha;
+		this._selectedCommit = { sha: effectiveSha, repoPath: fallbackRepoPath, commitLite: commitLite };
+		this._selectedCommits = undefined;
+
+		// Show the details panel on first selection, the same way graph-row double-click does.
+		if (!this.graphState.detailsVisible) {
+			this.setDetailsVisible(true);
+			this.ensureDetailsPosition();
+		}
+	};
+
+	private handleTimelineConfigChange = (e: CustomEvent<GlGraphTimelineConfigChangeDetail>): void => {
+		const gs = this.graphState;
+		if (e.detail.period != null) {
+			gs.timelinePeriod = e.detail.period;
+		}
+		if (e.detail.sliceBy != null) {
+			gs.timelineSliceBy = e.detail.sliceBy;
+		}
+		if (e.detail.showAllBranches != null) {
+			gs.timelineShowAllBranches = e.detail.showAllBranches;
+		}
+		this.persistState();
+	};
+
 	private handleSidebarPanelSelect(e: CustomEvent<GraphSidebarPanelSelectEventDetail>) {
 		this.graph?.ensureAndSelectCommit(e.detail.sha);
 	}
@@ -797,7 +866,6 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		if (services == null) return;
 
 		try {
-			// `services.branches` is a supertalk Remote — await once to resolve the proxy.
 			const branches = await services.branches;
 			const enrichment = await branches.getBranchEnrichment(branch.repoPath, branch.name);
 			const mergeTarget = await enrichment?.mergeTargetStatus;
@@ -1211,4 +1279,20 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private handleGraphMouseLeave() {
 		this.minimapEl?.unselect(undefined, true);
 	}
+}
+
+function toCommitLiteFromTimelineDatum(
+	datum: { sha: string; author: string; email?: string; date: string; message: string; avatarUrl?: string },
+	repoPath: string,
+): CommitDetails {
+	const date = new Date(datum.date);
+	return {
+		sha: datum.sha,
+		shortSha: datum.sha.slice(0, 7),
+		message: datum.message,
+		author: { name: datum.author, email: datum.email, date: date, avatar: datum.avatarUrl },
+		committer: { name: datum.author, email: datum.email, date: date, avatar: datum.avatarUrl },
+		parents: [],
+		repoPath: repoPath,
+	};
 }

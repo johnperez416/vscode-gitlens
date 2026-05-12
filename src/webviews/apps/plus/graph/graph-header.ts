@@ -141,6 +141,13 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 				background: linear-gradient(135deg, #a100ff1a 0%, #255ed11a 100%);
 				border: 1px solid var(--vscode-panel-border);
 			}
+
+			/* Search is meaningless in Timeline mode — visually dim it and let \`inert\` block focus
+			   + interactions natively (instead of removing it from the row entirely). */
+			.search-box--disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
 		`,
 	];
 
@@ -1211,6 +1218,7 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 		const filtered = isGraphFiltered(this.graphState);
 		const rowClass = scoped ? 'titlebar__row--scoped' : filtered ? 'titlebar__row--filtered' : '';
 
+		const isTimelineMode = (this.graphState.displayMode ?? 'graph') === 'timeline';
 		return html`
 			<div class="titlebar__row titlebar__row--search ${rowClass}">
 				<div class="titlebar__group">
@@ -1221,6 +1229,9 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 						<span class="action-divider"></span>
 					</span>
 					<gl-search-box
+						class=${isTimelineMode ? 'search-box--disabled' : ''}
+						?inert=${isTimelineMode}
+						aria-disabled=${isTimelineMode ? 'true' : 'false'}
 						?aiAllowed=${this.aiAllowed}
 						errorMessage=${searchResultsError?.error ?? ''}
 						?filter=${searchMode === 'filter'}
