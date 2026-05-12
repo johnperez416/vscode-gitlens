@@ -428,6 +428,7 @@ const wipAuthorTemplate =
 
 type CancellableOperations =
 	| 'branchState'
+	| 'branchStateOnly'
 	| 'hover'
 	| 'computeIncludedRefs'
 	| 'search'
@@ -540,6 +541,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private _lastStateSentAt: number | undefined;
 	/** Trailing flush scheduled when notify was skipped inside the freshness window. */
 	private _stateFreshnessRetryTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Set when a notify request arrives while another is in-flight, so we re-notify on completion. */
+	private _stateNotifyDirty = false;
+	/** Most recent branchState we sent to the webview, so async PR resolution can merge into the freshest values. */
+	private _lastSentBranchState: BranchState | undefined;
 	private static readonly stateFreshnessMs = 500;
 
 	private isWindowFocused: boolean = true;
@@ -1817,6 +1822,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			this._pendingStateOp = undefined;
 		});
 		this._pendingStateOp = op;
+		// Capture the branchState that ships with bootstrap so a delayed PR resolve merges into it.
+		void op.then(state => (this._lastSentBranchState = state.branchState)).catch(() => undefined);
 		return op;
 	}
 
@@ -2683,6 +2690,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		// repo activity (e.g. worktrees discovered during graph scroll fire `unknown` repo events).
 		if (e.changed('heads', 'remotes', 'stash', 'tags')) {
 			this.notifySidebarInvalidated();
+		}
+
+		// Fast-path: push a header-only branchState refresh in parallel with the full state rebuild
+		// so push/pull/fetch numbers land in the header immediately on tracking-affecting events
+		// instead of waiting for the full graph rebuild to finish. The full state pass re-sends the
+		// same branchState alongside graph rows, so the worst case here is a redundant IPC.
+		if (e.changed('head', 'heads', 'remotes')) {
+			void this.notifyDidChangeBranchStateOnly();
 		}
 
 		// Unless we don't know what changed, update the state immediately
@@ -4102,9 +4117,81 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@trace()
 	private async notifyDidChangeBranchState(branchState: BranchState) {
+		// Skip the notify when nothing actually changed — the fast-path (notifyDidChangeBranchStateOnly)
+		// can fire on every tracking-affecting repo event, and a watcher burst will often produce identical
+		// payloads after coalescing.
+		if (this._lastSentBranchState != null && areEqual(branchState, this._lastSentBranchState)) {
+			return false;
+		}
+		this._lastSentBranchState = branchState;
 		return this.host.notify(DidChangeBranchStateNotification, {
 			branchState: branchState,
 		});
+	}
+
+	/**
+	 * Fast-path refresh of just the header's branchState (ahead/behind/upstream/provider/worktree).
+	 * Runs in parallel with the heavier full-state pipeline so push/pull/fetch land in the header
+	 * immediately on `head`/`heads`/`remotes` events instead of waiting on the full graph rebuild.
+	 *
+	 * Uses its own `branchStateOnly` cancellation key — sharing `branchState` with the full-state
+	 * pipeline would let `getState`'s start-of-call `cancelOperation('branchState')` abort our
+	 * getBranch mid-flight, which silently falls through to the `getCurrentBranch` fallback path
+	 * (hardcoded ahead/behind = 0) and poisons the cache with stale zeros.
+	 *
+	 * Preserves the last-known PR so the PR pill doesn't flicker; the full-state pass refreshes PR data.
+	 */
+	@trace()
+	private async notifyDidChangeBranchStateOnly(): Promise<void> {
+		if (this.repository == null || !this.host.ready || !this.host.visible) return;
+
+		const cancellation = this.createCancellation('branchStateOnly');
+		const signal = toAbortSignal(cancellation.token);
+
+		let branch: GitBranch | undefined;
+		try {
+			branch = await this.repository.git.branches.getBranch(undefined, signal);
+		} catch {
+			return;
+		}
+		if (cancellation.token.isCancellationRequested || branch == null) return;
+
+		const branchState: BranchState = { ...(branch.upstream?.state ?? { ahead: 0, behind: 0 }) };
+
+		let worktreesByBranch;
+		try {
+			worktreesByBranch = await getWorktreesByBranch(this.repository, undefined, signal);
+		} catch {
+			/* swallow — worktree flag is non-critical */
+		}
+		if (cancellation.token.isCancellationRequested) return;
+		branchState.worktree = worktreesByBranch?.has(branch.id) ?? false;
+
+		if (branch.upstream != null) {
+			branchState.upstream = branch.upstream.name;
+			try {
+				const remote = await getBranchRemote(this.container, branch);
+				if (remote?.provider != null) {
+					branchState.provider = {
+						name: remote.provider.name,
+						icon: remote.provider.icon === 'remote' ? 'cloud' : remote.provider.icon,
+						url: await getRemoteProviderUrl(remote.provider, { type: RemoteResourceType.Repo }),
+					};
+				}
+			} catch {
+				/* swallow — provider info is non-critical */
+			}
+
+			// Preserve previously-resolved PR so the pill doesn't flicker between full-state passes.
+			const existingPr = this._lastSentBranchState?.pr;
+			if (existingPr != null) {
+				branchState.pr = existingPr;
+			}
+		}
+
+		if (cancellation.token.isCancellationRequested) return;
+
+		void this.notifyDidChangeBranchState(branchState);
 	}
 
 	private _notifyDidChangeRefsMetadataDebounced:
@@ -4544,8 +4631,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			return false;
 		}
 
-		// Coalesce: if a notify is already in flight, piggyback on it.
-		if (this._pendingStateNotify != null) return this._pendingStateNotify;
+		// Coalesce: if a notify is already in flight, mark dirty so a trailing run picks up any
+		// changes that landed mid-flight, then piggyback on the in-flight promise.
+		if (this._pendingStateNotify != null) {
+			this._stateNotifyDirty = true;
+			return this._pendingStateNotify;
+		}
 
 		// If bootstrap (or another op) is building state right now, wait for it — afterwards the freshness
 		// check below will skip the redundant work. Handles repo-change events firing during bootstrap.
@@ -4573,6 +4664,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		}
 		this._notifyDidChangeStateDebounced?.cancel();
 
+		// Reset before kicking off the in-flight build so calls that arrive during this run flip it back on.
+		this._stateNotifyDirty = false;
+
 		const promise = (async () => {
 			try {
 				const op = this.getState();
@@ -4587,10 +4681,18 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 				const result = await this.host.notify(DidChangeNotification, { state: state });
 				this._lastStateSentAt = performance.now();
+				this._lastSentBranchState = state.branchState;
 				return result;
 			} finally {
 				this._pendingStateNotify = undefined;
 				this._pendingStateOp = undefined;
+				// Trailing run: if a change arrived during the in-flight notify, kick off another pass so
+				// the late change isn't silently lost. Routes through the same freshness gate, so rapid-fire
+				// dirty marks still coalesce against the 500ms window.
+				if (this._stateNotifyDirty) {
+					this._stateNotifyDirty = false;
+					void this.notifyDidChangeState();
+				}
 			}
 		})();
 		this._pendingStateNotify = promise;
@@ -5366,13 +5468,15 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 				const maybePr = getSettledValue(prResult);
 				if (maybePr?.paused) {
-					const updatedBranchState = { ...branchState };
+					const fallbackBranchState: BranchState = branchState;
 					void maybePr.value.then(pr => {
 						if (branchStateCancellation?.token.isCancellationRequested) return;
 
 						if (pr != null) {
-							updatedBranchState.pr = serializePullRequest(pr);
-							void this.notifyDidChangeBranchState(updatedBranchState);
+							// Merge `pr` into the most recently sent branchState so we don't clobber
+							// fresher ahead/behind/upstream values shipped by a later state notify.
+							const base = this._lastSentBranchState ?? fallbackBranchState;
+							void this.notifyDidChangeBranchState({ ...base, pr: serializePullRequest(pr) });
 						}
 					});
 				} else {
@@ -5771,6 +5875,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		this._lastStateSentAt = undefined;
 		this._pendingStateNotify = undefined;
 		this._pendingStateOp = undefined;
+		this._stateNotifyDirty = false;
+		this._lastSentBranchState = undefined;
 		this._graphDetailsDiffCache.clear();
 		if (this._stateFreshnessRetryTimer != null) {
 			clearTimeout(this._stateFreshnessRetryTimer);
