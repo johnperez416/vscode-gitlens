@@ -1256,7 +1256,7 @@ export class ComposerWebviewProvider implements WebviewProvider<State, State, Co
 
 				try {
 					const planResult = await this._composeTools.generatePlan({
-						repo: this._currentRepository,
+						svc: this.container.git.getRepositoryService(this._currentRepository.path),
 						source: librarySource,
 						customInstructions: params.customInstructions,
 						cancellation: this._generateCommitsCancellation.token,
@@ -1599,7 +1599,8 @@ export class ComposerWebviewProvider implements WebviewProvider<State, State, Co
 				this._repositorySubscription = undefined;
 
 				try {
-					const signingConfig = await repo.git.config.getSigningConfig?.();
+					const svc = this.container.git.getRepositoryService(repo.path);
+					const signingConfig = await svc.config.getSigningConfig?.();
 					const signing = signingConfig?.enabled
 						? {
 								enabled: true,
@@ -1609,7 +1610,7 @@ export class ComposerWebviewProvider implements WebviewProvider<State, State, Co
 						: undefined;
 
 					const result = await this._composeTools.applyPlan({
-						repo: repo,
+						svc: svc,
 						cacheKey: this._currentComposePlanCacheKey,
 						commits: params.commits,
 						signing: signing,

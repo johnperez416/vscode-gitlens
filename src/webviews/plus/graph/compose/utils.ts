@@ -124,16 +124,13 @@ export async function executeComposeCommit(
 	composeTools: GraphComposeIntegration,
 	cacheKey: string,
 ): Promise<CommitResult> {
-	const repo = container.git.getRepository(repoPath);
-	if (repo == null) {
-		return { error: { message: 'Repository not found.' } };
-	}
+	const svc = container.git.getRepositoryService(repoPath);
 
 	const commits =
 		plan.mode === 'up-to' && plan.upToIndex != null ? plan.commits.slice(0, plan.upToIndex + 1) : plan.commits;
 	if (commits.length === 0) return { success: true as const };
 
-	const signingConfig = await repo.git.config.getSigningConfig?.();
+	const signingConfig = await svc.config.getSigningConfig?.();
 	const signing = signingConfig?.enabled
 		? {
 				enabled: true,
@@ -145,7 +142,7 @@ export async function executeComposeCommit(
 	let result;
 	try {
 		result = await composeTools.applyPlanForGraphDetails({
-			repo: repo,
+			svc: svc,
 			cacheKey: cacheKey,
 			mode: plan.mode,
 			upToIndex: plan.upToIndex,
@@ -177,7 +174,7 @@ export async function executeComposeCommit(
 		try {
 			const force: UndoForceOptions = { dirtyWorkdir: true };
 			await composeTools.undoCompose({
-				repo: repo,
+				svc: svc,
 				undoId: result.undoId,
 				force: force,
 			});

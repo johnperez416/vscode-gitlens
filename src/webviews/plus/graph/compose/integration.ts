@@ -1,7 +1,7 @@
 import type { CancellationToken } from 'vscode';
 import { rootSha } from '@gitlens/git/models/revision.js';
 import type { Source } from '../../../../constants.telemetry.js';
-import type { GlRepository } from '../../../../git/models/repository.js';
+import type { GitRepositoryService } from '../../../../git/gitRepositoryService.js';
 import { ComposeToolsIntegration } from '../../../../plus/coretools/compose/integration.js';
 import type {
 	ApplyUpTo,
@@ -19,7 +19,7 @@ import type { ScopeSelection } from '../graphService.js';
 import { graphComposeStashPrefix } from './utils.js';
 
 export interface GeneratePlanForGraphDetailsInput {
-	repo: GlRepository;
+	svc: GitRepositoryService;
 	scope: ScopeSelection;
 	customInstructions?: string;
 	excludedFiles?: string[];
@@ -42,7 +42,7 @@ export interface GeneratePlanForGraphDetailsResult {
 }
 
 export interface ApplyPlanForGraphDetailsInput {
-	repo: GlRepository;
+	svc: GitRepositoryService;
 	cacheKey: string;
 	mode: 'all' | 'up-to';
 	upToIndex?: number;
@@ -75,13 +75,13 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 	async generatePlanForGraphDetails(
 		input: GeneratePlanForGraphDetailsInput,
 	): Promise<GeneratePlanForGraphDetailsResult> {
-		const git = this.createGitPort(input.repo);
+		const git = this.createGitPort(input.svc);
 		const model = this.createAiModelPort(input.telemetrySource);
 		const { signal, dispose: disposeSignal } = cancellationTokenToSignal(input.cancellation);
 		const onBeforePrompt = this.buildLargePromptGate(input.suppressLargePromptWarning ?? false);
 
 		try {
-			const resolved = await this.resolveGraphScope(input.repo, input.scope);
+			const resolved = await this.resolveGraphScope(input.svc, input.scope);
 			const source = this.scopeToComposeSource(input.scope, resolved);
 
 			const excluded = input.excludedFiles?.length ? new Set(input.excludedFiles) : undefined;
@@ -101,7 +101,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 				hunkFilter: hunkFilter,
 			});
 
-			const cacheKey = this.createCacheKey(input.repo.path);
+			const cacheKey = this.createCacheKey(input.svc.path);
 			this._cache.set(cacheKey, {
 				plan: result.plan,
 				snapshot: result.snapshot,
@@ -142,7 +142,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 			);
 		}
 
-		const git = this.createGitPort(input.repo);
+		const git = this.createGitPort(input.svc);
 		const applyPlanInput: ComposeApplyPlan = {
 			plan: cached.plan,
 			source: cached.source,
@@ -189,7 +189,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 	}
 
 	private async resolveGraphScope(
-		repo: GlRepository,
+		svc: GitRepositoryService,
 		scope: ScopeSelection,
 	): Promise<{
 		branchName: string;
@@ -202,7 +202,6 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 			throw new Error(`Compose does not support scope type '${scope.type}' yet`);
 		}
 
-		const svc = this.container.git.getRepositoryService(repo.path);
 		const branch = await svc.branches.getBranch();
 		if (branch == null || branch.detached || branch.remote) {
 			throw new Error('Compose requires a local checked-out branch');

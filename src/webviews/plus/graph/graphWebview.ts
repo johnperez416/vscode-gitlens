@@ -1262,10 +1262,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							return { error: { message: 'Compose is not available in this environment.' } };
 						}
 
-						const repo = this.container.git.getRepository(repoPath);
-						if (repo == null) {
-							return { error: { message: 'Repository not found.' } };
-						}
+						const svc = this.container.git.getRepositoryService(repoPath);
 
 						const priorKey = this._activeComposeCacheKeys.get(repoPath);
 						if (priorKey != null) {
@@ -1276,7 +1273,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						this._composeProgressEvent.fire({ phase: 'collecting', message: 'Preparing changes…' });
 
 						const planResult = await composeTools.generatePlanForGraphDetails({
-							repo: repo,
+							svc: svc,
 							scope: scope,
 							customInstructions: instructions,
 							excludedFiles: excludedFiles,
@@ -1290,7 +1287,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 						this._activeComposeCacheKeys.set(repoPath, planResult.cacheKey);
 
-						const svc = this.container.git.getRepositoryService(repoPath);
 						const wipStatus = await svc.status.getStatus(undefined, signal);
 						signal?.throwIfAborted();
 						const wipByPath = new Map<string, { status: GitFileStatus; originalPath?: string }>();
@@ -6486,32 +6482,38 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.pausedOperation.abort:')
 	@debug()
-	private async abortPausedOperation(_item?: GraphItemContext) {
-		if (this.repository == null) return;
+	private async abortPausedOperation(pausedOpArgs?: GitPausedOperationStatus) {
+		const repoPath = pausedOpArgs?.repoPath ?? this.repository?.path;
+		if (repoPath == null) return;
 
-		await abortPausedOperation(this.repository.git);
+		const svc = this.container.git.getRepositoryService(repoPath);
+		await abortPausedOperation(svc);
 	}
 
 	@command('gitlens.pausedOperation.continue:')
 	@debug()
-	private async continuePausedOperation(_item?: GraphItemContext) {
-		if (this.repository == null) return;
+	private async continuePausedOperation(pausedOpArgs?: GitPausedOperationStatus) {
+		const repoPath = pausedOpArgs?.repoPath ?? this.repository?.path;
+		if (repoPath == null) return;
 
-		const status = await this.repository.git.pausedOps?.getPausedOperationStatus?.();
-		if (status == null || status.type === 'revert') return;
+		const svc = this.container.git.getRepositoryService(repoPath);
+		const type = pausedOpArgs?.type ?? (await svc.pausedOps?.getPausedOperationStatus?.())?.type;
+		if (type == null || type === 'revert') return;
 
-		await continuePausedOperation(this.repository.git);
+		await continuePausedOperation(svc);
 	}
 
 	@command('gitlens.pausedOperation.open:')
 	@debug()
-	private async openRebaseEditor(_item?: GraphItemContext) {
-		if (this.repository == null) return;
+	private async openRebaseEditor(pausedOpArgs?: GitPausedOperationStatus) {
+		const repoPath = pausedOpArgs?.repoPath ?? this.repository?.path;
+		if (repoPath == null) return;
 
-		const status = await this.repository.git.pausedOps?.getPausedOperationStatus?.();
-		if (status?.type !== 'rebase') return;
+		const svc = this.container.git.getRepositoryService(repoPath);
+		const type = pausedOpArgs?.type ?? (await svc.pausedOps?.getPausedOperationStatus?.())?.type;
+		if (type !== 'rebase') return;
 
-		const gitDir = await this.repository.git.config.getGitDir?.();
+		const gitDir = await svc.config.getGitDir?.();
 		if (gitDir == null) return;
 
 		const rebaseTodoUri = Uri.joinPath(gitDir.uri, 'rebase-merge', 'git-rebase-todo');
@@ -6522,10 +6524,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	@command('gitlens.pausedOperation.skip:')
 	@debug()
-	private async skipPausedOperation(_item?: GraphItemContext) {
-		if (this.repository == null) return;
+	private async skipPausedOperation(pausedOpArgs?: GitPausedOperationStatus) {
+		const repoPath = pausedOpArgs?.repoPath ?? this.repository?.path;
+		if (repoPath == null) return;
 
-		await skipPausedOperation(this.repository.git);
+		const svc = this.container.git.getRepositoryService(repoPath);
+		await skipPausedOperation(svc);
 	}
 
 	@command('gitlens.pausedOperation.showConflicts:')

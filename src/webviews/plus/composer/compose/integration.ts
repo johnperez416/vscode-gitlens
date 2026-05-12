@@ -1,6 +1,6 @@
 import type { CancellationToken } from 'vscode';
 import type { Source } from '../../../../constants.telemetry.js';
-import type { GlRepository } from '../../../../git/models/repository.js';
+import type { GitRepositoryService } from '../../../../git/gitRepositoryService.js';
 import { ComposeToolsIntegration } from '../../../../plus/coretools/compose/integration.js';
 import type {
 	ComposeApplyPlan,
@@ -16,7 +16,7 @@ import { applyComposePlan, cancellationTokenToSignal, composePlan } from '../../
 import type { ComposerCommit, ComposerHunk } from '../protocol.js';
 
 export interface GeneratePlanInput {
-	repo: GlRepository;
+	svc: GitRepositoryService;
 	source: ComposerSource;
 	target?: ComposeTarget;
 	customInstructions?: string;
@@ -45,7 +45,7 @@ export interface GeneratePlanResult {
 }
 
 export interface ApplyPlanInput {
-	repo: GlRepository;
+	svc: GitRepositoryService;
 	/** Key from the previous {@link ComposerComposeIntegration.generatePlan} call. */
 	cacheKey: string;
 	/** User-edited commits from the webview. */
@@ -76,7 +76,7 @@ export type ComposerSource =
  */
 export class ComposerComposeIntegration extends ComposeToolsIntegration {
 	async generatePlan(input: GeneratePlanInput): Promise<GeneratePlanResult> {
-		const git = this.createGitPort(input.repo);
+		const git = this.createGitPort(input.svc);
 		const model = this.createAiModelPort(input.telemetrySource);
 		const { signal, dispose: disposeSignal } = cancellationTokenToSignal(input.cancellation);
 		const onBeforePrompt = this.buildLargePromptGate(input.suppressLargePromptWarning ?? false);
@@ -97,7 +97,7 @@ export class ComposerComposeIntegration extends ComposeToolsIntegration {
 				onBeforePrompt: onBeforePrompt,
 			});
 
-			const cacheKey = this.createCacheKey(input.repo.path);
+			const cacheKey = this.createCacheKey(input.svc.path);
 			this._cache.set(cacheKey, {
 				plan: result.plan,
 				snapshot: result.snapshot,
@@ -131,7 +131,7 @@ export class ComposerComposeIntegration extends ComposeToolsIntegration {
 			throw new Error(`No cached compose plan for key '${input.cacheKey}'. Call generatePlan() first.`);
 		}
 
-		const git = this.createGitPort(input.repo);
+		const git = this.createGitPort(input.svc);
 
 		const userEditedPlan = this.reconstructPlan(cached.plan, input.commits);
 

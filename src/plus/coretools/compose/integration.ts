@@ -2,7 +2,7 @@ import { CancellationTokenSource } from 'vscode';
 import type { AIChatMessage, AIProviderResponse } from '@gitlens/ai/models/provider.js';
 import type { Source } from '../../../constants.telemetry.js';
 import type { Container } from '../../../container.js';
-import type { GlRepository } from '../../../git/models/repository.js';
+import type { GitRepositoryService } from '../../../git/gitRepositoryService.js';
 import { configuration } from '../../../system/-webview/configuration.js';
 import { showLargePromptWarning } from '../../ai/utils/-webview/ai.utils.js';
 import type {
@@ -71,26 +71,26 @@ export class ComposeToolsIntegration {
 
 	/** Run the library's undo against a prior compose's manifest. */
 	async undoCompose(input: {
-		repo: GlRepository;
+		svc: GitRepositoryService;
 		undoId: string;
 		force?: boolean | UndoForceOptions;
 	}): Promise<void> {
-		const git = createComposeGitPort(this.container, input.repo);
+		const git = createComposeGitPort(input.svc);
 		await undoCompose({ git: git, undoId: input.undoId, force: input.force });
 	}
 
 	/** Dry-run validation of an undo against a prior compose's manifest. */
 	async validateUndoCompose(input: {
-		repo: GlRepository;
+		svc: GitRepositoryService;
 		undoId: string;
 	}): Promise<{ safe: boolean; blockers: { type: string; message: string }[] }> {
-		const git = createComposeGitPort(this.container, input.repo);
+		const git = createComposeGitPort(input.svc);
 		const result = await validateUndoCompose({ git: git, undoId: input.undoId });
 		return { safe: result.safe, blockers: result.blockers };
 	}
 
-	protected createGitPort(repo: GlRepository): ComposeGitPort {
-		return createComposeGitPort(this.container, repo);
+	protected createGitPort(svc: GitRepositoryService): ComposeGitPort {
+		return createComposeGitPort(svc);
 	}
 
 	protected createAiModelPort(telemetrySource: Source): AiModelPort {
@@ -106,9 +106,9 @@ export class ComposeToolsIntegration {
 	}
 }
 
-function createComposeGitPort(_container: Container, repo: GlRepository): ComposeGitPort {
+function createComposeGitPort(svc: GitRepositoryService): ComposeGitPort {
 	const exec = async (args: string[], options?: GitExecOptions): Promise<string> => {
-		const result = await repo.git.exec(args, {
+		const result = await svc.exec(args, {
 			env: options?.env,
 			stdin: options?.stdin,
 			cancellation: options?.signal,
