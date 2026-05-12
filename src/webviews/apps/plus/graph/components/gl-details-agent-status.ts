@@ -1,10 +1,12 @@
 import type { PropertyValues } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
 import type { AgentSessionPhase } from '../../../../../agents/provider.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { AgentSessionState } from '../../../../home/protocol.js';
 import { elementBase } from '../../../shared/components/styles/lit/base.css.js';
+import '../../../shared/components/chips/action-chip.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/button.js';
 import '../../../shared/components/overlays/popover.js';
@@ -57,7 +59,7 @@ function describeSession(
 	session: AgentSessionState,
 	category: Category,
 	elapsed: string | undefined,
-	options: { awaitingPrefix?: 'long' | 'short'; idleFallback?: 'lastActive' | 'lastPrompt' } = {},
+	options: { awaitingPrefix?: 'long' | 'short'; idleFallback?: 'lastActive' | 'lastPrompt' | 'none' } = {},
 ): string | undefined {
 	const awaitingPrefix = options.awaitingPrefix ?? 'long';
 	const idleFallback = options.idleFallback ?? 'lastActive';
@@ -71,6 +73,7 @@ function describeSession(
 	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
 		return `Running ${session.statusDetail}`;
 	}
+	if (idleFallback === 'none') return undefined;
 	if (idleFallback === 'lastActive' && elapsed != null) return `Last active ${elapsed} ago`;
 	return session.lastPrompt || undefined;
 }
@@ -105,6 +108,13 @@ export class GlDetailsAgentStatus extends LitElement {
 			}
 
 			/* ---------- Banner ---------- */
+
+			/* Stacks one banner per needs-input session vertically with a small gap. */
+			.banners {
+				display: flex;
+				flex-direction: column;
+				gap: 0.4rem;
+			}
 
 			/* Banner sits inside the section but stays visible when the section is collapsed —
 			   the actionable subset escapes the collapse while idle rows tuck away. */
@@ -649,10 +659,12 @@ export class GlDetailsAgentStatus extends LitElement {
 
 	@state() private _showStale = false;
 	@state() private _collapsed = true;
-	/** Persisted last-actionable banner data so the banner can animate out using its prior content
-	 *  after the underlying sessions go idle. Updated only when actionable; never cleared, so the
-	 *  exit animation has stable content to render while the [hidden] transition completes. */
-	@state() private _bannerSnapshot?: { top: AgentSessionState; counts: Record<Category, number> };
+	/** Persisted last-actionable banner sessions so the banners can animate out using their prior
+	 *  content after the underlying sessions go idle. Holds one entry per needs-input session, or
+	 *  a single entry for the top working session when no needs-input sessions exist. Updated only
+	 *  when actionable; never cleared, so the exit animation has stable content to render while the
+	 *  [hidden] transition completes. */
+	@state() private _bannerSessionsSnapshot?: AgentSessionState[];
 
 	/** Splits idle sessions older than {@link staleIdleThresholdMs} out into a `stale`
 	 *  bucket. Non-idle sessions (working, needs-input) are always considered fresh regardless
@@ -679,11 +691,16 @@ export class GlDetailsAgentStatus extends LitElement {
 		const sessions = this.sessions;
 		if (sessions == null || sessions.length === 0) return;
 
-		const counts = this.tally(sessions);
-		if (counts['needs-input'] > 0 || counts.working > 0) {
-			this._bannerSnapshot = { top: sessions[0], counts: counts };
+		const needsInput = sessions.filter(s => phaseToCategory[s.phase] === 'needs-input');
+		if (needsInput.length > 0) {
+			this._bannerSessionsSnapshot = needsInput;
+			return;
 		}
-		// Otherwise leave _bannerSnapshot in place so the exit transition has content to render.
+		const firstWorking = sessions.find(s => phaseToCategory[s.phase] === 'working');
+		if (firstWorking != null) {
+			this._bannerSessionsSnapshot = [firstWorking];
+		}
+		// Otherwise leave _bannerSessionsSnapshot in place so the exit transition has content to render.
 	}
 
 	override render(): unknown {
@@ -695,55 +712,38 @@ export class GlDetailsAgentStatus extends LitElement {
 
 	/* ---------- Banner ---------- */
 
-	private renderBanner(
-		snapshot: { top: AgentSessionState; counts: Record<Category, number> },
-		visible: boolean,
-	): unknown {
-		// `sessions` is category-then-timestamp ordered (canonical sort applied at the state-entry
-		// point, see `shared/agentUtils`), so the first entry is always the highest-actionability
-		// session — exactly the right banner subject. The snapshot freezes this so the exit
-		// animation can play with stable content.
-		const { top, counts } = snapshot;
-		const topCategory = phaseToCategory[top.phase];
+	/** Per-session banner. Needs-input sessions get one banner each so each agent's action surface
+	 *  is independently resolvable. Working sessions consolidate to a single banner (the first
+	 *  working session in priority order) since there's nothing to act on. */
+	private renderBanner(session: AgentSessionState, visible: boolean): unknown {
+		const category = phaseToCategory[session.phase];
+		const elapsed = formatElapsed(session.phaseSinceTimestamp);
+		const detailLine = describeSession(session, category, elapsed, {
+			awaitingPrefix: 'short',
+			idleFallback: 'lastPrompt',
+		});
 
-		// Idle count intentionally omitted — the section heading's cluster summary directly above
-		// already surfaces it, so repeating it here is just noise.
-		const summaryParts: string[] = [];
-		if (counts['needs-input'] > 0) {
-			summaryParts.push(`${counts['needs-input']} needs input`);
-		}
-		if (counts.working > 0) {
-			summaryParts.push(`${counts.working} working`);
-		}
-
-		const elapsed = formatElapsed(top.phaseSinceTimestamp);
-		const subtitleParts: string[] = [];
-		if (top.name) {
-			subtitleParts.push(top.name);
-		}
+		const subtitleParts: string[] = [categoryLabel(category)];
 		if (elapsed) {
 			subtitleParts.push(elapsed);
 		}
+		const subtitle = detailLine ? `${subtitleParts.join(' · ')} — ${detailLine}` : subtitleParts.join(' · ');
 
 		return html`
-			<div class="banner banner--${topCategory}" role="status" ?hidden=${!visible}>
+			<div class="banner banner--${category}" role="status" ?hidden=${!visible}>
 				<span class="banner__icon">
-					<span
-						class=${`banner__icon-slot ${topCategory === 'needs-input' ? 'banner__icon-slot--active' : ''}`}
-					>
+					<span class=${`banner__icon-slot ${category === 'needs-input' ? 'banner__icon-slot--active' : ''}`}>
 						<code-icon icon="warning"></code-icon>
 					</span>
-					<span class=${`banner__icon-slot ${topCategory === 'working' ? 'banner__icon-slot--active' : ''}`}>
+					<span class=${`banner__icon-slot ${category === 'working' ? 'banner__icon-slot--active' : ''}`}>
 						<code-icon icon="sync" modifier="spin"></code-icon>
 					</span>
 				</span>
 				<div class="banner__text">
-					<span class="banner__title">${summaryParts.join(' · ') || 'Agents'}</span>
-					${subtitleParts.length
-						? html`<span class="banner__subtitle">${subtitleParts.join(' — ')}</span>`
-						: nothing}
+					<span class="banner__title" title=${session.name || 'Agent'}>${session.name || 'Agent'}</span>
+					<span class="banner__subtitle" title=${subtitle}>${subtitle}</span>
 				</div>
-				<div class="banner__actions">${this.renderBannerActions(top)}</div>
+				<div class="banner__actions">${this.renderBannerActions(session)}</div>
 			</div>
 		`;
 	}
@@ -838,6 +838,7 @@ export class GlDetailsAgentStatus extends LitElement {
 		const { fresh, stale } = this.partitionStaleIdle(sessions);
 		const visible = this._showStale ? sessions : fresh;
 		const hasActionable = counts['needs-input'] > 0 || counts.working > 0;
+		const bannerSessions = this._bannerSessionsSnapshot ?? [];
 
 		return html`
 			<div class="section">
@@ -845,7 +846,15 @@ export class GlDetailsAgentStatus extends LitElement {
 					${this.renderSectionHeading(sessions, counts)}
 					<div slot="content" class="section__hover">${sessions.map(s => this.renderHoverRow(s))}</div>
 				</gl-popover>
-				${this._bannerSnapshot != null ? this.renderBanner(this._bannerSnapshot, hasActionable) : nothing}
+				${bannerSessions.length > 0
+					? html`<div class="banners">
+							${repeat(
+								bannerSessions,
+								s => s.id,
+								s => this.renderBanner(s, hasActionable),
+							)}
+						</div>`
+					: nothing}
 				${this._collapsed
 					? nothing
 					: html`<div id="section__list" class="section__list">
@@ -961,10 +970,19 @@ export class GlDetailsAgentStatus extends LitElement {
 		const category = phaseToCategory[session.phase];
 		const elapsed = formatElapsed(session.phaseSinceTimestamp);
 		const phaseLabel = categoryLabel(category);
+		// Cards drop the "Last active" / lastPrompt fallback — elapsed surfaces in the phase
+		// tooltip, and lastPrompt has its own dedicated `card__prompt` row below.
 		const detailLine = describeSession(session, category, elapsed, {
 			awaitingPrefix: 'long',
-			idleFallback: 'lastActive',
+			idleFallback: 'none',
 		});
+		const phaseContent = html`${phaseLabel}${elapsed != null ? html` · ${elapsed}` : nothing}`;
+		const phaseTooltip = elapsed != null ? `Last active ${elapsed} ago` : undefined;
+		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
+		const canResolve =
+			phaseToCategory[session.phase] === 'needs-input' &&
+			session.isInWorkspace &&
+			session.pendingPermissionDetail != null;
 
 		return html`
 			<div class=${`card card--${category}`}>
@@ -972,33 +990,36 @@ export class GlDetailsAgentStatus extends LitElement {
 				<div class="card__body">
 					<div class="card__title-row">
 						<span class="card__name" title=${session.name}>${session.name}</span>
-						<span class=${`card__phase card__phase--${category}`}>
-							${phaseLabel}${elapsed != null ? html` · ${elapsed}` : nothing}
-						</span>
+						${phaseTooltip != null
+							? html`<gl-tooltip content=${phaseTooltip} placement="bottom">
+									<span class=${`card__phase card__phase--${category}`}>${phaseContent}</span>
+								</gl-tooltip>`
+							: html`<span class=${`card__phase card__phase--${category}`}>${phaseContent}</span>`}
+						<gl-action-chip
+							class="card__open"
+							icon="link-external"
+							label="Open Session"
+							overlay="tooltip"
+							href=${openHref}
+						></gl-action-chip>
 					</div>
 					${detailLine ? html`<span class="card__detail" title=${detailLine}>${detailLine}</span>` : nothing}
 					${session.lastPrompt
 						? html`<span class="card__prompt" title=${session.lastPrompt}>${session.lastPrompt}</span>`
 						: nothing}
 				</div>
-				<div class="card__actions">${this.renderCardActions(session)}</div>
+				${canResolve ? html`<div class="card__actions">${this.renderCardActions(session)}</div>` : nothing}
 			</div>
 		`;
 	}
 
+	/** Renders the needs-input action row. Open is no longer rendered here — it's hoisted into the
+	 *  card title row as an action chip — and Always Allow is promoted out of the overflow menu so
+	 *  all three permission resolutions are visible inline. Only called when `canResolve` is true,
+	 *  so the no-detail branch is unreachable. */
 	private renderCardActions(session: AgentSessionState): unknown {
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 		const detail = session.pendingPermissionDetail;
-		const canResolve = phaseToCategory[session.phase] === 'needs-input' && session.isInWorkspace && detail != null;
-
-		if (!canResolve) {
-			return html`
-				<gl-button appearance="secondary" density="compact" href=${openHref}>
-					<code-icon icon="link-external" slot="prefix"></code-icon>
-					Open
-				</gl-button>
-			`;
-		}
+		if (detail == null) return nothing;
 
 		const allowHref = createCommandLink('gitlens.agents.resolvePermission', {
 			sessionId: session.id,
@@ -1008,17 +1029,30 @@ export class GlDetailsAgentStatus extends LitElement {
 			sessionId: session.id,
 			decision: 'deny' as const,
 		});
+		const showAlwaysAllow = detail.hasSuggestions === true;
+		const alwaysAllowHref = showAlwaysAllow
+			? createCommandLink('gitlens.agents.resolvePermission', {
+					sessionId: session.id,
+					decision: 'allow' as const,
+					alwaysAllow: true,
+				})
+			: undefined;
 
 		return html`
 			<gl-button density="compact" href=${allowHref}>
 				<code-icon icon="check" slot="prefix"></code-icon>
 				Allow
 			</gl-button>
+			${showAlwaysAllow && alwaysAllowHref != null
+				? html`<gl-button appearance="secondary" density="compact" href=${alwaysAllowHref}>
+						<code-icon icon="check-all" slot="prefix"></code-icon>
+						Always Allow
+					</gl-button>`
+				: nothing}
 			<gl-button appearance="secondary" density="compact" href=${denyHref}>
 				<code-icon icon="x" slot="prefix"></code-icon>
 				Deny
 			</gl-button>
-			${this.renderMoreActionsAnchor(session)}
 		`;
 	}
 

@@ -88,7 +88,7 @@ export class GlAgentStatusPill extends LitElement {
 				display: inline-flex;
 				align-items: center;
 				padding: 0.1rem 0.6rem;
-				border-radius: 50px;
+				border-radius: 0.4rem;
 				border: 1px solid transparent;
 				font-size: 0.85em;
 				font-weight: 500;
