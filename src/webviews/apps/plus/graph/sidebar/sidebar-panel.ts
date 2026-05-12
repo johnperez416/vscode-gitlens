@@ -3,6 +3,7 @@ import { SignalWatcher } from '@lit-labs/signals';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
+import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { fromNow } from '@gitlens/utils/date.js';
@@ -18,6 +19,7 @@ import type {
 	GraphSidebarTag,
 	GraphSidebarWorktree,
 } from '../../../../plus/graph/protocol.js';
+import { makeSecondaryWipSha } from '../../../../plus/graph/protocol.js';
 import {
 	agentTooltip,
 	branchTooltip,
@@ -750,7 +752,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			tooltip: worktreeTooltip(w),
 			icon: w.branch != null ? { type: 'branch', status: w.status, hasChanges: w.hasChanges } : 'git-commit',
 			description: formatWorktreeDescription(w),
-			context: [w.sha] as SidebarItemContext,
+			context: [w.isDefault ? uncommitted : makeSecondaryWipSha(w.uri)] as SidebarItemContext,
 			decorations: [
 				...(trackingDecorations(w.tracking) ?? []),
 				...(w.opened ? [{ type: 'icon' as const, icon: 'check', label: 'Active' }] : []),
