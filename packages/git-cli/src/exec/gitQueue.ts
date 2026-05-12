@@ -261,20 +261,45 @@ export class GitQueue {
 }
 
 /**
- * Infers priority from git command type.
- * Only downgrades to 'background' for expensive commands; never upgrades to 'interactive'.
+ * Git global options that consume the next positional arg as their value
+ * (e.g. `--work-tree <path>`). Long-form `--name=value` is already skipped by
+ * the leading-dash check, so only the separated form needs explicit handling.
+ */
+const optionsTakingValue = new Set([
+	'-c',
+	'-C',
+	'--git-dir',
+	'--work-tree',
+	'--namespace',
+	'--exec-path',
+	'--super-prefix',
+	'--config-env',
+	'--attr-source',
+	'--list-cmds',
+]);
+
+/**
+ * Infers a queue priority from the git command being invoked.
+ *
+ * Intentionally narrow: only returns 'background' for commands that are
+ * *always* read-only AND *always* potentially expensive. Polymorphic commands
+ * like `log` and `rev-list` (which can be quick bounded lookups or full-history
+ * walks) are deliberately omitted — call sites that perform heavy walks must
+ * pass `priority: 'background'` explicitly. Never upgrades to 'interactive'.
+ *
+ * No subcommand awareness (e.g. `stash list`, `branch -l`): the risk of
+ * misclassifying a write subcommand as background outweighs the gain.
  */
 export function inferGitCommandPriority(args: readonly (string | undefined)[]): GitCommandPriority {
-	let skip = false;
 	let command: string | undefined;
-	for (const a of args) {
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i];
 		if (a == null) continue;
-		if (skip) {
-			skip = false;
-			continue;
-		}
-		if (a === '-c' || a === '-C') {
-			skip = true;
+		if (optionsTakingValue.has(a)) {
+			const next = args[i + 1];
+			if (next != null && !next.startsWith('-')) {
+				i++;
+			}
 			continue;
 		}
 		if (a.startsWith('-')) continue;
@@ -283,11 +308,14 @@ export function inferGitCommandPriority(args: readonly (string | undefined)[]): 
 	}
 
 	switch (command) {
-		case 'log':
-		case 'rev-list':
 		case 'for-each-ref':
 		case 'shortlog':
 		case 'reflog':
+		case 'name-rev':
+		case 'describe':
+		case 'cherry':
+		case 'count-objects':
+		case 'fsck':
 			return 'background';
 		default:
 			return 'normal';

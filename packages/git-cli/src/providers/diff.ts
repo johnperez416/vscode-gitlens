@@ -328,7 +328,12 @@ export class DiffGitSubProvider implements GitDiffSubProvider {
 			// Follow file history and specify the file path
 			args.push('--follow', '--', relativePath);
 
-			const result = await this.git.run({ cwd: repoPath, configs: gitConfigsLog }, ...args);
+			// Unbounded --follow walk over file history can be slow on long histories — queue as background
+			// so it doesn't compete with interactive work.
+			const result = await this.git.run(
+				{ cwd: repoPath, configs: gitConfigsLog, priority: 'background' },
+				...args,
+			);
 
 			let currentSha;
 			let currentPath;

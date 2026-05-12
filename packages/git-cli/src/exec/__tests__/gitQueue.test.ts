@@ -441,12 +441,17 @@ suite('GitQueue Test Suite', () => {
 });
 
 suite('inferGitCommandPriority() Test Suite', () => {
-	test('log is background priority', () => {
-		assert.strictEqual(inferGitCommandPriority(['log', '--oneline']), 'background');
+	test('log is normal priority (polymorphic — heavy callers must tag explicitly)', () => {
+		assert.strictEqual(inferGitCommandPriority(['log', '--oneline']), 'normal');
+		assert.strictEqual(inferGitCommandPriority(['log']), 'normal');
+		assert.strictEqual(inferGitCommandPriority(['log', '-1']), 'normal');
+		assert.strictEqual(inferGitCommandPriority(['log', '--all', '--graph']), 'normal');
 	});
 
-	test('rev-list is background priority', () => {
-		assert.strictEqual(inferGitCommandPriority(['rev-list', '--count', 'HEAD']), 'background');
+	test('rev-list is normal priority (polymorphic — heavy callers must tag explicitly)', () => {
+		assert.strictEqual(inferGitCommandPriority(['rev-list', '--count', 'HEAD']), 'normal');
+		assert.strictEqual(inferGitCommandPriority(['rev-list', 'HEAD']), 'normal');
+		assert.strictEqual(inferGitCommandPriority(['rev-list', '-1', 'HEAD']), 'normal');
 	});
 
 	test('for-each-ref is background priority', () => {
@@ -461,6 +466,26 @@ suite('inferGitCommandPriority() Test Suite', () => {
 		assert.strictEqual(inferGitCommandPriority(['reflog', 'show']), 'background');
 	});
 
+	test('name-rev is background priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['name-rev', '--name-only', 'HEAD']), 'background');
+	});
+
+	test('describe is background priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['describe', '--tags']), 'background');
+	});
+
+	test('cherry is background priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['cherry', 'main']), 'background');
+	});
+
+	test('count-objects is background priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['count-objects', '-v']), 'background');
+	});
+
+	test('fsck is background priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['fsck']), 'background');
+	});
+
 	test('commit is normal priority', () => {
 		assert.strictEqual(inferGitCommandPriority(['commit', '-m', 'msg']), 'normal');
 	});
@@ -473,28 +498,73 @@ suite('inferGitCommandPriority() Test Suite', () => {
 		assert.strictEqual(inferGitCommandPriority(['status', '--porcelain']), 'normal');
 	});
 
+	test('merge-base is normal priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['merge-base', 'A', 'B']), 'normal');
+	});
+
+	test('blame is normal priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['blame', 'file.ts']), 'normal');
+	});
+
+	test('ls-files is normal priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['ls-files']), 'normal');
+	});
+
+	test('diff is normal priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['diff', 'HEAD']), 'normal');
+	});
+
+	test('show is normal priority', () => {
+		assert.strictEqual(inferGitCommandPriority(['show', 'HEAD']), 'normal');
+	});
+
 	test('skips -c flag and its value arg to find the real command', () => {
 		// -c key=value is a git global option; the value arg must be skipped
-		assert.strictEqual(inferGitCommandPriority(['-c', 'gc.auto=0', 'log', '--oneline']), 'background');
 		assert.strictEqual(
 			inferGitCommandPriority(['-c', 'color.ui=false', '-c', 'core.quotepath=false', 'for-each-ref']),
 			'background',
 		);
+		assert.strictEqual(inferGitCommandPriority(['-c', 'gc.auto=0', 'shortlog']), 'background');
 		assert.strictEqual(inferGitCommandPriority(['-c', 'merge.autoStash=true', 'push', 'origin']), 'normal');
 	});
 
 	test('skips -C flag and its value arg to find the real command', () => {
 		// -C <path> changes the working directory
-		assert.strictEqual(inferGitCommandPriority(['-C', '/some/path', 'log', '--oneline']), 'background');
+		assert.strictEqual(inferGitCommandPriority(['-C', '/some/path', 'shortlog']), 'background');
+	});
+
+	test('skips --work-tree, --git-dir, --namespace, --super-prefix and their value args', () => {
+		// Separated forms of git global options must consume the next positional as their value
+		assert.strictEqual(inferGitCommandPriority(['--work-tree', '/x', 'shortlog']), 'background');
+		assert.strictEqual(inferGitCommandPriority(['--git-dir', '/x.git', 'reflog']), 'background');
+		assert.strictEqual(inferGitCommandPriority(['--namespace', 'foo', 'for-each-ref']), 'background');
+		assert.strictEqual(inferGitCommandPriority(['--super-prefix', 'sub/', 'name-rev', 'HEAD']), 'background');
+	});
+
+	test('handles =-form global options without consuming an extra arg', () => {
+		// --name=value is a single token; the leading-dash skip covers it
+		assert.strictEqual(inferGitCommandPriority(['--exec-path=/usr/libexec', 'fsck']), 'background');
+		assert.strictEqual(inferGitCommandPriority(['--git-dir=/x.git', 'reflog']), 'background');
+	});
+
+	test('does not consume a value-taking option’s value if it looks like another flag', () => {
+		// peek rule: only consume next arg if it doesn't start with '-'
+		// Here '--foo' is treated as a flag of its own, and the next positional ('shortlog') is the command
+		assert.strictEqual(inferGitCommandPriority(['-c', '--foo', 'shortlog']), 'background');
 	});
 
 	test('skips flag-only leading args', () => {
-		// '--no-pager' starts with '-' so is skipped, 'log' is the command
-		assert.strictEqual(inferGitCommandPriority(['--no-pager', 'log', '--oneline']), 'background');
+		// '--no-pager' starts with '-' so is skipped, 'shortlog' is the command
+		assert.strictEqual(inferGitCommandPriority(['--no-pager', 'shortlog', '-sn']), 'background');
 	});
 
 	test('skips undefined args', () => {
-		assert.strictEqual(inferGitCommandPriority([undefined, 'log']), 'background');
+		assert.strictEqual(inferGitCommandPriority([undefined, 'shortlog']), 'background');
+	});
+
+	test('handles dangling value-taking option at end of args', () => {
+		// The command was found before the dangling '-c'; result is still its priority
+		assert.strictEqual(inferGitCommandPriority(['shortlog', '-c']), 'background');
 	});
 
 	test('returns normal for empty args', () => {

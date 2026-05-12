@@ -172,9 +172,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 	async getCommitFiles(repoPath: string, rev: string, cancellation?: AbortSignal): Promise<GitFileChange[]> {
 		const parser = getShaAndFilesAndStatsLogParser();
 		const result = await this.git.run(
-			// Single-commit log is cheap and almost always serves a user-initiated read; override
-			// the inferred 'background' priority so it doesn't queue behind heavier graph/log work.
-			{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog, priority: 'normal' },
+			{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog },
 			'log',
 			...parser.arguments,
 			'-n1',
@@ -354,7 +352,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 
 		try {
 			const result = await this.git.run(
-				{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog },
+				{ cwd: repoPath, cancellation: cancellation, configs: gitConfigsLog, priority: 'background' },
 				'log',
 				...args,
 			);
@@ -623,11 +621,6 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 				cwd: repoPath,
 				cancellation: cancellation,
 				configs: gitConfigsLogWithFiles,
-				// Single-commit log is cheap (typically <50ms) and almost always serves a user-
-				// initiated read (commit details, hover, etc.). Override the inferred 'background'
-				// priority so it doesn't queue behind heavier graph/log work — without this, a click
-				// on a commit while the graph is still loading can wait seconds for files to appear.
-				...(isSingleCommit ? { priority: 'normal' as const } : undefined),
 			};
 			let { commits, count } = await parseCommits(
 				parser,

@@ -27,7 +27,7 @@ export interface GitResultCache {
  * Priority levels for git commands.
  * - `interactive`: User-initiated operations (blame, hover) - highest priority
  * - `normal`: Standard operations (status, config) - default priority
- * - `background`: Expensive operations (log, graph) - can be throttled
+ * - `background`: Expensive operations (graph rendering, full history walks) - can be throttled
  */
 export type GitCommandPriority = 'interactive' | 'normal' | 'background';
 

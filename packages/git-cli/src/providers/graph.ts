@@ -464,7 +464,7 @@ export class GraphGitSubProvider implements GitGraphSubProvider {
 							args.push(`--${ordering}-order`, '--all');
 
 							const statsResult = await this.git.run(
-								{ cwd: repoPath, configs: gitConfigsLog, stdin: stdin },
+								{ cwd: repoPath, configs: gitConfigsLog, stdin: stdin, priority: 'background' },
 								'log',
 								stdin ? '--stdin' : undefined,
 								...args,
