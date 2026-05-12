@@ -129,10 +129,10 @@ export function remoteTooltip(r: GraphSidebarRemote): string {
 	return tooltip;
 }
 
-/** Markdown tooltip for an agent leaf in the graph sidebar. Mirrors the informational content
- *  the `gl-agent-status-pill` shows in its popover (header, last prompt, current tool / request /
- *  context) and adds the related branch/worktree so the user knows what graph row this leaf maps
- *  to. Action affordances stay on the row (revealed on hover) so we don't duplicate them here. */
+/** Markdown tooltip for an agent leaf in the graph sidebar. Top section identifies the session
+ *  (name + phase + elapsed, then the related branch/worktree). Remaining content — last prompt,
+ *  current tool, or pending permission request — is divider-separated below.
+ *  Action affordances stay on the row (revealed on hover) so we don't duplicate them here. */
 export function agentTooltip(session: AgentSessionState, matchingBranch: OverviewBranch | undefined): string {
 	const category = agentPhaseToCategory[session.phase];
 	const phaseLabel = getAgentCategoryLabel(category);
@@ -148,27 +148,6 @@ export function agentTooltip(session: AgentSessionState, matchingBranch: Overvie
 
 	let tooltip = `${phaseIcon} **${session.name}** — ${headerParts.join(' · ')}`;
 
-	if (session.lastPrompt) {
-		tooltip += `\n\n**Last Prompt**\\\n${session.lastPrompt}`;
-	}
-
-	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
-		tooltip += `\n\n**Current Tool**\\\n${session.statusDetail}`;
-	}
-
-	const detail = session.pendingPermissionDetail;
-	if (category === 'needs-input' && detail != null) {
-		const requestParts = [`\`${detail.toolName}\``];
-		if (detail.toolDescription) {
-			requestParts.push(`— ${detail.toolDescription}`);
-		}
-		tooltip += `\n\n**Request**\\\n${requestParts.join(' ')}`;
-
-		if (detail.toolInputDescription) {
-			tooltip += `\n\n**Context**\\\n${detail.toolInputDescription}`;
-		}
-	}
-
 	// Branch line — prefer the resolved overview match (it carries the worktree URI we can show
 	// the basename of); fall back to the raw `session.branch` + `worktreeName` when the agent is
 	// on a branch outside the current overview.
@@ -180,7 +159,34 @@ export function agentTooltip(session: AgentSessionState, matchingBranch: Overvie
 		if (worktreeName) {
 			branchLine += ` — _worktree: ${worktreeName}_`;
 		}
-		tooltip += `\n\n**Branch**\\\n${branchLine}`;
+		tooltip += `\\\n${branchLine}`;
+	}
+
+	const sections: string[] = [];
+
+	if (session.lastPrompt) {
+		sections.push(session.lastPrompt);
+	}
+
+	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
+		sections.push(session.statusDetail);
+	}
+
+	const detail = session.pendingPermissionDetail;
+	if (category === 'needs-input' && detail != null) {
+		const requestParts = [`\`${detail.toolName}\``];
+		if (detail.toolDescription) {
+			requestParts.push(`— ${detail.toolDescription}`);
+		}
+		let request = requestParts.join(' ');
+		if (detail.toolInputDescription) {
+			request += `\\\n${detail.toolInputDescription}`;
+		}
+		sections.push(request);
+	}
+
+	for (const section of sections) {
+		tooltip += `\n\n---\n\n${section}`;
 	}
 
 	return tooltip;

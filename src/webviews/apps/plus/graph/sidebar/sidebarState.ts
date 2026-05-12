@@ -120,7 +120,7 @@ export function createSidebarActions(): SidebarActions {
 		worktrees: undefined,
 	};
 
-	const agentsLayout = litSignal<'list' | 'tree'>('list');
+	const agentsLayout = litSignal<'list' | 'tree'>('tree');
 
 	const actions: SidebarActions = {
 		state: state,
