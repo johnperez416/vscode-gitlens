@@ -37,11 +37,19 @@ export async function explainChanges(
 					promptContext = await promptContext(cancellation);
 				}
 
+				const callerInstructions = promptContext.instructions;
+				const settingInstructions = configuration.get('ai.explainChanges.customInstructions');
+
 				promptContext.instructions = mergeUserInstructions(
-					configuration.get('ai.explainChanges.customInstructions'),
-					promptContext.instructions,
+					settingInstructions,
+					callerInstructions,
 					'The user provided the following guidance for this explanation — incorporate it into your response:',
 				);
+
+				reporting['customInstructions.used'] = Boolean(callerInstructions);
+				reporting['customInstructions.length'] = callerInstructions?.length ?? 0;
+				reporting['customInstructions.setting.used'] = Boolean(settingInstructions);
+				reporting['customInstructions.setting.length'] = settingInstructions?.length ?? 0;
 
 				if (cancellation.isCancellationRequested) throw new CancellationError();
 

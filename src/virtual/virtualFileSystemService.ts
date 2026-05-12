@@ -6,6 +6,7 @@ import { basename } from '@gitlens/utils/path.js';
 import { GlyphChars } from '../constants.js';
 import type { Container } from '../container.js';
 import type { VirtualContentProvider, VirtualParent, VirtualRef } from './virtualContentProvider.js';
+import { VirtualFsError } from './virtualFsError.js';
 import type { VirtualUriAuthority } from './virtualFileSystemProvider.js';
 import { encodeVirtualUri, VirtualFileSystemProvider } from './virtualFileSystemProvider.js';
 
@@ -112,12 +113,16 @@ export class VirtualFileSystemService implements Disposable {
 	async getComparePreviousUris(ref: VirtualRef, file: GitFileChangeShape): Promise<VirtualDiffArgs> {
 		const provider = this.getProviderOrThrow(ref.namespace);
 		if (provider.getParent == null) {
-			throw new Error(`VirtualFileSystemService: provider '${ref.namespace}' does not support getParent`);
+			throw new VirtualFsError(
+				'parent-missing',
+				`VirtualFileSystemService: provider '${ref.namespace}' does not support getParent`,
+			);
 		}
 
 		const parent = await provider.getParent(ref.sessionId, ref.commitId);
 		if (parent == null) {
-			throw new Error(
+			throw new VirtualFsError(
+				'parent-missing',
 				`VirtualFileSystemService: no parent for '${ref.namespace}/${ref.sessionId}/${ref.commitId}' — use buildDiffArgs with explicit sides`,
 			);
 		}
@@ -143,12 +148,16 @@ export class VirtualFileSystemService implements Disposable {
 	): Promise<{ resources: { uri: Uri; lhs: Uri; rhs: Uri }[]; title: string }> {
 		const provider = this.getProviderOrThrow(ref.namespace);
 		if (provider.getParent == null) {
-			throw new Error(`VirtualFileSystemService: provider '${ref.namespace}' does not support getParent`);
+			throw new VirtualFsError(
+				'parent-missing',
+				`VirtualFileSystemService: provider '${ref.namespace}' does not support getParent`,
+			);
 		}
 
 		const parent = await provider.getParent(ref.sessionId, ref.commitId);
 		if (parent == null) {
-			throw new Error(
+			throw new VirtualFsError(
+				'parent-missing',
 				`VirtualFileSystemService: no parent for '${ref.namespace}/${ref.sessionId}/${ref.commitId}' — use buildDiffArgs with explicit sides`,
 			);
 		}
@@ -209,7 +218,10 @@ export class VirtualFileSystemService implements Disposable {
 	private getProviderOrThrow(namespace: string): VirtualContentProvider {
 		const provider = this._providers.get(namespace);
 		if (provider == null) {
-			throw new Error(`VirtualFileSystemService: no provider registered for namespace '${namespace}'`);
+			throw new VirtualFsError(
+				'provider-missing',
+				`VirtualFileSystemService: no provider registered for namespace '${namespace}'`,
+			);
 		}
 		return provider;
 	}

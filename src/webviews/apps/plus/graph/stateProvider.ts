@@ -51,6 +51,7 @@ import { signalObjectState, signalState } from '../../shared/components/signal-u
 import type { LoggerContext } from '../../shared/contexts/logger.js';
 import type { HostIpc } from '../../shared/ipc.js';
 import { StateProviderBase } from '../../shared/stateProviderBase.js';
+import { emitTelemetrySentEvent } from '../../shared/telemetry.js';
 import type { AppState } from './context.js';
 import { graphStateContext } from './context.js';
 
@@ -540,8 +541,15 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 			case DidChangeRefsVisibilityNotification.is(msg):
 				if (this._scopeClearDeferred) {
 					this._scopeClearDeferred = false;
+					const wasScoped = this.scope != null;
 					// Coalesce with the visibility update so the minimap and graph re-render once.
 					this.scope = undefined;
+					if (wasScoped) {
+						emitTelemetrySentEvent<'graph/scope/cleared'>(this.host, {
+							name: 'graph/scope/cleared',
+							data: {},
+						});
+					}
 				}
 				this.updateState({
 					branchesVisibility: msg.params.branchesVisibility,

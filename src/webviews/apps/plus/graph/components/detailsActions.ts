@@ -27,7 +27,12 @@ import { LruMap } from '@gitlens/utils/lruMap.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { Autolink } from '../../../../../autolinks/models/autolinks.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
-import type { TelemetryEvents } from '../../../../../constants.telemetry.js';
+import type {
+	GraphVirtualFileFailureReason,
+	GraphVirtualFileMode,
+	TelemetryEvents,
+} from '../../../../../constants.telemetry.js';
+import { getVirtualFsErrorReason } from '../../../../../virtual/virtualFsError.js';
 import type { CommitDetails, CommitSignatureShape, CompareDiff, Wip } from '../../../../plus/graph/detailsProtocol.js';
 import type {
 	BranchComparisonContributorsScope,
@@ -1860,17 +1865,48 @@ export class DetailsActions {
 
 	/** Open the virtual revision of `detail` via the virtual FS provider (no real SHA needed). */
 	openVirtualFile(detail: FileChangeListItemDetail, ref: fileActions.VirtualRefShape): void {
-		fileActions.openVirtualFile(this.services.files, ref, detail, detail.showOptions);
+		void this.runVirtualFileOpen('diff', 1, () =>
+			this.services.files.openVirtualFile(ref, detail, detail.showOptions),
+		);
 	}
 
 	/** Diff the virtual revision against its virtual (or real) parent via the virtual FS service. */
 	openVirtualFileComparePrevious(detail: FileChangeListItemDetail, ref: fileActions.VirtualRefShape): void {
-		fileActions.openVirtualFileComparePrevious(this.services.files, ref, detail, detail.showOptions);
+		void this.runVirtualFileOpen('comparePrevious', 1, () =>
+			this.services.files.openVirtualFileComparePrevious(ref, detail, detail.showOptions),
+		);
 	}
 
 	/** Open all files in the proposed-commit's virtual ref in VS Code's multi-diff editor. */
 	openVirtualMultipleChanges(ref: fileActions.VirtualRefShape, files: readonly FileChangeListItemDetail[]): void {
-		fileActions.openVirtualMultipleChanges(this.services.files, ref, files);
+		void this.runVirtualFileOpen('multiDiff', files.length, () =>
+			this.services.files.openVirtualMultipleChanges(ref, files),
+		);
+	}
+
+	/**
+	 * Awaits a virtual-FS-backed open operation and emits adoption/reliability telemetry. Rejections
+	 * raised as `VirtualFsError` (including ones reconstructed across the host → webview RPC
+	 * boundary) are categorized via {@link getVirtualFsErrorReason}; anything else is `'unknown'`.
+	 */
+	private async runVirtualFileOpen(
+		mode: GraphVirtualFileMode,
+		fileCount: number,
+		open: () => Promise<void>,
+	): Promise<void> {
+		try {
+			await open();
+			this.sendTelemetryEvent('graph/virtualFile/opened', { mode: mode, 'files.count': fileCount });
+		} catch (ex) {
+			const message = ex instanceof Error ? ex.message : String(ex);
+			const reason: GraphVirtualFileFailureReason = getVirtualFsErrorReason(ex) ?? 'unknown';
+			this.sendTelemetryEvent('graph/virtualFile/failed', {
+				mode: mode,
+				'files.count': fileCount,
+				reason: reason,
+				'error.message': message,
+			});
+		}
 	}
 
 	executeFileAction(detail: FileChangeListItemDetail, ref?: string): void {

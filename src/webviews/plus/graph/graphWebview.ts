@@ -1807,6 +1807,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			commands.push(
 				registerCommand(`${this.host.id}.refresh`, () => this.host.refresh(true)),
 				registerCommand(`${this.host.id}.openInNewWindow`, async () => {
+					this.host.sendTelemetryEvent('graph/command', {
+						command: `${this.host.id}.openInNewWindow`,
+					});
 					await executeCommand<WebviewPanelShowCommandArgs<GraphWebviewShowingArgs>>(
 						'gitlens.showGraphPage',
 						undefined,
@@ -1814,15 +1817,16 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					);
 					void executeCoreCommand('workbench.action.moveEditorToNewWindow');
 				}),
-				registerCommand(
-					`${this.host.id}.openInTab`,
-					() =>
-						void executeCommand<WebviewPanelShowCommandArgs<GraphWebviewShowingArgs>>(
-							'gitlens.showGraphPage',
-							undefined,
-							this.repository,
-						),
-				),
+				registerCommand(`${this.host.id}.openInTab`, () => {
+					this.host.sendTelemetryEvent('graph/command', {
+						command: `${this.host.id}.openInTab`,
+					});
+					void executeCommand<WebviewPanelShowCommandArgs<GraphWebviewShowingArgs>>(
+						'gitlens.showGraphPage',
+						undefined,
+						this.repository,
+					);
+				}),
 				// Opens the standalone Visual History editor at the current repo from the in-graph
 				// timeline mode's "Open in Editor" toolbox button. Plain `registerCommand` (not the
 				// webview-context-aware decorator path) because the button click has no row context

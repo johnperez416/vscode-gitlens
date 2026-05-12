@@ -1076,7 +1076,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -1098,7 +1098,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1116,7 +1116,7 @@ or
   'context.pinned': boolean,
   'context.type': 'stash' | 'commit',
   'context.uncommitted': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1152,7 +1152,7 @@ or
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1184,7 +1184,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1210,7 +1210,7 @@ or
   'context.pinned': boolean,
   'context.type': 'stash' | 'commit',
   'context.uncommitted': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1268,7 +1268,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -1324,7 +1324,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1387,7 +1387,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1449,7 +1449,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1514,7 +1514,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -1570,7 +1570,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1628,7 +1628,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1687,7 +1687,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1745,7 +1745,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1806,7 +1806,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -1862,7 +1862,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1925,7 +1925,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -1987,7 +1987,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2052,7 +2052,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2108,7 +2108,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2120,7 +2120,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2176,7 +2176,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2234,7 +2234,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2247,7 +2247,7 @@ or
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2261,7 +2261,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2319,7 +2319,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2375,7 +2375,7 @@ or
   'context.source': 'account' | 'subscription' | 'graph' | 'composer' | 'patchDetails' | 'settings' | 'timeline' | 'home' | 'welcome' | 'rebaseEditor' | 'ai' | 'ai:markdown-preview' | 'ai:markdown-editor' | 'ai:picker' | 'associateIssueWithBranch' | 'cloud-patches' | 'code-suggest' | 'commandPalette' | 'deeplink' | 'editor:hover' | 'feature-badge' | 'feature-gate' | 'gk-cli-integration' | 'gk-mcp-provider' | 'graph-details' | 'inspect' | 'inspect-overview' | 'integrations' | 'launchpad' | 'launchpad-indicator' | 'launchpad-view' | 'mcp' | 'mcp-welcome-message' | 'merge-target' | 'notification' | 'prompt' | 'quick-wizard' | 'remoteProvider' | 'scm' | 'scm-input' | 'startReview' | 'startWork' | 'statusbar:hover' | 'trial-indicator' | 'view' | 'view:hover' | 'walkthrough' | 'whatsnew' | 'worktrees',
   'context.warnings.indexChanged': boolean,
   'context.warnings.workingDirectoryChanged': boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2413,7 +2413,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2432,7 +2432,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2451,7 +2451,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2471,7 +2471,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2483,7 +2483,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2505,7 +2505,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2534,7 +2534,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2558,7 +2558,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2576,7 +2576,52 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string
+}
+```
+
+### graph/overview/action
+
+> Sent when the user invokes an action item on a Graph Overview branch card
+
+```typescript
+{
+  // Whether the user held Alt/Shift to swap to the alt action
+  'alt': boolean,
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string,
+  // Where on the card the action was invoked
+  'location': 'inline' | 'hover',
+  'name': 'pull' | 'push' | 'fetch' | 'publishBranch' | 'switch' | 'openWorktree' | 'compareWithHead' | 'compareWithWorking' | 'compareWithPr' | 'other'
+}
+```
+
+### graph/overview/shown
+
+> Sent when the Graph Overview panel becomes visible (mounted in the active sidebar slot)
+
+```typescript
+{
+  // Number of branches in the "active" section at the time of show
+  'branches.active.count': number,
+  // Number of branches in the "recent" section at the time of show
+  'branches.recent.count': number,
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2594,7 +2639,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2617,7 +2662,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2636,7 +2681,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2656,12 +2701,54 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
   'duration': number,
   'rows': number
+}
+```
+
+### graph/scope/changed
+
+> Sent when the user scopes the Commit Graph to a specific branch (Focus Branch feature)
+
+```typescript
+{
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string,
+  // Whether the scope's merge-target tip SHA is known at scope time (proxy for "merge-target resolved")
+  'scope.hasMergeTarget': boolean,
+  // Whether the scoped branch has a tracked upstream resolved at the time of the scope change
+  'scope.hasUpstream': boolean,
+  // Where the user initiated the scope change
+  'source': 'popover' | 'overview-card'
+}
+```
+
+### graph/scope/cleared
+
+> Sent when the user clears the active Commit Graph scope
+
+```typescript
+{
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string
 }
 ```
 
@@ -2676,7 +2763,7 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2694,7 +2781,7 @@ or
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2752,12 +2839,57 @@ or
   'context.repository.id': string,
   'context.repository.provider.id': string,
   'context.repository.scheme': string,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
   'duration': number,
   'loading': boolean
+}
+```
+
+### graph/virtualFile/failed
+
+> Sent when opening a virtual-FS-backed file fails (e.g. the compose session is no longer registered)
+
+```typescript
+{
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string,
+  'error.message': string,
+  'files.count': number,
+  'mode': 'diff' | 'comparePrevious' | 'multiDiff',
+  // Best-effort categorization of the failure
+  'reason': 'unknown' | 'provider-missing' | 'parent-missing'
+}
+```
+
+### graph/virtualFile/opened
+
+> Sent when a virtual-FS-backed file (e.g. a Graph Compose proposed commit) is opened
+
+```typescript
+{
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string,
+  // Number of files being opened (1 for single-file modes, N for multiDiff)
+  'files.count': number,
+  // Which open operation the user triggered
+  'mode': 'diff' | 'comparePrevious' | 'multiDiff'
 }
 ```
 
@@ -2771,6 +2903,26 @@ or
   'duration': number,
   // Active panel mode at time of close
   'mode': 'wip' | 'commit' | 'compare' | 'review' | 'multicommit' | 'compose' | 'none'
+}
+```
+
+### graphDetails/mode/changed
+
+> Sent when the active mode of the integrated graph details panel changes while open
+
+```typescript
+{
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string,
+  'mode.new': 'wip' | 'commit' | 'compare' | 'review' | 'multicommit' | 'compose' | 'none',
+  'mode.old': 'wip' | 'commit' | 'compare' | 'review' | 'multicommit' | 'compose' | 'none'
 }
 ```
 
@@ -2833,7 +2985,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -2875,7 +3027,7 @@ void
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2889,7 +3041,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -2914,7 +3066,7 @@ void
 {
   'instance': number,
   'items.error': string,
-  'action': 'soft-open' | 'code-suggest' | 'merge' | 'open' | 'switch' | 'open-worktree' | 'switch-and-code-suggest' | 'show-overview' | 'open-changes' | 'open-in-graph' | 'pin' | 'unpin' | 'snooze' | 'unsnooze' | 'open-suggestion' | 'open-suggestion-browser',
+  'action': 'soft-open' | 'code-suggest' | 'merge' | 'switch' | 'open' | 'open-worktree' | 'switch-and-code-suggest' | 'show-overview' | 'open-changes' | 'open-in-graph' | 'pin' | 'unpin' | 'snooze' | 'unsnooze' | 'open-suggestion' | 'open-suggestion-browser',
   'groups.blocked.collapsed': boolean,
   'groups.blocked.count': number,
   'groups.count': number,
@@ -2975,7 +3127,7 @@ void
   'instance': number,
   'items.error': string,
   'collapsed': boolean,
-  'group': 'pinned' | 'current-branch' | 'mergeable' | 'blocked' | 'follow-up' | 'needs-review' | 'waiting-for-review' | 'draft' | 'other' | 'snoozed',
+  'group': 'other' | 'pinned' | 'current-branch' | 'mergeable' | 'blocked' | 'follow-up' | 'needs-review' | 'waiting-for-review' | 'draft' | 'snoozed',
   'groups.blocked.collapsed': boolean,
   'groups.blocked.count': number,
   'groups.count': number,
@@ -3386,7 +3538,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3397,7 +3549,7 @@ void
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3411,7 +3563,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3456,7 +3608,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3467,7 +3619,7 @@ void
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3481,7 +3633,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3505,7 +3657,7 @@ void
   'context.session.duration': number,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3526,7 +3678,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3547,7 +3699,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3572,7 +3724,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3594,7 +3746,7 @@ void
   'context.session.duration': number,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3625,7 +3777,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3652,7 +3804,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3673,7 +3825,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3698,7 +3850,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3719,7 +3871,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3744,7 +3896,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3766,7 +3918,7 @@ void
   'context.session.duration': number,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3788,7 +3940,7 @@ void
   'context.session.duration': number,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3809,7 +3961,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3836,7 +3988,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3863,7 +4015,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -3886,7 +4038,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3913,7 +4065,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3936,7 +4088,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -3967,7 +4119,7 @@ void
   'context.preservesMerges': boolean,
   'context.session.start': string,
   'context.todo.count': number,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4070,7 +4222,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -4081,7 +4233,7 @@ void
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4095,7 +4247,7 @@ void
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4455,7 +4607,7 @@ or
   'context.scope.type': 'file' | 'folder' | 'repo',
   'context.showAllBranches': boolean,
   'context.sliceBy': 'branch' | 'author',
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4470,7 +4622,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -4489,7 +4641,7 @@ or
   'context.scope.type': 'file' | 'folder' | 'repo',
   'context.showAllBranches': boolean,
   'context.sliceBy': 'branch' | 'author',
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -4508,7 +4660,7 @@ or
   'context.scope.type': 'file' | 'folder' | 'repo',
   'context.showAllBranches': boolean,
   'context.sliceBy': 'branch' | 'author',
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4530,7 +4682,7 @@ or
   'context.scope.type': 'file' | 'folder' | 'repo',
   'context.showAllBranches': boolean,
   'context.sliceBy': 'branch' | 'author',
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -4549,7 +4701,7 @@ or
   'context.scope.type': 'file' | 'folder' | 'repo',
   'context.showAllBranches': boolean,
   'context.sliceBy': 'branch' | 'author',
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -4560,7 +4712,7 @@ or
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4584,7 +4736,7 @@ or
   'context.scope.type': 'file' | 'folder' | 'repo',
   'context.showAllBranches': boolean,
   'context.sliceBy': 'branch' | 'author',
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4684,7 +4836,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string
@@ -4695,7 +4847,7 @@ or
 
 ```typescript
 {
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,
@@ -4709,7 +4861,7 @@ or
 ```typescript
 {
   [`context.${string}`]: string | number | boolean,
-  'context.webview.host': 'view' | 'editor',
+  'context.webview.host': 'view' | 'editor' | 'panel',
   'context.webview.id': string,
   'context.webview.instanceId': string,
   'context.webview.type': string,

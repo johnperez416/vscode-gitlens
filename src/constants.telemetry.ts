@@ -235,6 +235,10 @@ export interface TelemetryEvents extends WebviewShowAbortedEvents, WebviewShownE
 
 	/** Sent when the user changes the "branches visibility" on the Commit Graph */
 	'graph/branchesVisibility/changed': GraphBranchesVisibilityChangedEvent;
+	/** Sent when the user scopes the Commit Graph to a specific branch (Focus Branch feature) */
+	'graph/scope/changed': GraphScopeChangedEvent;
+	/** Sent when the user clears the active Commit Graph scope */
+	'graph/scope/cleared': GraphContextEventData;
 	/** Sent when the user changes the columns on the Commit Graph */
 	'graph/columns/changed': GraphColumnsChangedEvent;
 	/** Sent when the user changes the filters on the Commit Graph */
@@ -255,10 +259,22 @@ export interface TelemetryEvents extends WebviewShowAbortedEvents, WebviewShownE
 	/** Sent when a search was performed on the Commit Graph */
 	'graph/searched': GraphSearchedEvent;
 
+	/** Sent when a virtual-FS-backed file (e.g. a Graph Compose proposed commit) is opened */
+	'graph/virtualFile/opened': GraphVirtualFileOpenedEvent;
+	/** Sent when opening a virtual-FS-backed file fails (e.g. the compose session is no longer registered) */
+	'graph/virtualFile/failed': GraphVirtualFileFailedEvent;
+
+	/** Sent when the Graph Overview panel becomes visible (mounted in the active sidebar slot) */
+	'graph/overview/shown': GraphOverviewShownEvent;
+	/** Sent when the user invokes an action item on a Graph Overview branch card */
+	'graph/overview/action': GraphOverviewActionEvent;
+
 	/** Sent when the integrated graph details panel is expanded */
 	'graphDetails/shown': GraphDetailsShownEvent;
 	/** Sent when the integrated graph details panel is collapsed */
 	'graphDetails/closed': GraphDetailsClosedEvent;
+	/** Sent when the active mode of the integrated graph details panel changes while open */
+	'graphDetails/mode/changed': GraphDetailsModeChangedEvent;
 	/** Sent when commit reachability is successfully loaded in Graph Details */
 	'graphDetails/reachability/loaded': DetailsReachabilityLoadedEvent;
 	/** Sent when commit reachability fails to load in Graph Details */
@@ -838,7 +854,7 @@ type DetailsModeChangedEvent = InspectContextEventData & {
 	'mode.new': 'wip' | 'commit';
 };
 
-type GraphDetailsMode = 'commit' | 'wip' | 'multicommit' | 'review' | 'compose' | 'compare' | 'none';
+export type GraphDetailsMode = 'commit' | 'wip' | 'multicommit' | 'review' | 'compose' | 'compare' | 'none';
 
 interface GraphDetailsShownEvent {
 	/** What caused the panel to be shown */
@@ -862,6 +878,11 @@ interface GraphDetailsClosedEvent {
 	duration: number;
 	/** Active panel mode at time of close */
 	mode: GraphDetailsMode;
+}
+
+interface GraphDetailsModeChangedEvent extends GraphContextEventData {
+	'mode.old': GraphDetailsMode;
+	'mode.new': GraphDetailsMode;
 }
 
 interface DetailsReachabilityLoadedEvent {
@@ -938,6 +959,15 @@ interface GraphBranchesVisibilityChangedEvent extends GraphContextEventData {
 	'branchesVisibility.new': GraphBranchesVisibility;
 }
 
+interface GraphScopeChangedEvent extends GraphContextEventData {
+	/** Where the user initiated the scope change */
+	source: 'popover' | 'overview-card';
+	/** Whether the scoped branch has a tracked upstream resolved at the time of the scope change */
+	'scope.hasUpstream': boolean;
+	/** Whether the scope's merge-target tip SHA is known at scope time (proxy for "merge-target resolved") */
+	'scope.hasMergeTarget': boolean;
+}
+
 type GraphColumnEventData = {
 	[K in `column.${string}.${keyof GraphColumnConfig}`]?: K extends `column.${string}.${infer P}`
 		? P extends keyof GraphColumnConfig
@@ -984,6 +1014,51 @@ interface GraphSearchedEvent extends GraphContextEventData {
 	'failed.reason'?: 'cancelled' | 'error';
 	'failed.error'?: string;
 	'failed.error.detail'?: string;
+}
+
+export type GraphVirtualFileMode = 'diff' | 'comparePrevious' | 'multiDiff';
+export type GraphVirtualFileFailureReason = 'provider-missing' | 'parent-missing' | 'unknown';
+
+interface GraphVirtualFileOpenedEvent extends GraphContextEventData {
+	/** Which open operation the user triggered */
+	mode: GraphVirtualFileMode;
+	/** Number of files being opened (1 for single-file modes, N for multiDiff) */
+	'files.count': number;
+}
+
+interface GraphVirtualFileFailedEvent extends GraphContextEventData {
+	mode: GraphVirtualFileMode;
+	/** Best-effort categorization of the failure */
+	reason: GraphVirtualFileFailureReason;
+	'files.count': number;
+	'error.message'?: string;
+}
+
+interface GraphOverviewShownEvent extends GraphContextEventData {
+	/** Number of branches in the "active" section at the time of show */
+	'branches.active.count': number;
+	/** Number of branches in the "recent" section at the time of show */
+	'branches.recent.count': number;
+}
+
+export type GraphOverviewActionName =
+	| 'pull'
+	| 'push'
+	| 'fetch'
+	| 'publishBranch'
+	| 'switch'
+	| 'openWorktree'
+	| 'compareWithHead'
+	| 'compareWithWorking'
+	| 'compareWithPr'
+	| 'other';
+
+interface GraphOverviewActionEvent extends GraphContextEventData {
+	name: GraphOverviewActionName;
+	/** Where on the card the action was invoked */
+	location: 'inline' | 'hover';
+	/** Whether the user held Alt/Shift to swap to the alt action */
+	alt: boolean;
 }
 
 export type HomeTelemetryContext = WebviewTelemetryContext;
@@ -1696,7 +1771,7 @@ type WebviewContextEventData = {
 	'context.webview.id': string;
 	'context.webview.type': string;
 	'context.webview.instanceId': string | undefined;
-	'context.webview.host': 'editor' | 'view';
+	'context.webview.host': 'editor' | 'view' | 'panel';
 };
 export type WebviewTelemetryContext = WebviewContextEventData;
 

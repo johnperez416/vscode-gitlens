@@ -8,6 +8,7 @@ import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type { StashApplyCommandArgs } from '../../../../../commands/stashApply.js';
 import type { ViewFilesLayout } from '../../../../../config.js';
+import type { GraphDetailsMode } from '../../../../../constants.telemetry.js';
 import type { CommitDetails } from '../../../../commitDetails/protocol.js';
 import type { Wip } from '../../../../plus/graph/detailsProtocol.js';
 import type { GraphServices, VirtualRefShape } from '../../../../plus/graph/graphService.js';
@@ -44,6 +45,15 @@ interface ResolvedContent {
 	content: ReturnType<typeof html> | typeof nothing;
 	ariaLabel: string;
 	context: DetailsContext;
+}
+
+declare global {
+	interface GlobalEventHandlersEventMap {
+		'gl-graph-details-mode-changed': CustomEvent<{
+			previous: GraphDetailsMode;
+			current: GraphDetailsMode;
+		}>;
+	}
 }
 
 @customElement('gl-graph-details-panel')
@@ -113,12 +123,16 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	/** Active mode used for telemetry — combines `activeMode` (review/compose/compare) and the
 	 *  effective selection context (commit/wip/multicommit). Returns `'none'` when no selection. */
-	get currentMode(): 'commit' | 'wip' | 'multicommit' | 'review' | 'compose' | 'compare' | 'none' {
+	get currentMode(): GraphDetailsMode {
 		const active = this._state.activeMode.get();
 		if (active != null) return active;
 		if (this.sha == null && (this.shas == null || this.shas.length === 0)) return 'none';
 		return this.isMultiCommit ? 'multicommit' : this.isWip ? 'wip' : 'commit';
 	}
+
+	/** Last value reported via `gl-graph-details-mode-changed` — guards the dispatch in `updated()`
+	 *  so the event fires only on real transitions, not on re-renders that don't change the mode. */
+	private _lastNotifiedMode: GraphDetailsMode = 'none';
 
 	/** Returns the effective context, respecting mode lock when active. */
 	private get effectiveContext(): DetailsContext {
@@ -380,6 +394,23 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 					this._state.commitMessage.set('');
 				}
 			}
+		}
+
+		// Detect mode transitions and bubble a custom event up to graph-app so it can emit telemetry.
+		// Lives here because SignalWatcher on this component tracks `activeMode`; graph-app doesn't
+		// access that signal during its own render and so wouldn't re-run `updated()` on mode toggles
+		// (compose ⇄ review ⇄ swap-to-close) — making it the wrong place to detect the transition.
+		const currentMode = this.currentMode;
+		if (currentMode !== this._lastNotifiedMode) {
+			const previous = this._lastNotifiedMode;
+			this._lastNotifiedMode = currentMode;
+			this.dispatchEvent(
+				new CustomEvent('gl-graph-details-mode-changed', {
+					detail: { previous: previous, current: currentMode },
+					bubbles: true,
+					composed: true,
+				}),
+			);
 		}
 	}
 

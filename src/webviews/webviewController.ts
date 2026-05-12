@@ -389,7 +389,11 @@ export class WebviewController<
 			'context.webview.id': this.id,
 			'context.webview.type': this.descriptor.type,
 			'context.webview.instanceId': this.instanceId,
-			'context.webview.host': this.is('editor') ? 'editor' : 'view',
+			'context.webview.host': this.is('editor')
+				? 'editor'
+				: (this.descriptor as WebviewViewDescriptor).location === 'panel'
+					? 'panel'
+					: 'view',
 		};
 	}
 

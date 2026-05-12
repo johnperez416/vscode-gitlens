@@ -15,6 +15,7 @@ import { getBranchId } from '@gitlens/git/utils/branch.utils.js';
 import { getScopedCounter } from '@gitlens/utils/counter.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
+import type { GraphDetailsMode } from '../../../../constants.telemetry.js';
 import type { CommitDetails } from '../../../commitDetails/protocol.js';
 import type {
 	DidRequestOpenCompareModeParams,
@@ -410,6 +411,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					.commitLite=${this._selectedCommit?.commitLite}
 					.commitLites=${this._selectedCommits?.commitLites}
 					@select-commit=${this.handleSelectCommit}
+					@gl-graph-details-mode-changed=${this.handleDetailsModeChanged}
 				></gl-graph-details-panel>
 			</div>
 		</gl-split-panel>`;
@@ -720,6 +722,17 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		}
 	}
 
+	private handleDetailsModeChanged = (e: CustomEvent<{ previous: GraphDetailsMode; current: GraphDetailsMode }>) => {
+		// `shown`/`closed` already capture mode at open/close — only emit transitions while the
+		// panel stays visible (e.g. swap-to-close, mode chip toggles), so the event isolates
+		// in-panel transitions from open/close noise.
+		if (this.graphState.detailsVisible !== true) return;
+		this._telemetry.sendEvent({
+			name: 'graphDetails/mode/changed',
+			data: { 'mode.old': e.detail.previous, 'mode.new': e.detail.current },
+		});
+	};
+
 	private handleDetailsSplitChange(e: CustomEvent<{ position: number }>) {
 		// Skip the closed-edge position (snap lands at exact 100). `handleDetailsClosedChange`
 		// owns visibility; recording position=100 here would clobber the last open width.
@@ -895,7 +908,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			overview?.active.find(b => b.name === branchName) ?? overview?.recent.find(b => b.name === branchName);
 		if (branch != null) {
 			const mergeTargetTipSha = this.graphState.overviewEnrichment?.[branch.id]?.mergeTarget?.sha;
-			this.scopeToBranchById(branch.id, mergeTargetTipSha);
+			this.scopeToBranchById(branch.id, mergeTargetTipSha, 'popover');
 			return;
 		}
 
@@ -903,15 +916,22 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		// whatever we know and fire an ad-hoc enrichment fetch — `syncScopeMergeTarget` will
 		// backfill `mergeTargetTipSha` once the enrichment arrives.
 		const branchRef = getBranchId(repoPath, false, branchName);
-		this.setScope({
-			branchRef: branchRef,
-			branchName: branchName,
-			upstreamRef: upstreamName != null ? getBranchId(repoPath, true, upstreamName) : undefined,
-		});
+		this.setScope(
+			{
+				branchRef: branchRef,
+				branchName: branchName,
+				upstreamRef: upstreamName != null ? getBranchId(repoPath, true, upstreamName) : undefined,
+			},
+			'popover',
+		);
 		void this.graphState.ensureEnrichmentForBranch(branchRef);
 	}
 
-	private scopeToBranchById(branchId: string, mergeTargetTipSha?: string): void {
+	private scopeToBranchById(
+		branchId: string,
+		mergeTargetTipSha?: string,
+		source: 'popover' | 'overview-card' = 'overview-card',
+	): void {
 		const overview = this.graphState.overview;
 		if (overview == null) return;
 
@@ -927,16 +947,19 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		// enrichment so repeated calls pick up data that's arrived since the previous call.
 		const sha = mergeTargetTipSha ?? this.graphState.overviewEnrichment?.[branchId]?.mergeTarget?.sha;
 
-		this.setScope({
-			// The graph component indexes rows by head id (e.g. `{repoPath}|heads/{name}`), not bare branch name
-			branchRef: branch.id,
-			branchName: branch.name,
-			upstreamRef: upstreamRef,
-			mergeTargetTipSha: sha,
-		});
+		this.setScope(
+			{
+				// The graph component indexes rows by head id (e.g. `{repoPath}|heads/{name}`), not bare branch name
+				branchRef: branch.id,
+				branchName: branch.name,
+				upstreamRef: upstreamRef,
+				mergeTargetTipSha: sha,
+			},
+			source,
+		);
 	}
 
-	private setScope(scope: NonNullable<typeof this.graphState.scope>): void {
+	private setScope(scope: NonNullable<typeof this.graphState.scope>, source: 'popover' | 'overview-card'): void {
 		// Skip re-assignment when structurally equal so GraphContainer doesn't re-evaluate
 		// scope highlighting on unrelated graph updates.
 		const current = this.graphState.scope;
@@ -949,6 +972,14 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			return;
 		}
 		this.graphState.scope = scope;
+		emitTelemetrySentEvent<'graph/scope/changed'>(this, {
+			name: 'graph/scope/changed',
+			data: {
+				source: source,
+				'scope.hasUpstream': scope.upstreamRef != null,
+				'scope.hasMergeTarget': scope.mergeTargetTipSha != null,
+			},
+		});
 		void this.graphState.resolveScopeMergeBase(scope);
 	}
 

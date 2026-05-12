@@ -9,6 +9,7 @@ import { formatDate, fromNow } from '@gitlens/utils/date.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { AgentSessionState } from '../../../../../agents/models/agentSessionState.js';
 import type { GlWebviewCommandsOrCommandsWithSuffix } from '../../../../../constants.commands.js';
+import type { GraphOverviewActionName } from '../../../../../constants.telemetry.js';
 import { isSubscriptionTrialOrPaidFromState } from '../../../../../plus/gk/utils/subscription.utils.js';
 import {
 	launchpadCategoryToGroupMap,
@@ -25,9 +26,11 @@ import type {
 	OverviewBranchMergeTarget,
 	OverviewBranchWip,
 } from '../../../../shared/overviewBranches.js';
+import type { ActionItem } from '../../../shared/components/actions/action-item.js';
 import { srOnlyStyles } from '../../../shared/components/styles/lit/a11y.css.js';
 import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
+import { emitTelemetrySentEvent } from '../../../shared/telemetry.js';
 import type { AppState } from '../context.js';
 import { graphServicesContext, graphStateContext } from '../context.js';
 import '../../shared/components/merge-target-status.js';
@@ -594,7 +597,13 @@ export class GlGraphOverviewCard extends LitElement {
 		// the sidebar in typical layouts) rather than into the editor's left margin. The
 		// popover's flip behavior auto-corrects when there isn't room.
 		return html`
-			<gl-popover hoist trigger="hover focus" placement="right" @gl-popover-show=${this.onPopoverShow}>
+			<gl-popover
+				hoist
+				trigger="hover focus"
+				placement="right"
+				@gl-popover-show=${this.onPopoverShow}
+				@click=${this.onActionItemClick}
+			>
 				<gl-card
 					slot="anchor"
 					class=${cardClasses}
@@ -1257,5 +1266,68 @@ export class GlGraphOverviewCard extends LitElement {
 
 	private onLinkClick(e: Event) {
 		e.stopPropagation();
+	}
+
+	private onActionItemClick(e: MouseEvent) {
+		// Delegated to the popover host so it fires for clicks in both the inline action-nav
+		// (inside the card) and the hover action-nav (inside the popover content slot). Native
+		// click events compose through shadow boundaries, so composedPath surfaces the original
+		// `<action-item>` target even when the event target has been retargeted upward.
+		let action: ActionItem | undefined;
+		let inline = false;
+		for (const node of e.composedPath()) {
+			const el = node as Element;
+			if (action == null && el?.tagName === 'ACTION-ITEM') {
+				action = el as ActionItem;
+			} else if (!inline && el?.classList?.contains('branch-item__inline-actions')) {
+				inline = true;
+			}
+			if (action != null && inline) break;
+		}
+		if (action == null) return;
+
+		const altKeyPressed = e.altKey || e.shiftKey;
+		const href = altKeyPressed && action.altHref ? action.altHref : action.href;
+		if (href == null) return;
+
+		emitTelemetrySentEvent<'graph/overview/action'>(this, {
+			name: 'graph/overview/action',
+			data: {
+				name: commandToOverviewActionName(href),
+				location: inline ? 'inline' : 'hover',
+				alt: altKeyPressed,
+			},
+		});
+	}
+}
+
+function commandToOverviewActionName(href: string): GraphOverviewActionName {
+	// command URIs look like `command:gitlens.x?{...}` or `command:gitlens.x:graph?{...}` for
+	// "commands with suffix". Capture the full id (up to `?` or end), then strip the trailing
+	// `:graph` suffix the overview-card webview emits via createCommandLink.
+	const match = /^command:([^?]+)/.exec(href);
+	const command = match?.[1].replace(/:graph$/, '');
+	switch (command) {
+		case 'gitlens.graph.pull':
+			return 'pull';
+		case 'gitlens.graph.push':
+			return 'push';
+		case 'gitlens.fetch':
+			return 'fetch';
+		case 'gitlens.publishBranch':
+			return 'publishBranch';
+		case 'gitlens.switchToBranch':
+			return 'switch';
+		case 'gitlens.openWorktree':
+		case 'gitlens.openWorktreeInNewWindow':
+			return 'openWorktree';
+		case 'gitlens.graph.compareBranchWithHead':
+			return 'compareWithHead';
+		case 'gitlens.graph.compareWithWorking':
+			return 'compareWithWorking';
+		case 'gitlens.openPullRequestComparison':
+			return 'compareWithPr';
+		default:
+			return 'other';
 	}
 }

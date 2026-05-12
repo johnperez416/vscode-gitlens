@@ -26,6 +26,7 @@ import {
 import { scrollableBase } from '../../../shared/components/styles/lit/base.css.js';
 import { ipcContext } from '../../../shared/contexts/ipc.js';
 import type { HostIpc } from '../../../shared/ipc.js';
+import { emitTelemetrySentEvent } from '../../../shared/telemetry.js';
 import type { AppState } from '../context.js';
 import { graphServicesContext, graphStateContext } from '../context.js';
 import './graph-overview-card.js';
@@ -151,6 +152,10 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	// the user re-hovers before the prior fetch resolves.
 	private readonly _pendingWipDetails = new Set<string>();
 
+	/** Whether `graph/overview/shown` has been fired this mount. Reset on disconnect so a remount
+	 *  (e.g. switching away from the overview panel and back) emits a fresh shown event. */
+	private _shownEmitted = false;
+
 	override connectedCallback(): void {
 		super.connectedCallback?.();
 
@@ -166,6 +171,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 	override disconnectedCallback(): void {
 		this.removeEventListener('gl-graph-overview-card-request-wip-details', this.onWipDetailsRequested);
 		this._recomputeSelectionDebounced.cancel();
+		this._shownEmitted = false;
 		super.disconnectedCallback?.();
 	}
 
@@ -225,6 +231,19 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		if (pushedWip != null && pushedWip !== this._lastPushedWip) {
 			this._lastPushedWip = pushedWip;
 			this._wipData = { ...this._wipData, ...pushedWip };
+		}
+
+		// Fire the shown event once overview data is available so the branch counts are accurate.
+		// Mount-time emit would always report 0/0 since the initial GetOverviewRequest is still in flight.
+		if (!this._shownEmitted && overview != null) {
+			this._shownEmitted = true;
+			emitTelemetrySentEvent<'graph/overview/shown'>(this, {
+				name: 'graph/overview/shown',
+				data: {
+					'branches.active.count': overview.active.length,
+					'branches.recent.count': overview.recent.length,
+				},
+			});
 		}
 
 		this.maybeRecomputeSelectionContains();
