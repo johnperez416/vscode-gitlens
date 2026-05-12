@@ -162,6 +162,7 @@ import {
 import type { OnboardingChangeEvent } from '../../../onboarding/onboardingService.js';
 import { shouldUseSinglePass } from '../../../plus/ai/actions/reviewChanges.js';
 import { prepareCompareDataForAIRequest } from '../../../plus/ai/utils/-webview/ai.utils.js';
+import { showPatchesView } from '../../../plus/drafts/actions.js';
 import type { FeaturePreviewChangeEvent, SubscriptionChangeEvent } from '../../../plus/gk/subscriptionService.js';
 import { isHooksBannerEnabled, isMcpBannerEnabled } from '../../../plus/gk/utils/-webview/mcp.utils.js';
 import { isSubscriptionTrialOrPaidFromState } from '../../../plus/gk/utils/subscription.utils.js';
@@ -217,6 +218,7 @@ import type { WebviewHost, WebviewProvider, WebviewShowingArgs } from '../../web
 import type { WebviewPanelShowCommandArgs, WebviewShowOptions } from '../../webviewsController.js';
 import { isSerializedState } from '../../webviewsController.js';
 import type { ComposerCommandArgs } from '../composer/registration.js';
+import type { Change } from '../patchDetails/protocol.js';
 import * as branchRefCommands from '../shared/branchRefCommands.js';
 import type { ChoosePathParams, DidChoosePathParams } from '../timeline/protocol.js';
 import type { TimelineCommandArgs } from '../timeline/registration.js';
@@ -6503,6 +6505,48 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			title: title,
 			description: description,
 		});
+	}
+
+	@command('gitlens.shareWipAsCloudPatch:')
+	@debug()
+	private async shareWipAsCloudPatch(args?: { repoPath?: string }) {
+		const repo = args?.repoPath != null ? this.container.git.getRepository(args.repoPath) : this.repository;
+		if (repo == null) return;
+
+		const status = await repo.git.status.getStatus();
+		if (status == null) {
+			void window.showErrorMessage('Unable to create cloud patch');
+			return;
+		}
+
+		const files: GitFileChangeShape[] = [];
+		for (const file of status.files) {
+			const change = {
+				repoPath: file.repoPath,
+				path: file.path,
+				status: file.status,
+				originalPath: file.originalPath,
+				staged: file.staged,
+			};
+
+			files.push(change);
+			if (file.staged && file.wip) {
+				files.push({ ...change, staged: false });
+			}
+		}
+
+		const change: Change = {
+			type: 'wip',
+			repository: {
+				name: repo.name,
+				path: repo.path,
+				uri: repo.uri.toString(),
+			},
+			files: files,
+			revision: { to: uncommitted, from: 'HEAD' },
+		};
+
+		void showPatchesView({ mode: 'create', create: { changes: [change] } });
 	}
 
 	@command('gitlens.copyPatchToClipboard:')

@@ -128,6 +128,14 @@ export class GlDetailsWipHeader extends LitElement {
 									overlay="tooltip"
 									@click=${() => this.emit('create-branch')}
 								></gl-action-chip>
+								${files.length > 0
+									? html`<gl-action-chip
+											icon="gl-cloud-patch-share"
+											label="Share as Cloud Patch"
+											overlay="tooltip"
+											@click=${() => this.emit('share-as-cloud-patch')}
+										></gl-action-chip>`
+									: nothing}
 							</div>
 						</div>
 						${!isModeActive ? this.renderIssuesRow() : nothing}${this.renderPausedOpStatus()}`

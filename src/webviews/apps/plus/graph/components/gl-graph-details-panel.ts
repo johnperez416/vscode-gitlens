@@ -527,6 +527,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				@pull=${this.handlePull}
 				@push=${this.handlePush}
 				@fetch=${this.handleFetch}
+				@share-as-cloud-patch=${this.handleShareWipAsCloudPatch}
 				@remove-associated-issue=${this.handleRemoveAssociatedIssue}
 				@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
 			></gl-details-wip-header>
@@ -1162,6 +1163,11 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 	private handlePush = () => void this._actions.services.repository.push(this.effectiveRepoPath!);
 
 	private handleFetch = () => void this._actions.services.repository.fetch(this.effectiveRepoPath!);
+
+	private handleShareWipAsCloudPatch = () =>
+		void this._actions.services.commands.executeScoped('gitlens.shareWipAsCloudPatch:graph', {
+			repoPath: this.effectiveRepoPath,
+		});
 
 	private handleRemoveAssociatedIssue = (e: CustomEvent<{ entityId: string }>) =>
 		void this._actions.removeAssociatedIssue(e.detail.entityId);

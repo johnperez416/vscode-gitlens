@@ -44,6 +44,7 @@ type InternalGraphWebviewCommands =
 	| 'gitlens.pausedOperation.skip:graph'
 	| 'gitlens.pushBranch:graph'
 	| 'gitlens.rebaseCurrentOnto:graph'
+	| 'gitlens.shareWipAsCloudPatch:graph'
 	| 'gitlens.visualizeHistory.repo:graph';
 
 type InternalHomeWebviewCommands =
