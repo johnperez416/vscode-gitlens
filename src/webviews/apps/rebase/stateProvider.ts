@@ -4,7 +4,7 @@ import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
 import type { IpcSerialized } from '../../../system/ipcSerialize.js';
 import type { IpcMessage } from '../../ipc/models/ipc.js';
-import type { State as _State, Commit } from '../../rebase/protocol.js';
+import type { State as _State, Commit, RebaseEntry } from '../../rebase/protocol.js';
 import {
 	DidChangeAvatarsNotification,
 	DidChangeCommitsNotification,
@@ -45,6 +45,18 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 	private _requestedCommitShas = new Set<string>();
 	/** Debounced function to send pending commit requests */
 	private _sendPendingCommitRequestsDebounced: Deferrable<() => void> | undefined;
+
+	/**
+	 * Signature of the expected entries after the most recent optimistic op (move/shift/changeAction).
+	 * Cleared when the host's next state notification matches it (host has caught up).
+	 * Used to reject stale notifications that would clobber an optimistic change.
+	 */
+	private _expectedEntriesSignature: string | undefined;
+	/** Timestamp (performance.now()) when _expectedEntriesSignature was set. Used to time-out the optimistic preservation. */
+	private _expectedSignatureSetAt: number | undefined;
+	/** Maximum time to suppress mismatched notifications. After this, accept incoming as authoritative
+	 *  (covers cases where host applies validation rules that diverge from optimistic state). */
+	private static readonly optimisticPreservationMs = 1000;
 
 	constructor(host: ReactiveElementHost, bootstrap: string, ipc: HostIpc, logger: LoggerContext) {
 		super(host, bootstrap, ipc, logger);
@@ -109,7 +121,7 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 	protected override onMessageReceived(msg: IpcMessage): void {
 		switch (true) {
 			case DidChangeNotification.is(msg):
-				this._state = { ...msg.params.state, timestamp: Date.now() };
+				this._state = this.reconcileIncomingState(msg.params.state);
 				this.provider.setValue(this._state, true);
 				// Request update to re-render with new state
 				this.host.requestUpdate();
@@ -132,12 +144,79 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 				break;
 
 			case DidChangeSubscriptionNotification.is(msg):
+				// Subscription change can unlock previously-failed avatar/commit lookups
+				// (e.g., Pro upgrade enables integration-backed avatars). Clear blocklists
+				// so the next render is allowed to re-ask.
+				this._requestedAvatarEmails.clear();
+				this._requestedCommitShas.clear();
 				this._state = { ...this._state, subscription: msg.params.subscription, timestamp: Date.now() };
 				this.provider.setValue(this._state, true);
 				// Request update to re-render with new subscription state
 				this.host.requestUpdate();
 				break;
 		}
+	}
+
+	/**
+	 * Merges an incoming state with the current optimistic state, protecting recent
+	 * optimistic moves/action-changes from being clobbered by a stale notification
+	 * that the host parsed before observing our write.
+	 */
+	private reconcileIncomingState(incoming: State): State {
+		const expected = this._expectedEntriesSignature;
+		if (expected == null || this._state?.entries == null) {
+			return { ...incoming, timestamp: Date.now() };
+		}
+
+		const incomingSignature = getEntriesSignature(incoming.entries);
+		if (incomingSignature === expected) {
+			// Host has caught up to our optimistic state — accept as-is
+			this.clearExpectedSignature();
+			return { ...incoming, timestamp: Date.now() };
+		}
+
+		// Time out: if the host has been disagreeing with our optimistic state for too long,
+		// it likely applied a validation rule (e.g., forcing oldest commit's action to pick) —
+		// accept the host's state as authoritative rather than locking the UI in a lie.
+		const elapsed = performance.now() - (this._expectedSignatureSetAt ?? 0);
+		if (elapsed > RebaseStateProvider.optimisticPreservationMs) {
+			this.clearExpectedSignature();
+			return { ...incoming, timestamp: Date.now() };
+		}
+
+		const localEntries = this._state.entries;
+		const incomingIds = new Set(incoming.entries.map(e => e.id));
+		const sameIdSet =
+			localEntries.length === incoming.entries.length && localEntries.every(e => incomingIds.has(e.id));
+
+		if (!sameIdSet) {
+			// External change altered the entry set (e.g., rebase advanced, entry dropped externally) —
+			// the optimistic expectation is no longer meaningful; accept incoming wholesale
+			this.clearExpectedSignature();
+			return { ...incoming, timestamp: Date.now() };
+		}
+
+		// Same ID set but order/action differs from our optimistic state — most likely a
+		// stale notification that the host parsed before observing our write. Preserve the
+		// local order + actions, but keep the per-entry data (commit enrichment, etc.) from incoming.
+		const incomingMap = new Map(incoming.entries.map(e => [e.id, e]));
+		const merged = localEntries.map(localEntry => {
+			const incomingEntry = incomingMap.get(localEntry.id);
+			if (incomingEntry == null) return localEntry;
+			// Only commit entries have a user-mutable `action`; for command entries the incoming
+			// entry is authoritative as-is
+			if (isCommitEntry(localEntry) && isCommitEntry(incomingEntry)) {
+				return { ...incomingEntry, action: localEntry.action };
+			}
+			return incomingEntry;
+		});
+
+		return { ...incoming, entries: merged, timestamp: Date.now() };
+	}
+
+	private clearExpectedSignature(): void {
+		this._expectedEntriesSignature = undefined;
+		this._expectedSignatureSetAt = undefined;
 	}
 
 	/** Updates author avatars from enhanced avatar data received from the host */
@@ -232,6 +311,18 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 		}
 	}
 
+	/** Commits an optimistic entries update and records the expected signature so the
+	 *  next host notification can be reconciled against it. */
+	private applyOptimisticEntries(entries: RebaseEntry[]): void {
+		if (this._state == null) return;
+
+		this._state = { ...this._state, entries: entries, timestamp: Date.now() };
+		this._expectedEntriesSignature = getEntriesSignature(entries);
+		this._expectedSignatureSetAt = performance.now();
+		this.provider.setValue(this._state, true);
+		this.host.requestUpdate();
+	}
+
 	/**
 	 * Apply an optimistic move operation locally for immediate UI feedback.
 	 * The host will send the authoritative state via DidChangeNotification.
@@ -247,9 +338,7 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 		const [moved] = entries.splice(fromIndex, 1);
 		entries.splice(toIndex, 0, moved);
 
-		this._state = { ...this._state, entries: entries, timestamp: Date.now() };
-		this.provider.setValue(this._state, true);
-		this.host.requestUpdate();
+		this.applyOptimisticEntries(entries);
 	}
 
 	/**
@@ -273,9 +362,7 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 		// Insert selected entries at target position
 		const newEntries = [...remaining.slice(0, clampedTo), ...selectedEntries, ...remaining.slice(clampedTo)];
 
-		this._state = { ...this._state, entries: newEntries, timestamp: Date.now() };
-		this.provider.setValue(this._state, true);
-		this.host.requestUpdate();
+		this.applyOptimisticEntries(newEntries);
 	}
 
 	/**
@@ -313,9 +400,7 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 			}
 		}
 
-		this._state = { ...this._state, entries: entries, timestamp: Date.now() };
-		this.provider.setValue(this._state, true);
-		this.host.requestUpdate();
+		this.applyOptimisticEntries(entries);
 	}
 
 	/**
@@ -340,8 +425,15 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 			return newAction != null ? { ...e, action: newAction } : e;
 		});
 
-		this._state = { ...this._state, entries: entries, timestamp: Date.now() };
-		this.provider.setValue(this._state, true);
-		this.host.requestUpdate();
+		this.applyOptimisticEntries(entries);
 	}
+}
+
+/**
+ * Builds a stable, comparable representation of the entries list so the webview can
+ * detect when the host's notification matches its optimistic state. Includes order,
+ * id, and action (the only fields the user can mutate via optimistic ops).
+ */
+function getEntriesSignature(entries: RebaseEntry[]): string {
+	return entries.map(e => (isCommitEntry(e) ? `${e.id}:${e.action}` : `${e.id}:cmd`)).join('|');
 }

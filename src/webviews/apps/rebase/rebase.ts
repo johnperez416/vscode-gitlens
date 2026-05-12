@@ -1194,6 +1194,30 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 		// Rebuild sorted entries and index map
 		this.refreshIndices();
 
+		// Drop selection/focus/anchor references to entries that no longer exist (e.g., after an
+		// external `git rebase --continue` moved entries from `entries` to `doneEntries`, or an
+		// entry was dropped externally). Otherwise stale ids hang around and confuse range/shift logic.
+		if (this.selectedIds.size) {
+			let staleCount = 0;
+			const pruned = new Set<string>();
+			for (const id of this.selectedIds) {
+				if (this._idToSortedIndex.has(id)) {
+					pruned.add(id);
+				} else {
+					staleCount++;
+				}
+			}
+			if (staleCount > 0) {
+				this.selectedIds = pruned;
+			}
+		}
+		if (this.anchoredEntryId != null && !this._idToSortedIndex.has(this.anchoredEntryId)) {
+			this.anchoredEntryId = undefined;
+		}
+		if (this.focusedEntryId != null && !this._idToSortedIndex.has(this.focusedEntryId)) {
+			this.focusedEntryId = undefined;
+		}
+
 		// Recompute conflict tree model when conflictFiles or layout changes
 		const conflictFiles = this.state?.conflictFiles;
 		if (conflictFiles !== this._prevConflictFiles || _changedProperties.has('_conflictFilesLayout' as keyof this)) {
