@@ -696,6 +696,9 @@ export class GlPopover extends GlElement {
 
 				void this.hide();
 			} else {
+				// Either opening fresh or upgrading from hover → click. Reset the flag so a
+				// stale `true` from mousedown can't leak into a future close-click.
+				this._skipHideOnClick = false;
 				void this.show('click');
 			}
 		}
@@ -711,8 +714,15 @@ export class GlPopover extends GlElement {
 
 		// Suppress and hide hover-triggered popovers on mousedown to prevent them from being included
 		// in drag images — but not when the mousedown originates inside the popover body, so users can
-		// interact with controls in a hover-opened popover.
-		if (this.open && this._triggeredBy === 'hover' && !e.composedPath().includes(this.body)) {
+		// interact with controls in a hover-opened popover. Skip the hide when `click` is also a
+		// trigger: the click handler will upgrade `_triggeredBy` from 'hover' to 'click' via show(),
+		// keeping the popover continuously visible instead of flashing hide → reshow.
+		if (
+			this.open &&
+			this._triggeredBy === 'hover' &&
+			!this.hasTrigger('click') &&
+			!e.composedPath().includes(this.body)
+		) {
 			this.suppressed = true;
 			void this.hide();
 		}
