@@ -183,6 +183,10 @@ gl-popover[appearance='menu'] menu-list {
 }
 
 .change-list {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
 	margin-bottom: 1rem;
 }
 
