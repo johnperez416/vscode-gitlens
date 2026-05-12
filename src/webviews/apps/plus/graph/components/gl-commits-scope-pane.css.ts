@@ -133,6 +133,8 @@ export const commitsScopePaneStyles = css`
 	   needs its own truncation rules. */
 	.scope-row__label-text {
 		display: block;
+		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -147,7 +149,6 @@ export const commitsScopePaneStyles = css`
 	.scope-row__avatar {
 		--gl-avatar-size: 2.2rem;
 		flex-shrink: 0;
-		margin-left: auto;
 	}
 
 	/* BASE badge on the merge-base row, in place of the date column.

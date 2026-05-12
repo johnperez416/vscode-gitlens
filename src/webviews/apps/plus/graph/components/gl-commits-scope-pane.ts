@@ -383,9 +383,6 @@ export class GlCommitsScopePane extends LitElement {
 				: html`<gl-tooltip class="scope-row__label" content=${item.label} placement="bottom-start"
 						><span class="scope-row__label-text">${item.label}</span></gl-tooltip
 					>`}
-			${!isMergeBase && item.date != null
-				? html`<formatted-date class="scope-row__date" .date=${new Date(item.date)} short></formatted-date>`
-				: nothing}
 			${hasStats
 				? html`<commit-stats
 						class="scope-row__stats"
@@ -401,6 +398,9 @@ export class GlCommitsScopePane extends LitElement {
 							symbol="icons"
 						></commit-stats>`
 					: nothing}
+			${!isMergeBase && item.date != null
+				? html`<formatted-date class="scope-row__date" .date=${new Date(item.date)} short></formatted-date>`
+				: nothing}
 			${!isMergeBase && item.avatarUrl
 				? html`<gl-avatar
 						class="scope-row__avatar"
