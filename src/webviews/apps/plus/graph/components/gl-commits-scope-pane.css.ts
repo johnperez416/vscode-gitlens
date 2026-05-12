@@ -20,6 +20,12 @@ export const commitsScopePaneStyles = css`
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
+		/* Without an explicit overflow-x, the spec collapses overflow-x:visible to auto
+		   whenever overflow-y is anything other than visible — so when the vertical scrollbar
+		   appears and shrinks the inline-axis room, any row that's a few pixels over (long
+		   label, wide stats badge) suddenly triggers a horizontal scrollbar too. overflow-x:
+		   clip suppresses that without spawning a scroll container the way hidden does. */
+		overflow-x: clip;
 	}
 
 	.details-scope-pane--dragging {

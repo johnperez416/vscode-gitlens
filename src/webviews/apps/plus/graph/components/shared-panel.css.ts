@@ -140,6 +140,7 @@ export const panelScopeSplitStyles = css`
 		display: flex;
 		flex-direction: column;
 		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+		padding: 0 0.6rem;
 	}
 
 	.scope-split__files {

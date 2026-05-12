@@ -287,6 +287,112 @@ export class DetailsActions {
 	}
 
 	/**
+	 * Invalidate every repo/worktree-scoped signal in {@link DetailsState} so the panel does not
+	 * surface the prior repo's data after the host's render target switches. Called from the
+	 * worktree-switch trigger in {@link DetailsWorkflowController}.
+	 *
+	 * The implicit "next fetch overwrites" pattern fails for signals that are gated (e.g.
+	 * `branchCommits`), never auto-refreshed on repo switch, or that return nothing for the new
+	 * repo and leave the old value latent. Clearing here forces a clean slate so the picker /
+	 * panel show a loading state until the new repo's fetches land.
+	 *
+	 * Notes on what is NOT touched here:
+	 * - `_lastFetchedKey` is left alone — `willUpdate` on the panel already kicked off
+	 *   `fetchDetails(sha, newRepoPath)` BEFORE this runs (Lit fires `willUpdate` ahead of
+	 *   `hostUpdate`), so the key has already been re-stamped to the new selection. Resetting
+	 *   it here would cause that fetch's success path to abort its write.
+	 * - `_enrichmentController` is left alone for the same reason — see the doc on
+	 *   {@link clearEnrichmentCaches}.
+	 * - Capability flags (`preferences`, `orgSettings`, `aiModel`, etc.) and pure UI toggles
+	 *   are not repo-scoped — they intentionally survive switches.
+	 */
+	resetRepoScopedState(): void {
+		this.clearEnrichmentCaches();
+
+		const s = this.state;
+
+		// Core selection-scoped data
+		s.commit.set(undefined);
+		s.wip.set(undefined);
+		s.searchContext.set(undefined);
+
+		// WIP enrichment (branch-scoped chips)
+		s.wipAutolinks.set(undefined);
+		s.wipIssues.set(undefined);
+		s.wipMergeTarget.set(undefined);
+		s.wipMergeTargetLoading.set(false);
+		s.wipPullRequest.set(undefined);
+		s.wipPullRequestLoading.set(false);
+
+		// 2-commit compare fetched data
+		s.commitFrom.set(undefined);
+		s.commitTo.set(undefined);
+		s.compareStats.set(undefined);
+		s.compareFiles.set(undefined);
+		s.compareBetweenCount.set(undefined);
+		s.compareAutolinks.set(undefined);
+		s.compareAutolinksLoading.set(false);
+		s.signatureFrom.set(undefined);
+		s.signatureTo.set(undefined);
+		s.compareEnrichedItems.set(undefined);
+		s.compareEnrichmentLoading.set(false);
+
+		// Single-commit enrichment
+		s.autolinks.set(undefined);
+		s.formattedMessage.set(undefined);
+		s.autolinkedIssues.set(undefined);
+		s.pullRequest.set(undefined);
+		s.signature.set(undefined);
+
+		// Reachability + AI explain
+		s.reachability.set(undefined);
+		s.reachabilityState.set('idle');
+		s.explain.set(undefined);
+		s.compareExplainBusy.set(false);
+
+		// Branch-commits picker source (the gated leak that motivated this method)
+		s.branchCommits.set(undefined);
+		s.branchMergeBase.set(undefined);
+		s.branchCommitsFetching.set(false);
+		s.branchCommitsHasMore.set(false);
+		s.branchCommitsLoadingMore.set(false);
+
+		// Branch-comparison phases + per-scope Maps. `toggleMode(compare)` already resets these
+		// on compare entry, but the Maps accumulate keys across repos otherwise — clear here so
+		// a stale per-scope value can never resurface on a different repo's same-shaped key.
+		s.branchCompareAheadCount.set(0);
+		s.branchCompareBehindCount.set(0);
+		s.branchCompareAllFiles.set([]);
+		s.branchCompareAllFilesCount.set(0);
+		s.branchCompareAheadCommits.set([]);
+		s.branchCompareBehindCommits.set([]);
+		s.branchCompareAheadFiles.set([]);
+		s.branchCompareBehindFiles.set([]);
+		s.branchCompareAheadLoaded.set(false);
+		s.branchCompareBehindLoaded.set(false);
+		s.branchCompareAutolinksByScope.set(new Map());
+		s.branchCompareEnrichedAutolinksByScope.set(new Map());
+		s.branchCompareContributorsByScope.set(new Map());
+		s.branchCompareEnrichmentLoading.set(new Map());
+		s.branchCompareContributorsLoading.set(new Map());
+		s.branchCompareCommitFilesLoading.set(new Map());
+
+		// Capability-ish but repo-scoped
+		s.hasRemotes.set(false);
+
+		// Repo-scoped transient state. Mode signals + scope + aiExcludedFiles are already
+		// cleared via `exitMode` which runs before this in the worktree-switch trigger. The
+		// commit-input form is repo-scoped too — the panel's `updated` hook clears it on
+		// repoChanged but only when no mode is active, so cover the mode-active case here.
+		s.commitMessage.set('');
+		s.commitMessageDirty.set(false);
+		s.amend.set(false);
+		s.amendBaseSha.set(undefined);
+		s.generating.set(false);
+		s.commitError.set(undefined);
+	}
+
+	/**
 	 * Aborts the previous enrichment batch (autolinks, PRs, signature, merge target, etc.) and
 	 * returns a fresh signal that subsequent enrichment callbacks should check before writing
 	 * state — so a slow merge-target lookup from a prior selection can't keep the loading flag
@@ -1564,8 +1670,7 @@ export class DetailsActions {
 		};
 
 		this.state.scope.set(refreshedScope);
-		const wipRepoPath = this.state.wip.get()?.repo?.path ?? repoPath;
-		void this.resources.scopeFiles.fetch(wipRepoPath, refreshedScope);
+		void this.resources.scopeFiles.fetch(repoPath, refreshedScope);
 	}
 
 	/**

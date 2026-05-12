@@ -129,14 +129,30 @@ export class GlCommitsScopePane extends LitElement {
 			'.scope-handle:not(.scope-handle--proxy)[aria-label="End of selected scope"]',
 		);
 
-		const isOffscreen = (handle: HTMLElement | null): boolean => {
+		// Hysteresis: when a proxy is currently rendered it occupies its flow space (sticky
+		// elements still take their natural flow position), pushing the real handle down by
+		// the proxy's height. Without hysteresis, the moment the real handle was "in view"
+		// would flip _Offscreen to false, the next render would drop the proxy, the layout
+		// would shift back up, the real handle would disappear again, and the proxy would
+		// re-show — both visible during the oscillation. Use the rendered proxy's edge as
+		// the hide threshold, so the proxy stays put until the real handle is clear of the
+		// proxy's footprint, not merely clear of the container's edge.
+		const startProxy = this.renderRoot.querySelector<HTMLElement>('.scope-handle--proxy-start');
+		const endProxy = this.renderRoot.querySelector<HTMLElement>('.scope-handle--proxy-end');
+		const startThreshold = startProxy != null ? startProxy.getBoundingClientRect().bottom : containerRect.top;
+		const endThreshold = endProxy != null ? endProxy.getBoundingClientRect().top : containerRect.bottom;
+
+		const isStartOffscreen = (handle: HTMLElement | null): boolean => {
 			if (handle == null) return false;
-			const r = handle.getBoundingClientRect();
-			return r.bottom <= containerRect.top || r.top >= containerRect.bottom;
+			return handle.getBoundingClientRect().bottom <= startThreshold;
+		};
+		const isEndOffscreen = (handle: HTMLElement | null): boolean => {
+			if (handle == null) return false;
+			return handle.getBoundingClientRect().top >= endThreshold;
 		};
 
-		const startOff = isOffscreen(startHandle);
-		const endOff = isOffscreen(endHandle);
+		const startOff = isStartOffscreen(startHandle);
+		const endOff = isEndOffscreen(endHandle);
 		if (startOff !== this._startHandleOffscreen) {
 			this._startHandleOffscreen = startOff;
 		}

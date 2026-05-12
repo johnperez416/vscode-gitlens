@@ -37,6 +37,16 @@ export class GlTooltip extends LitElement {
 			pointer-events: none;
 		}
 
+		/* Suppress the corner-flash that happens on first open: wa-popup adds the popup
+		   to the DOM with active=true a microtask BEFORE floating-ui computes its position,
+		   so the popup briefly renders at top:0/left:0 (page corner) for one paint frame.
+		   wa-popup sets data-current-placement once positioned — gate visibility on that
+		   so the user never sees the unpositioned frame. Verified live: the unpositioned
+		   frame lands at (0,0) ~1ms before the positioned frame lands at the anchor. */
+		.tooltip:not([data-current-placement]) .tooltip__body {
+			visibility: hidden;
+		}
+
 		.tooltip__body {
 			max-width: min(var(--auto-size-available-width, 100vw), var(--max-width));
 			border: 1px solid var(--gl-tooltip-border-color);

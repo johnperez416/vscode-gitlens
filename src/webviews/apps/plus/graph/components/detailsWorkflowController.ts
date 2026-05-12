@@ -150,11 +150,11 @@ export class DetailsWorkflowController implements ReactiveController {
 		// new repo). Re-wires the repo-change subscription either way.
 		if (this.host.repoPath !== this._subscribedRepoPath) {
 			this.exitModeIfRepoMismatch(this.host.repoPath);
-			// Drop webview-side enrichment caches + abort in-flight fetches keyed to the
-			// prior render target. No value-collision risk (keys include repoPath); this
-			// is memory hygiene + prevents stale-write races from slow fetches that have
-			// no key gate (notably `fetchBranchCommits`).
-			this.actions.clearEnrichmentCaches();
+			// Invalidate every repo-scoped signal so the panel doesn't show the prior worktree's
+			// WIP / branch commits / enrichment chips while the new repo's fetches are in flight.
+			// `clearEnrichmentCaches` (called inside) handles cache + controller hygiene; this
+			// extends it to the state signals that the picker / mode panels read directly.
+			this.actions.resetRepoScopedState();
 			this.ensureSubscription(this.host.repoPath);
 		}
 
@@ -353,7 +353,7 @@ export class DetailsWorkflowController implements ReactiveController {
 
 		// Fetch branch commits for WIP scope picker if not already loaded.
 		if (isWip && !state.branchCommits.get() && !state.branchCommitsFetching.get()) {
-			void this.actions.fetchBranchCommits(state.wip.get()?.repo?.path ?? repoPath);
+			void this.actions.fetchBranchCommits(repoPath);
 		}
 	}
 
