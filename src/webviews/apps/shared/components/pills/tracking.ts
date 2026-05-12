@@ -12,6 +12,7 @@ export class GlTrackingPill extends LitElement {
 			.pill {
 				gap: 0.2rem;
 				text-transform: none;
+				user-select: none;
 			}
 
 			.state {
@@ -38,6 +39,7 @@ export class GlTrackingPill extends LitElement {
 			.state code-icon {
 				font-size: inherit !important;
 				line-height: inherit !important;
+				font-weight: inherit !important;
 			}
 
 			.working {

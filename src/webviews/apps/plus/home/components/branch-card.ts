@@ -27,7 +27,6 @@ import type {
 import type { HomeState } from '../../../home/state.js';
 import { homeStateContext } from '../../../home/state.js';
 import { agentPhaseToCategory, getWorktreeBasename, matchAgentSessionsForBranch } from '../../../shared/agentUtils.js';
-import { renderBranchName } from '../../../shared/components/branch-name.js';
 import type { GlCard } from '../../../shared/components/card/card.js';
 import { GlElement, observe } from '../../../shared/components/element.js';
 import { srOnlyStyles } from '../../../shared/components/styles/lit/a11y.css.js';
@@ -44,7 +43,7 @@ import '../../../shared/components/avatar/avatar-list.js';
 import '../../../shared/components/commit/commit-stats.js';
 import '../../../shared/components/formatted-date.js';
 import '../../../shared/components/overlays/tooltip.js';
-import '../../../shared/components/pills/tracking.js';
+import '../../../shared/components/pills/tracking-status.js';
 import '../../../shared/components/rich/issue-icon.js';
 import '../../../shared/components/rich/pr-icon.js';
 import '../../../shared/components/actions/action-item.js';
@@ -178,10 +177,6 @@ export const branchCardStyles = css`
 		${srOnlyStyles}
 	}
 
-	.pill {
-		--gl-pill-border: color-mix(in srgb, transparent 80%, var(--color-foreground));
-	}
-
 	.work-item {
 		--gl-card-background: color-mix(in lab, var(--vscode-sideBar-background) 100%, #fff 3%);
 		--gl-card-hover-background: color-mix(in lab, var(--vscode-sideBar-background) 100%, #fff 1.5%);
@@ -241,26 +236,19 @@ export const branchCardStyles = css`
 		color: var(--vscode-gitlens-launchpadIndicatorAttentionColor);
 	}
 
-	.tracking__pill,
 	.wip__pill {
 		display: flex;
 		flex-direction: row;
 		gap: 1rem;
 	}
 
-	.tracking__tooltip,
 	.wip__tooltip {
 		display: contents;
 		vertical-align: middle;
 	}
 
-	.tracking__tooltip p,
 	.wip__tooltip p {
 		margin-block: 0;
-	}
-
-	p.tracking__tooltip--wip {
-		margin-block-start: 1rem;
 	}
 `;
 
@@ -638,14 +626,11 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 	}
 
 	protected renderTracking(showWip = false): TemplateResult | NothingType {
-		if (this.branch.upstream == null) return nothing;
-
-		const { state } = this.branch.upstream;
-		// const ahead = this.branch.state.ahead ?? 0;
-		// const behind = this.branch.state.behind ?? 0;
+		const upstream = this.branch.upstream;
+		if (upstream == null) return nothing;
 
 		let working = 0;
-		let wipTooltip;
+		let wipExtra: TemplateResult | NothingType = nothing;
 		if (showWip) {
 			const workingTreeState = this.wip?.workingTreeState;
 			if (workingTreeState != null) {
@@ -653,45 +638,21 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 
 				const wipParts = getWipTooltipParts(workingTreeState);
 				if (wipParts.length) {
-					wipTooltip = html`<p class="tracking__tooltip--wip">${wipParts.join(', ')} in the working tree</p>`;
+					wipExtra = html`<p slot="extra">${wipParts.join(', ')} in the working tree</p>`;
 				}
 			}
 		}
 
-		let tooltip;
-		if (this.branch.upstream.missing) {
-			tooltip = html`${renderBranchName(this.branch.name)} is missing its upstream
-			${renderBranchName(this.branch.upstream.name)}`;
-		} else {
-			const status: string[] = [];
-			if (state.behind) {
-				status.push(`${pluralize('commit', state.behind)} behind`);
-			}
-			if (state.ahead) {
-				status.push(`${pluralize('commit', state.ahead)} ahead of`);
-			}
-
-			if (status.length) {
-				tooltip = html`${renderBranchName(this.branch.name)} is
-				${status.join(', ')}${renderBranchName(this.branch.upstream?.name)}`;
-			} else {
-				tooltip = html`${renderBranchName(this.branch.name)} is up to date with
-				${renderBranchName(this.branch.upstream?.name)}`;
-			}
-		}
-
-		return html`<gl-tooltip class="tracking__pill" placement="bottom"
-			><gl-tracking-pill
-				class="pill"
-				colorized
-				outlined
-				always-show
-				ahead=${state.ahead}
-				behind=${state.behind}
-				working=${working}
-				?missingUpstream=${this.branch.upstream?.missing ?? false}
-			></gl-tracking-pill>
-			<span class="tracking__tooltip" slot="content">${tooltip}${wipTooltip}</span></gl-tooltip
+		return html`<gl-tracking-status
+			.branchName=${this.branch.name}
+			.upstreamName=${upstream.name}
+			.missingUpstream=${upstream.missing ?? false}
+			.ahead=${upstream.state.ahead}
+			.behind=${upstream.state.behind}
+			.working=${working}
+			colorized
+			outlined
+			>${wipExtra}</gl-tracking-status
 		>`;
 	}
 

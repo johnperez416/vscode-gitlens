@@ -13,7 +13,7 @@ import '../../../shared/components/chips/action-chip.js';
 import '../../../shared/components/chips/autolink-chip.js';
 import '../../../shared/components/chips/chip-overflow.js';
 import '../../../shared/components/branch-name.js';
-import '../../../shared/components/pills/tracking.js';
+import '../../../shared/components/pills/tracking-status.js';
 import '../../../shared/components/commit/commit-stats.js';
 import '../../../shared/components/progress.js';
 import '../../../shared/components/code-icon.js';
@@ -44,9 +44,9 @@ export class GlDetailsWipHeader extends LitElement {
 
 		const branchName = wip.branch?.name;
 		const files = wip.changes?.files ?? [];
-		const tracking = wip.branch?.tracking;
-		const ahead = tracking?.ahead ?? 0;
-		const behind = tracking?.behind ?? 0;
+		const upstream = wip.branch?.upstream;
+		const ahead = wip.branch?.tracking?.ahead ?? 0;
+		const behind = wip.branch?.tracking?.behind ?? 0;
 
 		let addedCount = 0;
 		let modifiedCount = 0;
@@ -109,13 +109,15 @@ export class GlDetailsWipHeader extends LitElement {
 											<span slot="content">Switch Branch...</span>
 										</gl-tooltip>`
 									: nothing}
-								${ahead > 0 || behind > 0
-									? html`<gl-tracking-pill
-											.ahead=${ahead}
-											.behind=${behind}
-											colorized
-										></gl-tracking-pill>`
-									: nothing}
+								<gl-tracking-status
+									.branchName=${branchName}
+									.upstreamName=${upstream?.name}
+									.missingUpstream=${upstream?.missing ?? false}
+									.ahead=${ahead}
+									.behind=${behind}
+									colorized
+									outlined
+								></gl-tracking-status>
 								${this.renderMergeTargetStatus()}${this.renderAssociatedPullRequest()}
 							</div>
 							<div class="branch-ops">

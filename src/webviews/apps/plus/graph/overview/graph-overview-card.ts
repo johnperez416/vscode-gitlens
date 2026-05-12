@@ -25,7 +25,6 @@ import type {
 	OverviewBranchMergeTarget,
 	OverviewBranchWip,
 } from '../../../../shared/overviewBranches.js';
-import { renderBranchName } from '../../../shared/components/branch-name.js';
 import { srOnlyStyles } from '../../../shared/components/styles/lit/a11y.css.js';
 import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
@@ -35,7 +34,7 @@ import '../../shared/components/merge-target-status.js';
 import '../../../shared/components/branch-icon.js';
 import '../../../shared/components/card/card.js';
 import '../../../shared/components/pills/agent-status-pill.js';
-import '../../../shared/components/pills/tracking.js';
+import '../../../shared/components/pills/tracking-status.js';
 import '../../../shared/components/commit/commit-stats.js';
 import '../../../shared/components/avatar/avatar-list.js';
 import '../../../shared/components/rich/pr-icon.js';
@@ -356,26 +355,19 @@ export class GlGraphOverviewCard extends LitElement {
 			${srOnlyStyles}
 		}
 
-		.tracking__pill,
 		.wip__pill {
 			display: flex;
 			flex-direction: row;
 			gap: 1rem;
 		}
 
-		.tracking__tooltip,
 		.wip__tooltip {
 			display: contents;
 			vertical-align: middle;
 		}
 
-		.tracking__tooltip p,
 		.wip__tooltip p {
 			margin-block: 0;
-		}
-
-		.pill {
-			--gl-pill-border: color-mix(in srgb, transparent 80%, var(--color-foreground));
 		}
 
 		gl-avatar-list {
@@ -793,43 +785,19 @@ export class GlGraphOverviewCard extends LitElement {
 		</p>`;
 	}
 
-	private describeTracking(): TemplateResult | undefined {
-		const upstream = this.branch.upstream;
-		if (upstream == null) return undefined;
-
-		if (upstream.missing) {
-			return html`${renderBranchName(this.branch.name)} is missing its upstream ${renderBranchName(upstream.name)}`;
-		}
-
-		const status: string[] = [];
-		if (upstream.state.behind) {
-			status.push(`${pluralize('commit', upstream.state.behind)} behind`);
-		}
-		if (upstream.state.ahead) {
-			status.push(`${pluralize('commit', upstream.state.ahead)} ahead of`);
-		}
-		if (status.length) {
-			return html`${renderBranchName(this.branch.name)} is ${status.join(', ')} ${renderBranchName(upstream.name)}`;
-		}
-		return html`${renderBranchName(this.branch.name)} is up to date with ${renderBranchName(upstream.name)}`;
-	}
-
 	private renderTracking() {
 		const upstream = this.branch.upstream;
 		if (upstream == null) return nothing;
 
-		return html`<gl-tooltip class="tracking__pill" placement="bottom"
-			><gl-tracking-pill
-				class="pill"
-				colorized
-				outlined
-				always-show
-				ahead=${upstream.state.ahead}
-				behind=${upstream.state.behind}
-				?missingUpstream=${upstream.missing ?? false}
-			></gl-tracking-pill>
-			<span class="tracking__tooltip" slot="content">${this.describeTracking()}</span></gl-tooltip
-		>`;
+		return html`<gl-tracking-status
+			.branchName=${this.branch.name}
+			.upstreamName=${upstream.name}
+			.missingUpstream=${upstream.missing ?? false}
+			.ahead=${upstream.state.ahead}
+			.behind=${upstream.state.behind}
+			colorized
+			outlined
+		></gl-tracking-status>`;
 	}
 
 	private renderWipBasic() {
