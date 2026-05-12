@@ -529,7 +529,7 @@ Now, proceed with your analysis and provide a comprehensive review of the PR. Re
 
 export const reviewChanges: PromptTemplate<'review-changes'> = {
 	id: 'review-changes',
-	variables: ['diff', 'message', 'instructions'],
+	variables: ['diff', 'message', 'context', 'instructions'],
 	template: `You are an expert code reviewer analyzing a set of code changes. Your goal is to identify meaningful issues — bugs, logic errors, security vulnerabilities, missing error handling, and potential regressions — while ignoring style preferences and linter-level concerns. Focus on problems a careful human reviewer would catch.
 
 Examine the following code changes in Git diff format. Each non-header line inside a hunk has been annotated with its 1-based new-file line number in a \`[NNNNN]\` block placed immediately after the line-type marker (\` \`, \`+\`, or \`-\`):
@@ -545,6 +545,9 @@ Author's description of the changes:
 <~~message~~>
 \${message}
 </~~message~~>
+
+Related work items (known pull requests and issues for this change set). Use these for *intent*: what the change is trying to accomplish. They are not authoritative spec — if a finding contradicts the stated intent, flag it rather than defer to it. May be empty.
+\${context}
 
 Produce a structured review in the following XML format. Include ONLY the XML tags described — no other text:
 
@@ -580,7 +583,7 @@ Review the changes and produce the structured XML output above.`,
 
 export const reviewOverview: PromptTemplate<'review-overview'> = {
 	id: 'review-overview',
-	variables: ['files', 'message', 'instructions'],
+	variables: ['files', 'message', 'context', 'instructions'],
 	template: `You are an expert code reviewer performing an initial assessment of a set of code changes. You are given a file manifest (not full diffs) — use the file paths, change types, and line counts to identify which areas deserve closer inspection.
 
 File manifest (JSON array of changed files):
@@ -592,6 +595,9 @@ Author's description of the changes:
 <~~message~~>
 \${message}
 </~~message~~>
+
+Related work items (known pull requests and issues for this change set). Use these for *intent* — what the change is trying to accomplish — when ranking which areas deserve closer review. May be empty.
+\${context}
 
 Produce a structured assessment in the following XML format. Include ONLY the XML tags described — no other text:
 
@@ -619,7 +625,7 @@ Assess the changes and produce the structured XML output above.`,
 
 export const reviewDetail: PromptTemplate<'review-detail'> = {
 	id: 'review-detail',
-	variables: ['diff', 'overview', 'message', 'focusArea', 'instructions'],
+	variables: ['diff', 'overview', 'message', 'focusArea', 'context', 'instructions'],
 	template: `You are an expert code reviewer performing a detailed inspection of specific files that were flagged for closer review. You have the context from an initial overview assessment.
 
 Initial overview of the full changeset:
@@ -633,6 +639,9 @@ Author's description of the changes:
 <~~message~~>
 \${message}
 </~~message~~>
+
+Related work items (known pull requests and issues for this change set). Use these for *intent* — what the change is trying to accomplish. They are not authoritative spec; if a finding contradicts the stated intent, flag it. May be empty.
+\${context}
 
 Code changes for the files in this focus area (Git diff format). Each non-header line inside a hunk has been annotated with its 1-based new-file line number in a \`[NNNNN]\` block placed immediately after the line-type marker (\` \`, \`+\`, or \`-\`):
   \` [   42] context line\`     // context: exists in both old and new; number = new-file line

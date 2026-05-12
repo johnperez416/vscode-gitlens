@@ -219,12 +219,27 @@ export async function getBranchAssociatedPullRequest(
 		avatarSize?: number;
 		include?: PullRequestState[];
 		expiryOverride?: boolean | number;
+		/** Only return a value already in the local cache. No remote fetch — returns undefined on cache miss. */
+		cached?: boolean;
 	},
 ): Promise<PullRequest | undefined> {
 	const remote = await getBranchRemote(container, branch);
 	if (remote?.provider == null) return undefined;
 
 	const integration = await getRemoteIntegration(remote);
+
+	if (options?.cached) {
+		if (branch.upstream?.missing) {
+			if (!branch.sha) return undefined;
+			return container.cache.peekPullRequestForSha(branch.sha, remote.provider.repoDesc, integration);
+		}
+		return container.cache.peekPullRequestForBranch(
+			branch.trackingWithoutRemote ?? branch.nameWithoutRemote,
+			remote.provider.repoDesc,
+			integration,
+		);
+	}
+
 	if (integration == null) return undefined;
 
 	if (branch.upstream?.missing) {

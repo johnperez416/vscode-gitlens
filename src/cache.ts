@@ -250,6 +250,32 @@ export class CacheProvider implements Disposable {
 		return this.get('defaultBranch', `repo:${key}`, etag, cacheable, options);
 	}
 
+	peekPullRequestForBranch(
+		branch: string,
+		repo: ResourceDescriptor,
+		integration: GitHostIntegration | undefined,
+	): PullRequest | undefined {
+		const { key } = this.getResourceKeyAndEtag(repo, integration);
+		return this.peek('prByBranch', `branch:${branch}:${key}`);
+	}
+
+	peekPullRequestForSha(
+		sha: string,
+		repo: ResourceDescriptor,
+		integration: GitHostIntegration | undefined,
+	): PullRequest | undefined {
+		const { key } = this.getResourceKeyAndEtag(repo, integration);
+		return this.peek('prsBySha', `sha:${sha}:${key}`);
+	}
+
+	peekIssue(id: string, resource: ResourceDescriptor, integration: IntegrationBase | undefined): Issue | undefined {
+		const { key } = this.getResourceKeyAndEtag(resource, integration);
+		return this.peek(
+			'issuesByIdAndResource',
+			`id:${id}:${key}:${'issue' satisfies IssueOrPullRequestType}:${JSON.stringify(resource)}}`,
+		);
+	}
+
 	getRepositoryMetadata(
 		repo: ResourceDescriptor,
 		integration: GitHostIntegration | undefined,

@@ -47,6 +47,8 @@ export async function getAssociatedIssuesForBranch(
 	options?: {
 		cancellation?: AbortSignal;
 		timeout?: number;
+		/** Only return issues already in the local cache. No remote fetch — uncached entries are skipped. */
+		cached?: boolean;
 	},
 ): Promise<MaybePausedResult<Issue[] | undefined>> {
 	const { encoded } = await getConfigKeyAndEncodedAssociatedIssuesForBranch(container, branch);
@@ -66,7 +68,9 @@ export async function getAssociatedIssuesForBranch(
 				(async () => {
 					return (
 						await Promise.allSettled(
-							(associatedIssues ?? []).map(i => getIssueFromGitConfigEntityIdentifier(container, i)),
+							(associatedIssues ?? []).map(i =>
+								getIssueFromGitConfigEntityIdentifier(container, i, { cached: options?.cached }),
+							),
 						)
 					)
 						.map(r => getSettledValue(r))

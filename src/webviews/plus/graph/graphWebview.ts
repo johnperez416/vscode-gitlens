@@ -162,6 +162,11 @@ import {
 import type { OnboardingChangeEvent } from '../../../onboarding/onboardingService.js';
 import { shouldUseSinglePass } from '../../../plus/ai/actions/reviewChanges.js';
 import { prepareCompareDataForAIRequest } from '../../../plus/ai/utils/-webview/ai.utils.js';
+import type { ChangesContextCommit, ChangesContextInput } from '../../../plus/ai/utils/-webview/changesContext.js';
+import {
+	formatChangesContextForPrompt,
+	gatherContextForChanges,
+} from '../../../plus/ai/utils/-webview/changesContext.js';
 import { showPatchesView } from '../../../plus/drafts/actions.js';
 import type { FeaturePreviewChangeEvent, SubscriptionChangeEvent } from '../../../plus/gk/subscriptionService.js';
 import { isHooksBannerEnabled, isMcpBannerEnabled } from '../../../plus/gk/utils/-webview/mcp.utils.js';
@@ -484,7 +489,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	/** LRU-capped per-AI-request diff cache. Cap is small because only one review and one
 	 *  compose can be active at a time — the only legitimate concurrent keys are (review, compose,
 	 *  + a couple of variants from changing excludedFiles within a session). */
-	private readonly _graphDetailsDiffCache = new LruMap<string, { diff: string; message: string }>(
+	private readonly _graphDetailsDiffCache = new LruMap<string, { diff: string; message: string; context: string }>(
 		GraphWebviewProvider._diffCacheCap,
 	);
 
@@ -1050,7 +1055,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 							if (!data.diff?.trim()) return { error: { message: 'No changes found.' } };
 						}
-						this._graphDetailsDiffCache.set(diffCacheKey, { diff: data.diff, message: data.message });
+						this._graphDetailsDiffCache.set(diffCacheKey, {
+							diff: data.diff,
+							message: data.message,
+							context: data.context,
+						});
 
 						// Adaptive strategy: single-pass for small diffs, two-pass for large. The
 						// threshold is scoped to the selected model's input-context budget — a 1M-
@@ -1061,7 +1070,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						signal?.throwIfAborted();
 						if (shouldUseSinglePass(data.diff, aiModel)) {
 							const result = await this.container.ai.actions.reviewChanges(
-								{ diff: data.diff, message: data.message, instructions: prompt || undefined },
+								{
+									diff: data.diff,
+									message: data.message,
+									context: data.context,
+									instructions: prompt || undefined,
+								},
 								{ source: 'graph', context: { type: reviewType, mode: 'single-pass' } },
 								{
 									cancellation: cancellation,
@@ -1097,7 +1111,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						const fileManifest = JSON.stringify(parsedFiles);
 
 						const overviewResult = await this.container.ai.actions.reviewOverview(
-							{ files: fileManifest, message: data.message, instructions: prompt || undefined },
+							{
+								files: fileManifest,
+								message: data.message,
+								context: data.context,
+								instructions: prompt || undefined,
+							},
 							{ source: 'graph', context: { type: reviewType, mode: 'two-pass' } },
 							{
 								cancellation: cancellation,
@@ -1168,6 +1187,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 								overview: overviewContext,
 								message: data.message,
 								focusArea: focusAreaFiles.join(', '),
+								context: data.context,
 								instructions: prompt || undefined,
 							},
 							focusAreaId,
@@ -7462,7 +7482,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		repoPath: string,
 		scope: ScopeSelection,
 		signal?: AbortSignal,
-	): Promise<{ diff: string; message: string } | undefined> {
+	): Promise<{ diff: string; message: string; context: string } | undefined> {
 		const svc = this.container.git.getRepositoryService(repoPath);
 
 		if (scope.type === 'commit') {
@@ -7472,13 +7492,28 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 			const commit = await svc.commits.getCommit(scope.sha);
 			signal?.throwIfAborted();
-			return { diff: annotateDiffWithNewLineNumbers(diffResult.contents), message: commit?.message ?? '' };
+
+			const context = await this.buildChangesContext(
+				repoPath,
+				{
+					commits: [{ sha: scope.sha, message: commit?.message ?? '' }],
+					changeKind: 'commit',
+				},
+				signal,
+			);
+
+			return {
+				diff: annotateDiffWithNewLineNumbers(diffResult.contents),
+				message: commit?.message ?? '',
+				context: context,
+			};
 		}
 
 		if (scope.type === 'compare') {
 			if (scope.includeShas?.length) {
 				const parts: string[] = [];
 				const messages: string[] = [];
+				const commits: ChangesContextCommit[] = [];
 				for (const sha of scope.includeShas) {
 					const diff = await svc.diff?.getDiff?.(sha);
 					signal?.throwIfAborted();
@@ -7489,12 +7524,21 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 					signal?.throwIfAborted();
 					if (c) {
 						messages.push(`${shortenRevision(c.sha)}: ${c.message ?? ''}`);
+						commits.push({ sha: sha, message: c.message ?? '' });
 					}
 				}
 				if (!parts.length) return undefined;
+
+				const context = await this.buildChangesContext(
+					repoPath,
+					{ commits: commits, changeKind: 'commit-range' },
+					signal,
+				);
+
 				return {
 					diff: annotateDiffWithNewLineNumbers(parts.join('\n')),
 					message: `Selected commits between ${shortenRevision(scope.fromSha)} and ${shortenRevision(scope.toSha)}:\n\n${messages.join('\n')}`,
+					context: context,
 				};
 			}
 
@@ -7502,9 +7546,25 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			signal?.throwIfAborted();
 			if (!data) return undefined;
 
+			const log = await svc.commits.getLog?.(`${scope.fromSha}..${scope.toSha}`);
+			signal?.throwIfAborted();
+			const commits: ChangesContextCommit[] = [];
+			if (log?.commits) {
+				for (const c of log.commits.values()) {
+					commits.push({ sha: c.sha, message: c.message ?? c.summary ?? '' });
+				}
+			}
+
+			const context = await this.buildChangesContext(
+				repoPath,
+				{ commits: commits, changeKind: 'commit-range' },
+				signal,
+			);
+
 			return {
 				diff: annotateDiffWithNewLineNumbers(data.diff),
 				message: `Changes between ${shortenRevision(scope.fromSha)} and ${shortenRevision(scope.toSha)}:\n\n${data.logMessages}`,
+				context: context,
 			};
 		}
 
@@ -7551,7 +7611,33 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				message += `:\n\n${commitMessages.join('\n')}`;
 			}
 		}
-		return { diff: annotateDiffWithNewLineNumbers(parts.join('\n')), message: message };
+
+		const wipBranch = await svc.branches.getBranch();
+		signal?.throwIfAborted();
+		const context = await this.buildChangesContext(
+			repoPath,
+			{ branch: wipBranch ?? undefined, changeKind: 'wip' },
+			signal,
+		);
+
+		return {
+			diff: annotateDiffWithNewLineNumbers(parts.join('\n')),
+			message: message,
+			context: context,
+		};
+	}
+
+	private async buildChangesContext(
+		repoPath: string,
+		input: ChangesContextInput,
+		signal?: AbortSignal,
+	): Promise<string> {
+		try {
+			const payload = await gatherContextForChanges(this.container, repoPath, input, signal);
+			return formatChangesContextForPrompt(payload);
+		} catch {
+			return '';
+		}
 	}
 
 	@command('gitlens.ai.explainCommit:')

@@ -189,10 +189,12 @@ export class AutolinksProvider implements Disposable {
 	getEnrichedAutolinks(
 		message: string,
 		remote: GitRemote | undefined,
+		options?: { cached?: boolean },
 	): Promise<Map<string, EnrichedAutolink> | undefined>;
 	getEnrichedAutolinks(
 		autolinks: Map<string, Autolink>,
 		remote: GitRemote | undefined,
+		options?: { cached?: boolean },
 	): Promise<Map<string, EnrichedAutolink> | undefined>;
 	@trace({
 		args: (messageOrAutolinks, remote) => ({
@@ -204,12 +206,16 @@ export class AutolinksProvider implements Disposable {
 	getEnrichedAutolinks(
 		messageOrAutolinks: string | Map<string, Autolink>,
 		remote: GitRemote | undefined,
+		options?: { cached?: boolean },
 	): Promise<Map<string, EnrichedAutolink> | undefined> {
 		const remoteKey = remote?.remoteKey ?? '';
 		const key =
 			typeof messageOrAutolinks === 'string'
 				? `m:${remoteKey}:${messageOrAutolinks}`
 				: `a:${remoteKey}:${[...messageOrAutolinks.keys()].sort().join('|')}`;
+		if (options?.cached) {
+			return this._inflightEnrichmentCache.get(key) ?? Promise.resolve(undefined);
+		}
 		return this._inflightEnrichmentCache.getOrCreate(key, () =>
 			this.enrichAutolinksCore(messageOrAutolinks, remote),
 		);

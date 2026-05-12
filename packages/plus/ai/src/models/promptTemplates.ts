@@ -81,12 +81,14 @@ interface ReviewPullRequestPromptTemplateContext {
 interface ReviewChangesPromptTemplateContext {
 	diff: string;
 	message: string;
+	context?: string;
 	instructions?: string;
 }
 
 interface ReviewOverviewPromptTemplateContext {
 	files: string;
 	message: string;
+	context?: string;
 	instructions?: string;
 }
 
@@ -95,6 +97,7 @@ interface ReviewDetailPromptTemplateContext {
 	overview: string;
 	message: string;
 	focusArea: string;
+	context?: string;
 	instructions?: string;
 }
 
