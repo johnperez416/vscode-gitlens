@@ -5,14 +5,20 @@ import { fromNow } from '@gitlens/utils/date.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { StashSaveCommandArgs } from '../../../../../commands/stashSave.js';
 import { createCommandLink } from '../../../../../system/commands.js';
-import type { BranchState, GraphWorkingTreeStats, State } from '../../../../plus/graph/protocol.js';
+import type { BranchState, GraphAutoFetchMode, GraphWorkingTreeStats, State } from '../../../../plus/graph/protocol.js';
+import { UpdateGraphConfigurationCommand } from '../../../../plus/graph/protocol.js';
 import { inlineCode } from '../../../shared/components/styles/lit/base.css.js';
+import { ipcContext } from '../../../shared/contexts/ipc.js';
 import type { WebviewContext } from '../../../shared/contexts/webview.js';
 import { webviewContext } from '../../../shared/contexts/webview.js';
 import { ruleStyles } from '../../shared/components/vscode.css.js';
 import { actionButton, linkBase } from '../styles/graph.css.js';
+import '../../../shared/components/button.js';
+import '../../../shared/components/checkbox/checkbox.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/commit/commit-stats.js';
+import '../../../shared/components/menu/menu-divider.js';
+import '../../../shared/components/overlays/popover.js';
 import '../../../shared/components/overlays/tooltip.js';
 
 @customElement('gl-git-actions-buttons')
@@ -106,6 +112,8 @@ export class GitActionsButtons extends LitElement {
 				.branchState=${this.branchState}
 				.fetchedText=${this.fetchedText}
 				.state=${this.state}
+				.autoFetchMode=${this.state.config?.autoFetchMode ?? 'off'}
+				.autoFetchIntervalSeconds=${this.state.config?.autoFetchIntervalSeconds ?? 180}
 			></gl-fetch-button>
 			${this.hasWorkingChanges
 				? html`<gl-tooltip placement="bottom">
@@ -162,10 +170,11 @@ export class GlFetchButton extends LitElement {
 		ruleStyles,
 		css`
 			:host {
-				display: block;
+				display: inline-flex;
 				min-width: 0;
+				max-width: 100%;
 			}
-			gl-tooltip {
+			gl-popover.fetch-popover {
 				display: block;
 				min-width: 0;
 				max-width: 100%;
@@ -185,11 +194,84 @@ export class GlFetchButton extends LitElement {
 				text-overflow: ellipsis;
 				white-space: nowrap;
 			}
+
+			.fetch-popover::part(body) {
+				min-width: 24rem;
+				max-width: 36rem;
+			}
+			.fetch-popover__menu {
+				display: flex;
+				flex-direction: column;
+				padding: 0.2rem 0;
+				min-width: 0;
+			}
+			.fetch-popover__info {
+				padding: 0.4rem 0.8rem;
+				color: var(--vscode-menu-foreground);
+				font-size: 1.2rem;
+				line-height: 1.4;
+			}
+			.fetch-popover__info-secondary {
+				margin-top: 0.2rem;
+				opacity: 0.7;
+				font-size: 1.1rem;
+			}
+			.fetch-popover__divider {
+				margin: 0.2rem 0;
+			}
+			.fetch-popover__row {
+				display: flex;
+				align-items: center;
+				gap: 0.4rem;
+				padding: 0.3rem 0.4rem 0.3rem 0.8rem;
+				min-height: 2.4rem;
+				color: var(--vscode-menu-foreground);
+			}
+			.fetch-popover__row gl-checkbox {
+				flex: 1;
+				min-width: 0;
+				margin: 0;
+				font-size: 1.2rem;
+				--checkbox-foreground: currentColor;
+				--checkbox-background: var(--vscode-checkbox-selectBackground);
+				--checkbox-border: var(--vscode-checkbox-selectBorder);
+				--checkbox-hover-background: var(--vscode-checkbox-selectBackground);
+			}
+			.fetch-popover__row .fetch-popover__label-text {
+				flex: 1;
+				min-width: 0;
+				font-size: 1.2rem;
+			}
+			.fetch-popover__row gl-button {
+				flex: none;
+				--button-padding: 0.2rem;
+				--button-foreground: var(--vscode-menu-foreground, var(--vscode-foreground));
+				--button-hover-background: color-mix(in srgb, var(--vscode-menu-foreground) 18%, transparent);
+				opacity: 0.7;
+			}
+			.fetch-popover__row gl-button:hover {
+				opacity: 1;
+			}
+			.fetch-popover__hint {
+				padding: 0 0.8rem 0.4rem 2.6rem;
+				color: var(--vscode-menu-foreground);
+				opacity: 0.7;
+				font-size: 1.1rem;
+				line-height: 1.4;
+			}
+			.fetch-popover__row--info .fetch-popover__label-text {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.4rem;
+			}
 		`,
 	];
 
 	@consume({ context: webviewContext })
 	private _webview!: WebviewContext;
+
+	@consume({ context: ipcContext })
+	private _ipc!: typeof ipcContext.__context__;
 
 	@property({ type: Object })
 	state!: State;
@@ -200,16 +282,37 @@ export class GlFetchButton extends LitElement {
 	@property({ type: Object })
 	branchState?: BranchState;
 
+	@property({ type: String })
+	autoFetchMode: GraphAutoFetchMode = 'off';
+
+	@property({ type: Number })
+	autoFetchIntervalSeconds = 180;
+
 	private get upstream() {
 		return this.branchState?.upstream
 			? html`<span class="inline-code">${this.branchState.upstream}</span>`
 			: 'remote';
 	}
 
+	private get intervalLabel(): string {
+		const seconds = this.autoFetchIntervalSeconds;
+		if (seconds < 60) return pluralize('second', seconds);
+		return pluralize('minute', Math.round(seconds / 60));
+	}
+
+	private get settingsLink(): string {
+		// Only surface `git.autofetch` when it's currently enabled — that's the one case where the user
+		// might want to turn it off and revert auto-fetch to GitLens. In off/gitlens modes, the period is
+		// the only knob that matters.
+		const ids =
+			this.autoFetchMode === 'vscode' ? '@id:git.autofetch @id:git.autofetchPeriod' : '@id:git.autofetchPeriod';
+		return `command:workbench.action.openSettings?${encodeURIComponent(`"${ids}"`)}`;
+	}
+
 	override render() {
 		return html`
-			<gl-tooltip placement="bottom">
-				<a href=${this._webview.createCommandLink('gitlens.fetch:')} class="action-button">
+			<gl-popover class="fetch-popover" placement="bottom" ?arrow=${false} distance=${4}>
+				<a slot="anchor" href=${this._webview.createCommandLink('gitlens.fetch:')} class="action-button">
 					<code-icon class="action-button__icon" icon="repo-fetch"></code-icon>
 					<span class="action-button__text"
 						><span class="action-button__label">Fetch</span>${this.fetchedText
@@ -217,18 +320,73 @@ export class GlFetchButton extends LitElement {
 							: ''}</span
 					>
 				</a>
-				<span slot="content">
-					Fetch from ${this.upstream}
-					${this.branchState?.provider?.name ? html` on ${this.branchState.provider.name}` : ''}
-					${this.fetchedText
-						? html`
-								<hr />
-								Last fetched ${this.fetchedText}
-							`
-						: nothing}
-				</span>
-			</gl-tooltip>
+				<div slot="content" class="fetch-popover__menu" role="menu">
+					<div class="fetch-popover__info">
+						Fetch from
+						${this.upstream}${this.branchState?.provider?.name
+							? html` on ${this.branchState.provider.name}`
+							: nothing}
+						${this.fetchedText
+							? html`<div class="fetch-popover__info-secondary">Last fetched ${this.fetchedText}</div>`
+							: nothing}
+					</div>
+					<menu-divider class="fetch-popover__divider"></menu-divider>
+					${this.renderAutoFetchRow()}
+				</div>
+			</gl-popover>
 		`;
+	}
+
+	private renderAutoFetchRow() {
+		const intervalLabel = this.intervalLabel;
+		if (this.autoFetchMode === 'vscode') {
+			return html`
+				<div class="fetch-popover__row fetch-popover__row--info">
+					<span class="fetch-popover__label-text">
+						<code-icon icon="check"></code-icon>
+						Auto-fetch handled by VS Code Git
+					</span>
+					${this.renderSettingsCog()}
+				</div>
+				<div class="fetch-popover__hint">Every ${intervalLabel}</div>
+			`;
+		}
+
+		const checked = this.autoFetchMode === 'gitlens';
+		return html`
+			<div class="fetch-popover__row">
+				<gl-checkbox
+					value="autoFetchEnabled"
+					?checked=${checked}
+					@gl-change-value=${this.handleAutoFetchToggle}
+				>
+					Auto-fetch
+				</gl-checkbox>
+				${this.renderSettingsCog()}
+			</div>
+			<div class="fetch-popover__hint">Every ${intervalLabel} while in view</div>
+		`;
+	}
+
+	private renderSettingsCog() {
+		// No wrapping <gl-tooltip>: its body positions above the gear and ends up occluding the
+		// popover content the user is already reading. The aria-label below covers screen-reader needs.
+		return html`
+			<gl-button
+				appearance="toolbar"
+				density="compact"
+				href=${this.settingsLink}
+				aria-label="Open Git Auto-fetch Settings"
+			>
+				<code-icon icon="gear"></code-icon>
+			</gl-button>
+		`;
+	}
+
+	private handleAutoFetchToggle(e: CustomEvent) {
+		const $el = e.target as HTMLInputElement | null;
+		if ($el == null) return;
+		this._ipc.sendCommand(UpdateGraphConfigurationCommand, { changes: { autoFetchEnabled: $el.checked } });
 	}
 }
 

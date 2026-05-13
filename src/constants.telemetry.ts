@@ -226,6 +226,9 @@ export interface TelemetryEvents extends WebviewShowAbortedEvents, WebviewShownE
 	/** Sent when a Commit Graph command is executed */
 	'graph/command': CommandEventData;
 
+	/** Sent when GitLens auto-fetch fires a `git fetch` for the visible Commit Graph */
+	'graph/autoFetch': GraphAutoFetchEvent;
+
 	/** Sent when the user clicks on the Jump to HEAD/Reference (alt) header button on the Commit Graph */
 	'graph/action/jumpTo': GraphActionJumpToEvent;
 	/** Sent when the user clicks on the "Jump to HEAD"/"Jump to Reference" (alt) header button on the Commit Graph */
@@ -948,6 +951,11 @@ type GraphShownEvent = WebviewShownEventData & GraphShownEventData;
 
 interface GraphActionJumpToEvent extends GraphContextEventData {
 	target: 'HEAD' | 'choose';
+}
+
+interface GraphAutoFetchEvent extends GraphContextEventData {
+	intervalSeconds: number;
+	sinceLastFetchedMs: number;
 }
 
 interface GraphActionSidebarEvent extends GraphContextEventData {

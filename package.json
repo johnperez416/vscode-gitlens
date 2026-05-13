@@ -963,6 +963,13 @@
 						"scope": "window",
 						"order": 2
 					},
+					"gitlens.graph.autoFetch.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "Specifies whether to auto-fetch the repository while the _Commit Graph_ is in view. The interval is controlled by the built-in `#git.autofetchPeriod#` setting. If `#git.autofetch#` is enabled, VS Code handles auto-fetching and this setting has no effect.",
+						"scope": "window",
+						"order": 2
+					},
 					"gitlens.graph.details.location": {
 						"type": "string",
 						"default": "right",

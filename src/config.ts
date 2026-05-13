@@ -417,6 +417,9 @@ interface GitKrakenMcpConfig {
 
 export interface GraphConfig {
 	readonly allowMultiple: boolean;
+	readonly autoFetch: {
+		readonly enabled: boolean;
+	};
 	readonly avatars: boolean;
 	readonly branchesVisibility: GraphBranchesVisibility;
 	readonly commitOrdering: 'date' | 'author-date' | 'topo';

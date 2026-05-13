@@ -294,8 +294,13 @@ export type GraphRemote = Remote;
 export type GraphTag = Tag;
 export type GraphBranch = Head;
 
+export type GraphAutoFetchMode = 'off' | 'vscode' | 'gitlens';
+
 export interface GraphComponentConfig {
 	aiEnabled?: boolean;
+	autoFetchEnabled?: boolean;
+	autoFetchIntervalSeconds?: number;
+	autoFetchMode?: GraphAutoFetchMode;
 	avatars?: boolean;
 	dateFormat: DateTimeFormat | string;
 	dateStyle: DateStyle;

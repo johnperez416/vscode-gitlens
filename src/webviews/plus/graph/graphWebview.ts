@@ -1,6 +1,6 @@
 import type { emptySetMarker, GraphRefOptData, GraphSearchMode } from '@gitkraken/gitkraken-components';
 import type { CancellationToken, ColorTheme, ConfigurationChangeEvent, TextDocumentShowOptions } from 'vscode';
-import { CancellationTokenSource, Disposable, env, ProgressLocation, Uri, ViewColumn, window } from 'vscode';
+import { CancellationTokenSource, Disposable, env, ProgressLocation, Uri, ViewColumn, window, workspace } from 'vscode';
 import { createGraphComposeIntegration } from '@env/coretools/composer.js';
 import { getClaudeAgent } from '@env/providers.js';
 import { GitSearchError } from '@gitlens/git/errors.js';
@@ -274,6 +274,7 @@ import type {
 	DidGetSidebarDataParams,
 	DidRequestOpenCompareModeParams,
 	GetWipStatsResponse,
+	GraphAutoFetchMode,
 	GraphBranchContextValue,
 	GraphColumnConfig,
 	GraphColumnName,
@@ -450,8 +451,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		}
 
 		this._repository = value;
+		// Clear the auto-fetch attempt floor so the new repo gets a fresh schedule rather than
+		// inheriting a recent attempt timestamp from the previous repo.
+		this._lastAutoFetchAttemptAt = undefined;
 		this.resetRepositoryState();
 		this.ensureRepositorySubscriptions(true);
+		void this.ensureAutoFetch();
 
 		if (this.host.ready) {
 			this.updateState();
@@ -549,6 +554,18 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	private isWindowFocused: boolean = true;
 
+	private _autoFetchTimer: ReturnType<typeof setTimeout> | undefined;
+	private _autoFetchInFlight: boolean = false;
+	// Wall-clock timestamp of the last auto-fetch attempt (success or failure). Used as a floor
+	// for the next-schedule calculation so a persistently failing fetch (no network, etc.) does
+	// not hot-loop: `lastFetched` only advances on success, so without this a failed attempt
+	// would compute elapsed ≥ interval again immediately.
+	private _lastAutoFetchAttemptAt: number | undefined;
+	// Safety floor for the auto-fetch interval (seconds) when GitLens drives the loop. The
+	// user-facing source is `git.autofetchPeriod`; we clamp here so that a pathological value
+	// (e.g. 1) can't turn into a fetch storm.
+	private static readonly autoFetchMinSeconds = 60;
+
 	private get graphRowProcessor(): GlGraphRowProcessor {
 		return (this._graphRowProcessor ??= new GlGraphRowProcessor(
 			this.container,
@@ -566,6 +583,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 		this._disposable = Disposable.from(
 			configuration.onDidChange(this.onConfigurationChanged, this),
+			workspace.onDidChangeConfiguration(this.onWorkspaceConfigurationChanged, this),
 			this.container.storage.onDidChange(this.onStorageChanged, this),
 			this.container.subscription.onDidChange(this.onSubscriptionChanged, this),
 			this.container.onboarding.onDidChange(this.onOnboardingChanged, this),
@@ -613,6 +631,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	dispose(): void {
+		this.clearAutoFetchTimer();
 		for (const t of this._wipWatchRemoveTimers.values()) {
 			clearTimeout(t);
 		}
@@ -1933,6 +1952,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	onWindowFocusChanged(focused: boolean): void {
 		this.isWindowFocused = focused;
+		void this.ensureAutoFetch();
 	}
 
 	onVisibilityChanged(visible: boolean): void {
@@ -1944,12 +1964,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			if (this.host.ready) {
 				this.updateState(true);
 			}
-			return;
-		}
-
-		if (visible) {
+		} else if (visible) {
 			this.host.sendPendingIpcNotifications();
 		}
+
+		void this.ensureAutoFetch();
 	}
 
 	@ipcRequest(GetCountsRequest)
@@ -2480,6 +2499,9 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		for (key in params.changes) {
 			if (config[key] !== params.changes[key]) {
 				switch (key) {
+					case 'autoFetchEnabled':
+						void configuration.updateEffective('graph.autoFetch.enabled', params.changes[key]);
+						break;
 					case 'minimap':
 						void configuration.updateEffective('graph.minimap.enabled', params.changes[key]);
 						break;
@@ -2551,6 +2573,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	private onConfigurationChanged(e: ConfigurationChangeEvent) {
+		// The catch-all `graph` block below already pushes the new component config to the webview;
+		// here we only need to re-arm the auto-fetch loop when the toggle flips.
+		if (configuration.changed(e, 'graph.autoFetch.enabled')) {
+			void this.ensureAutoFetch();
+		}
+
 		if (configuration.changed(e, 'graph.commitOrdering')) {
 			this.updateState();
 
@@ -2591,6 +2619,13 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				this.updateState();
 			}
 		}
+	}
+
+	private onWorkspaceConfigurationChanged(e: ConfigurationChangeEvent) {
+		if (!e.affectsConfiguration('git.autofetch') && !e.affectsConfiguration('git.autofetchPeriod')) return;
+
+		void this.notifyDidChangeConfiguration();
+		void this.ensureAutoFetch();
 	}
 
 	@trace({ args: false })
@@ -2654,6 +2689,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (e.changed('lastFetched')) {
 			void this.notifyDidFetch();
 			void this.ensureLastFetchedSubscription(true);
+			void this.ensureAutoFetch();
 		}
 
 		if (
@@ -4782,6 +4818,105 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		return formatRepositories(this.container.git.openRepositories);
 	}
 
+	private getAutoFetchMode(): GraphAutoFetchMode {
+		// `git.autofetch` is `boolean | "all"` — "all" fetches from all configured remotes; both `true`
+		// and "all" mean VS Code Git is auto-fetching, so we yield to it.
+		const vscodeAutofetch = workspace.getConfiguration('git').get<boolean | 'all'>('autofetch');
+		if (vscodeAutofetch === true || vscodeAutofetch === 'all') return 'vscode';
+		if (configuration.get('graph.autoFetch.enabled')) return 'gitlens';
+		return 'off';
+	}
+
+	private getAutoFetchIntervalSeconds(): number {
+		return workspace.getConfiguration('git').get<number>('autofetchPeriod') ?? 180;
+	}
+
+	private clearAutoFetchTimer(): void {
+		if (this._autoFetchTimer != null) {
+			clearTimeout(this._autoFetchTimer);
+			this._autoFetchTimer = undefined;
+		}
+	}
+
+	private async ensureAutoFetch(): Promise<void> {
+		// Short-circuit cheaply before clearing the existing timer, so rapid signals (visibility +
+		// focus + repo change firing within a tick) don't repeatedly tear down and re-arm an
+		// already-correct schedule.
+		if (this.getAutoFetchMode() !== 'gitlens') {
+			this.clearAutoFetchTimer();
+			return;
+		}
+		const repo = this._repository;
+		if (repo == null || !this.host.visible || !this.isWindowFocused) {
+			this.clearAutoFetchTimer();
+			return;
+		}
+		if (this._autoFetchInFlight) return;
+
+		this.clearAutoFetchTimer();
+
+		// Clamp the scheduling cadence so a pathological `git.autofetchPeriod` (e.g. 1) can't turn
+		// into a fetch storm. The raw value is still surfaced to the webview for accurate hints —
+		// in `vscode` mode the popover shows VS Code Git's actual cadence, not our clamped one.
+		const intervalMs =
+			Math.max(GraphWebviewProvider.autoFetchMinSeconds, this.getAutoFetchIntervalSeconds()) * 1000;
+		const lastFetched = (await repo.getLastFetched()) ?? 0;
+
+		// Re-check after the async gap; state may have changed (hidden, repo swap, mode flip).
+		if (this.getAutoFetchMode() !== 'gitlens') return;
+		if (this._repository !== repo) return;
+		if (!this.host.visible || !this.isWindowFocused) return;
+		if (this._autoFetchInFlight) return;
+
+		const baseline = Math.max(lastFetched, this._lastAutoFetchAttemptAt ?? 0);
+		const elapsed = baseline > 0 ? Date.now() - baseline : intervalMs;
+		if (elapsed >= intervalMs) {
+			void this.triggerAutoFetch();
+			return;
+		}
+
+		// Clear once more in case a concurrent `ensureAutoFetch` armed a timer while we were awaiting
+		// `getLastFetched()` — without this, the reassignment below would orphan their setTimeout id.
+		this.clearAutoFetchTimer();
+		this._autoFetchTimer = setTimeout(() => {
+			this._autoFetchTimer = undefined;
+			void this.triggerAutoFetch();
+		}, intervalMs - elapsed);
+	}
+
+	@debug()
+	private async triggerAutoFetch(): Promise<void> {
+		if (this._autoFetchInFlight) return;
+		if (this.getAutoFetchMode() !== 'gitlens') return;
+		const repo = this._repository;
+		if (repo == null) return;
+		if (!this.host.visible || !this.isWindowFocused) return;
+
+		const intervalSeconds = this.getAutoFetchIntervalSeconds();
+		const lastFetched = (await repo.getLastFetched()) ?? 0;
+		const sinceLastFetchedMs = lastFetched > 0 ? Date.now() - lastFetched : 0;
+
+		this._autoFetchInFlight = true;
+		this._lastAutoFetchAttemptAt = Date.now();
+		try {
+			// Skip the interactive Fetch wizard (and its progress notification) — auto-fetch is silent
+			// by design; the live "Fetch (now)" label will reflect completion via the lastFetched event.
+			await repo.git.fetch({ progress: false });
+			this.host.sendTelemetryEvent('graph/autoFetch', {
+				intervalSeconds: intervalSeconds,
+				sinceLastFetchedMs: sinceLastFetchedMs,
+			});
+		} catch {
+			// Swallow — transient fetch failures shouldn't break the loop. `_lastAutoFetchAttemptAt`
+			// keeps `ensureAutoFetch` from immediately re-firing when `lastFetched` did not advance.
+		} finally {
+			this._autoFetchInFlight = false;
+			// Re-arm directly as a safety net; the natural `'lastFetched'` event will also trigger
+			// `ensureAutoFetch`, but on failure there's no `lastFetched` change.
+			void this.ensureAutoFetch();
+		}
+	}
+
 	private async ensureLastFetchedSubscription(force?: boolean) {
 		if (!force && this._lastFetchedDisposable != null) return;
 
@@ -5130,6 +5265,8 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	private getComponentConfig(): GraphComponentConfig {
 		const config: GraphComponentConfig = {
 			aiEnabled: this.container.ai.enabled,
+			autoFetchIntervalSeconds: this.getAutoFetchIntervalSeconds(),
+			autoFetchMode: this.getAutoFetchMode(),
 			avatars: configuration.get('graph.avatars'),
 			dateFormat:
 				configuration.get('graph.dateFormat') ?? configuration.get('defaultDateFormat') ?? 'short+short',

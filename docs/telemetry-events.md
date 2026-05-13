@@ -2458,6 +2458,26 @@ or
 }
 ```
 
+### graph/autoFetch
+
+> Sent when GitLens auto-fetch fires a `git fetch` for the visible Commit Graph
+
+```typescript
+{
+  'context.repository.closed': boolean,
+  'context.repository.folder.scheme': string,
+  'context.repository.id': string,
+  'context.repository.provider.id': string,
+  'context.repository.scheme': string,
+  'context.webview.host': 'view' | 'editor' | 'panel',
+  'context.webview.id': string,
+  'context.webview.instanceId': string,
+  'context.webview.type': string,
+  'intervalSeconds': number,
+  'sinceLastFetchedMs': number
+}
+```
+
 ### graph/branchesVisibility/changed
 
 > Sent when the user changes the "branches visibility" on the Commit Graph
@@ -2799,6 +2819,7 @@ or
   [`context.column.${string}.mode`]: string,
   [`context.column.${string}.visible`]: boolean,
   'context.config.allowMultiple': boolean,
+  'context.config.autoFetch.enabled': boolean,
   'context.config.avatars': boolean,
   'context.config.branchesVisibility': 'all' | 'smart' | 'current' | 'favorited',
   'context.config.commitOrdering': 'date' | 'author-date' | 'topo',
