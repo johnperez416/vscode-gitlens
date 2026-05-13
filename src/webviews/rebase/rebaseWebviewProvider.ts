@@ -34,7 +34,11 @@ import {
 	getCommitFormattedDate,
 } from '../../git/utils/-webview/commit.utils.js';
 import { countConflictMarkers } from '../../git/utils/-webview/mergeConflicts.utils.js';
-import { processRebaseEntries, readAndParseRebaseDoneFile } from '../../git/utils/-webview/rebase.parsing.utils.js';
+import {
+	getActionablePauseAction,
+	processRebaseEntries,
+	readAndParseRebaseDoneFile,
+} from '../../git/utils/-webview/rebase.parsing.utils.js';
 import { reopenRebaseTodoEditor } from '../../git/utils/-webview/rebase.utils.js';
 import { showGitErrorMessage } from '../../messages.js';
 import type { Subscription } from '../../plus/gk/models/subscription.js';
@@ -1110,22 +1114,6 @@ export class RebaseWebviewProvider implements Disposable {
 		};
 	}
 
-	/** Detects the reason the rebase is paused based on the last done entry's action */
-	private detectPauseReason(lastAction: RebaseTodoAction | undefined): RebasePauseReason | undefined {
-		switch (lastAction) {
-			case 'edit':
-				return 'edit';
-			case 'reword':
-				return 'reword';
-			case 'break':
-				return 'break';
-			case 'exec':
-				return 'exec';
-			default:
-				return undefined;
-		}
-	}
-
 	/** Enriches entries with commit data */
 	private enrichEntries(
 		entries: RebaseEntry[],
@@ -1205,7 +1193,7 @@ export class RebaseWebviewProvider implements Disposable {
 		// Determine pause reason based on last done entry and conflict status
 		const pauseReason: RebasePauseReason | undefined = hasConflicts
 			? 'conflict'
-			: this.detectPauseReason(lastAction);
+			: getActionablePauseAction(lastAction);
 
 		return {
 			status: {
