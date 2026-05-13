@@ -145,7 +145,7 @@ export function getAgentSessionProviders(container: Container): AgentSessionProv
 					return {
 						repoRoot: repo.isWorktree && repo.commonPath ? repo.commonPath : repo.path,
 						isWorktree: repo.isWorktree,
-						worktreePath: repo.isWorktree ? repo.path : undefined,
+						worktreePath: repo.path,
 					};
 				}
 
@@ -162,7 +162,7 @@ export function getAgentSessionProviders(container: Container): AgentSessionProv
 						isWorktree && info.commonGitDir ? dirname(resolve(cwd, info.commonGitDir)) : info.repoPath,
 					),
 					isWorktree: isWorktree,
-					worktreePath: isWorktree ? info.repoPath : undefined,
+					worktreePath: normalizePath(info.repoPath),
 				};
 			},
 		}),
