@@ -193,13 +193,23 @@ export class RebaseEditorProvider implements CustomTextEditorProvider, Disposabl
 			let repoPath: string;
 			let branchName: string | undefined;
 			try {
-				const svc = this.container.git.getRepositoryService(repoUri);
+				// Validate the URI is actually a git repository before resolving a service —
+				// covers rebases started from a terminal in a directory outside the workspace
+				// (e.g. a homebrew tap, #5229), where no `GlRepository` has been registered yet.
+				const svc = await this.container.git.getValidatedRepositoryService(repoUri);
 				repoPath = svc.path;
 				const branch = await svc.branches.getBranch();
 				branchName = branch?.name;
 			} catch (ex) {
+				// Couldn't resolve a repository service — there's nothing meaningful we can
+				// render. Surface a notice and fall back to the default text editor so the user
+				// can still edit the todo file manually.
 				Logger.error(ex, 'RebaseEditorProvider', `Failed to resolve repository for ${repoUri.toString()}`);
-				repoPath = repoUri.fsPath;
+				void window.showWarningMessage(
+					"GitLens couldn't access this repository, so the Interactive Rebase Editor isn't available here. Falling back to the text editor.",
+				);
+				void reopenRebaseTodoEditor('default');
+				return;
 			}
 
 			// Set panel title and icon

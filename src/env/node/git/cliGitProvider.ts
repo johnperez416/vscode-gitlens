@@ -156,6 +156,10 @@ export class GlCliGitProvider implements GlGitProvider {
 		return this.ensureProvider();
 	}
 
+	ensureRegistered(): void {
+		this.ensureProvider();
+	}
+
 	protected ensureProvider(): CliGitProvider {
 		if (this._provider == null) {
 			if (this._providerInitializing) {
