@@ -296,6 +296,8 @@ class AccountDebug {
 							return;
 						}
 
+						this.simulatingPick = item;
+
 						const [items, picked] = getItemsAndPicked(this.simulatingPick);
 						quickpick.items = items;
 						quickpick.activeItems = picked ? [picked] : [];
