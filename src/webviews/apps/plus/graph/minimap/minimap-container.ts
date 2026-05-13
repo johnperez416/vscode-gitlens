@@ -85,6 +85,11 @@ export class GlGraphMinimapContainer extends GlElement {
 			background-color: var(--color-graph-actionbar-selectedBackground);
 		}
 
+		[slot='content'] gl-radio,
+		[slot='content'] gl-checkbox {
+			--checkbox-foreground: currentColor;
+		}
+
 		.minimap-datatype__label {
 			display: inline-flex;
 			align-items: center;
