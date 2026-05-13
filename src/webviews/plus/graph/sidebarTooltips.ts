@@ -157,9 +157,9 @@ export function agentTooltip(session: AgentSessionState, matchingBranch: Overvie
 		if (worktreeBasename && worktreeBasename !== label) {
 			branchLine += ` — _worktree: ${worktreeBasename}_`;
 		}
-		tooltip += `\n\n**Branch**\\\n${branchLine}`;
+		tooltip += `\\\n${branchLine}`;
 	} else if (worktreePath) {
-		tooltip += `\n\n**Worktree**\\\n_${basename(worktreePath)}_`;
+		tooltip += `\\\n_${basename(worktreePath)}_`;
 	}
 
 	const sections: string[] = [];
