@@ -25,6 +25,11 @@ export const splitPanelStyles = css`
 			var(--gl-split-panel-divider-width, 4px) 1fr;
 	}
 
+	/* :host { display: grid } overrides the UA [hidden] rule; re-assert it. */
+	:host([hidden]) {
+		display: none;
+	}
+
 	:host([dragging]) {
 		user-select: none;
 	}

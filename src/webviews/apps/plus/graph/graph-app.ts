@@ -424,6 +424,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private renderGraphPaneContent() {
 		const displayMode: GraphDisplayMode = this.graphState.displayMode ?? 'graph';
 		const isTimeline = displayMode === 'timeline';
+		// Always render the graph subtree to avoid the cascade of remounts (split-panels +
+		// React root + GK GraphContainer) that produces a visible "smaller, then bigger"
+		// resize when returning from Visual History. Mirrors the always-render pattern used
+		// by `renderDetailsPanel`. Timeline still mounts/unmounts on demand.
 		return html`
 			<div class="graph__graph-pane-body">
 				${when(
@@ -438,11 +442,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 							@gl-graph-sidebar-display-mode-change=${this.handleDisplayModeChange}
 						></gl-graph-sidebar>`,
 				)}
-				${isTimeline
-					? html`<div class="graph__graph-content">${this.renderTimelineMain()}</div>`
-					: this.graphState.config?.sidebar
-						? this.renderSidebarSplit()
-						: html`<div class="graph__graph-content">${this.renderGraphMain()}</div>`}
+				${this.graphState.config?.sidebar
+					? this.renderSidebarSplit(isTimeline)
+					: html`<div class="graph__graph-content" ?hidden=${isTimeline}>${this.renderGraphMain()}</div>`}
+				${isTimeline ? html`<div class="graph__graph-content">${this.renderTimelineMain()}</div>` : nothing}
 			</div>
 		`;
 	}
@@ -456,12 +459,13 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		></gl-graph-timeline>`;
 	}
 
-	private renderSidebarSplit() {
+	private renderSidebarSplit(hidden = false) {
 		const isOpen = (this.graphState.sidebarVisible ?? false) && this.graphState.activeSidebarPanel != null;
 		const sidebarPosition = this.graphState.sidebarPosition ?? sidebarDefaultPct;
 		const sidebarPinned = this.graphState.config?.sidebarPinned ?? true;
 		return html`<gl-split-panel
 			class="graph__sidebar-split"
+			?hidden=${hidden}
 			primary="start"
 			mode=${sidebarPinned ? 'split' : 'overlay'}
 			.position=${isOpen ? sidebarPosition : 0}

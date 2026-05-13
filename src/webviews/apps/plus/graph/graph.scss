@@ -1385,6 +1385,13 @@ web-graph {
 			flex: 1;
 			min-width: 0;
 		}
+
+		// Outer-document override of `:host { display: grid }` / `display: flex` —
+		// guarantees the graph subtree hides when timeline mode mounts a sibling.
+		.graph__sidebar-split[hidden],
+		.graph__graph-content[hidden] {
+			display: none !important;
+		}
 	}
 
 	&__graph-content {
@@ -1395,6 +1402,11 @@ web-graph {
 		overflow: hidden;
 		position: relative;
 		z-index: 0;
+
+		// display: flex overrides the UA [hidden] rule; re-assert it.
+		&[hidden] {
+			display: none;
+		}
 
 		gl-graph-minimap-container {
 			position: relative;
