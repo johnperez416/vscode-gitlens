@@ -621,7 +621,6 @@ export class GlFileTreePane extends LitElement {
 			?filterable=${this._showFilter}
 			filter-placeholder="Filter files..."
 			empty-text=${emptyText}
-			style="--gl-decoration-before-font-size: 0.9em; --gl-decoration-before-opacity: 0.8; --gl-decoration-after-font-size: 0.9em; --gl-decoration-after-opacity: 0.8"
 			@gl-tree-generated-item-action-clicked=${this.onTreeItemActionClicked}
 			@gl-tree-generated-item-checked=${this.onTreeItemChecked}
 			@gl-tree-generated-item-selected=${this.onTreeItemSelected}

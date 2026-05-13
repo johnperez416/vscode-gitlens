@@ -148,6 +148,10 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 				opacity: 0.5;
 				cursor: not-allowed;
 			}
+
+			.minimap-toggle-icon {
+				transform: rotate(180deg);
+			}
 		`,
 	];
 
@@ -1289,8 +1293,8 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 							@click=${() => this.handleMinimapToggled()}
 						>
 							<code-icon
+								class="minimap-toggle-icon"
 								icon=${config?.minimap && this.minimapVisible ? 'layout-panel' : 'layout-panel-off'}
-								style="transform: rotate(180deg)"
 							></code-icon>
 						</gl-button>
 						${(() => {

@@ -2,7 +2,6 @@ import { consume } from '@lit/context';
 import { SignalWatcher } from '@lit-labs/signals';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { styleMap } from 'lit/directives/style-map.js';
 import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
@@ -312,6 +311,28 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				opacity: 0.07;
 			}
 
+			.loading .skeleton:nth-child(1) .skeleton-text {
+				width: 65%;
+			}
+			.loading .skeleton:nth-child(2) .skeleton-text {
+				width: 45%;
+			}
+			.loading .skeleton:nth-child(3) .skeleton-text {
+				width: 80%;
+			}
+			.loading .skeleton:nth-child(4) .skeleton-text {
+				width: 55%;
+			}
+			.loading .skeleton:nth-child(5) .skeleton-text {
+				width: 70%;
+			}
+			.loading .skeleton:nth-child(6) .skeleton-text {
+				width: 40%;
+			}
+			.loading .skeleton:nth-child(7) .skeleton-text {
+				width: 60%;
+			}
+
 			.empty {
 				padding: 1rem;
 				text-align: center;
@@ -542,13 +563,14 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 	}
 
 	private renderSkeleton(): unknown {
-		const widths = [65, 45, 80, 55, 70, 40, 60];
+		// 7 rows; per-row widths are positional (`:nth-child` in component CSS).
 		return html`<div class="loading">
-			${widths.map(
-				w => html`
+			${Array.from(
+				{ length: 7 },
+				() => html`
 					<div class="skeleton">
 						<div class="skeleton-icon"></div>
-						<div class="skeleton-text" style=${styleMap({ width: `${w}%` })}></div>
+						<div class="skeleton-text"></div>
 					</div>
 				`,
 			)}

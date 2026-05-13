@@ -69,6 +69,14 @@ export class GlRepoButtonGroup extends GlElement {
 				flex-shrink: 0;
 			}
 
+			.popover-status-icon {
+				margin-top: -3px;
+			}
+
+			.connect-icon {
+				color: var(--titlebar-fg);
+			}
+
 			/* :host([expandable]) .truncated-button {
 				transition: max-width 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 			} */
@@ -214,7 +222,7 @@ export class GlRepoButtonGroup extends GlElement {
 						connectedIntegration,
 						() => html`
 							<span>
-								<code-icon style="margin-top: -3px" icon="check" aria-hidden="true"></code-icon>
+								<code-icon class="popover-status-icon" icon="check" aria-hidden="true"></code-icon>
 								Connected to ${provider.name}
 							</span>
 						`,
@@ -222,7 +230,7 @@ export class GlRepoButtonGroup extends GlElement {
 							if (connectedIntegration !== false) return nothing;
 
 							return html`
-								<code-icon style="margin-top: -3px" icon="plug" aria-hidden="true"></code-icon>
+								<code-icon class="popover-status-icon" icon="plug" aria-hidden="true"></code-icon>
 								<a
 									href=${createCommandLink<ConnectRemoteProviderCommandArgs>(
 										'gitlens.connectRemoteProvider',
@@ -258,7 +266,7 @@ export class GlRepoButtonGroup extends GlElement {
 					remote: provider.bestRemoteName,
 				})}
 			>
-				<code-icon icon="plug" style="color: var(--titlebar-fg)"></code-icon>
+				<code-icon class="connect-icon" icon="plug"></code-icon>
 				<span slot="tooltip">
 					Connect to ${provider.name}
 					<hr />

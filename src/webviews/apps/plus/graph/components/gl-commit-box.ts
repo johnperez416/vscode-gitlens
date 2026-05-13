@@ -59,11 +59,7 @@ export class GlCommitBox extends LitElement {
 				${this.renderAmendToggle()}
 				${showCompose
 					? html`<gl-button appearance="secondary" @click=${this.onCompose}>
-							<code-icon
-								icon="wand"
-								slot="prefix"
-								style="color: var(--vscode-charts-purple, #7c3aed);"
-							></code-icon>
+							<code-icon class="compose-icon" icon="wand" slot="prefix"></code-icon>
 							Compose
 						</gl-button>`
 					: nothing}

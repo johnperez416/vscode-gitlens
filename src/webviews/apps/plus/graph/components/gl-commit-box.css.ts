@@ -29,6 +29,10 @@ export const commitBoxStyles = css`
 		justify-content: space-between;
 	}
 
+	.compose-icon {
+		color: var(--vscode-charts-purple, #7c3aed);
+	}
+
 	.amend-checkbox {
 		margin-block: 0;
 		font-size: var(--gl-font-base);

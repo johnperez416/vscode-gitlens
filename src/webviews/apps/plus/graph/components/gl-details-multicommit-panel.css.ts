@@ -3,6 +3,10 @@ import { css } from 'lit';
 export { panelActionInputStyles, panelHostStyles } from './shared-panel.css.js';
 
 export const multiCommitPanelStyles = css`
+	:host {
+		--mode-header-bg: var(--titlebar-bg, var(--vscode-sideBar-background, var(--color-background)));
+	}
+
 	.compare-metadata {
 		display: flex;
 		align-items: center;

@@ -25,6 +25,10 @@ export const fileTreeStyles = css`
 		min-height: 0;
 		overflow: hidden;
 		margin-top: var(--gl-tree-view-margin-top, 0);
+		--gl-decoration-before-font-size: 0.9em;
+		--gl-decoration-before-opacity: 0.8;
+		--gl-decoration-after-font-size: 0.9em;
+		--gl-decoration-after-opacity: 0.8;
 	}
 	gl-tree-view[filterable] {
 		margin-top: var(--gl-tree-view-filterable-margin-top, var(--gl-tree-view-margin-top, 0));

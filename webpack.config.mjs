@@ -838,10 +838,7 @@ function getCspHtmlPlugin(mode, env) {
 				mode !== 'production'
 					? ['#{cspSource}', "'nonce-#{cspNonce}'", "'unsafe-eval'"]
 					: ['#{cspSource}', "'nonce-#{cspNonce}'"],
-			'style-src':
-				mode === 'production'
-					? ['#{cspSource}', "'nonce-#{cspNonce}'", "'unsafe-hashes'"]
-					: ['#{cspSource}', "'unsafe-hashes'", "'unsafe-inline'"],
+			'style-src': ['#{cspSource}', "'nonce-#{cspNonce}'", "'unsafe-hashes'"],
 			'font-src': ['#{cspSource}'],
 			'connect-src': mode !== 'production' ? ['#{cspSource}'] : "'none'",
 		},
@@ -849,7 +846,7 @@ function getCspHtmlPlugin(mode, env) {
 			enabled: true,
 			hashingMethod: 'sha256',
 			hashEnabled: { 'script-src': true, 'style-src': mode === 'production' },
-			nonceEnabled: { 'script-src': true, 'style-src': mode === 'production' },
+			nonceEnabled: { 'script-src': true, 'style-src': true },
 		},
 	);
 	// Override the nonce creation so we can dynamically generate them at runtime

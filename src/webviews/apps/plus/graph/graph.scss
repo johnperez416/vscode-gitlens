@@ -1276,6 +1276,10 @@ web-graph {
 		font-style: italic;
 	}
 
+	& .graph-footer__message + .graph-footer__link {
+		margin-left: 0.5rem;
+	}
+
 	& .graph-footer__link {
 		color: var(--vscode-textLink-foreground);
 		cursor: pointer;
@@ -1613,6 +1617,23 @@ web-graph {
 
 	&__line--short {
 		height: 8px;
+	}
+
+	&__lines > &__line:nth-child(1) {
+		width: 60%;
+	}
+	&__lines > &__line:nth-child(2) {
+		width: 40%;
+	}
+
+	&__body > &__line:nth-child(1) {
+		width: 90%;
+	}
+	&__body > &__line:nth-child(2) {
+		width: 70%;
+	}
+	&__body > &__line:nth-child(3) {
+		width: 50%;
 	}
 
 	&__bar {

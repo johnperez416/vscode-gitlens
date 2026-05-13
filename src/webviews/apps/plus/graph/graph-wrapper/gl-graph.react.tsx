@@ -695,7 +695,6 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 					)}${props.searchResults.hasMore ? '+' : ''}`}
 				</span>
 				<a
-					style={{ marginLeft: '0.5rem' }}
 					className="graph-footer__link"
 					onClick={e => {
 						e.preventDefault();

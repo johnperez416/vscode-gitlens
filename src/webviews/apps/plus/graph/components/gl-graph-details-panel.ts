@@ -508,18 +508,15 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 						<div class="details-skeleton__header">
 							<div class="details-skeleton__avatar"></div>
 							<div class="details-skeleton__lines">
-								<div class="details-skeleton__line" style="width: 60%"></div>
-								<div
-									class="details-skeleton__line details-skeleton__line--short"
-									style="width: 40%"
-								></div>
+								<div class="details-skeleton__line"></div>
+								<div class="details-skeleton__line details-skeleton__line--short"></div>
 							</div>
 						</div>
 						<div class="details-skeleton__bar"></div>
 						<div class="details-skeleton__body">
-							<div class="details-skeleton__line" style="width: 90%"></div>
-							<div class="details-skeleton__line" style="width: 70%"></div>
-							<div class="details-skeleton__line details-skeleton__line--short" style="width: 50%"></div>
+							<div class="details-skeleton__line"></div>
+							<div class="details-skeleton__line"></div>
+							<div class="details-skeleton__line details-skeleton__line--short"></div>
 						</div>
 					</div>`}
 		</div>`;

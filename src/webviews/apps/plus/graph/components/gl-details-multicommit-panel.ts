@@ -333,12 +333,7 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 			this.aiEnabled && this.experimentalFeaturesEnabled
 				? (['review', 'compare'] as const)
 				: (['compare'] as const);
-		return html`<gl-details-header
-			.activeMode=${this.activeMode}
-			.loading=${this.loading}
-			.modes=${modes}
-			style="--mode-header-bg: var(--titlebar-bg, var(--vscode-sideBar-background, var(--color-background)))"
-		>
+		return html`<gl-details-header .activeMode=${this.activeMode} .loading=${this.loading} .modes=${modes}>
 			<span class="compare-header__title">Comparing References</span>
 		</gl-details-header>`;
 	}

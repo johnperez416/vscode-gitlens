@@ -3,6 +3,8 @@ import { css } from 'lit';
 export const detailsWipHeaderStyles = css`
 	:host {
 		display: contents;
+		--mode-header-bg: var(--titlebar-bg, var(--color-background--level-05));
+		--mode-header-tint: 20%;
 	}
 
 	.graph-details-header__title-group {

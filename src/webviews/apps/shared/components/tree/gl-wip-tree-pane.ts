@@ -67,6 +67,10 @@ export class GlWipTreePane extends LitElement {
 				--gl-leading-action-trailing-gap: 0;
 			}
 		}
+
+		.subtitle-stats {
+			opacity: 1;
+		}
 	`;
 
 	@property({ type: Array })
@@ -234,7 +238,7 @@ export class GlWipTreePane extends LitElement {
 			@gl-check-all=${this.onCheckAll}
 			@gl-file-tree-pane-open-multi-diff=${multiDiff ? () => this.onOpenMultiDiff(multiDiff) : null}
 		>
-			<span slot="subtitle" style="opacity: 1">${this.renderStats()}</span>
+			<span class="subtitle-stats" slot="subtitle">${this.renderStats()}</span>
 			${this.renderConflictBulkActions(files)}
 			${files.length > 0
 				? html`<gl-button

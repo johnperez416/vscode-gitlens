@@ -67,7 +67,6 @@ export class GlDetailsWipHeader extends LitElement {
 			.activeMode=${this.activeMode}
 			.loading=${this.loading}
 			.modes=${this.computeWipModes()}
-			style="--mode-header-bg: var(--titlebar-bg, var(--color-background--level-05)); --mode-header-tint: 20%"
 		>
 			<div class="graph-details-header__title-group">
 				<span class="graph-details-header__wip-title"
