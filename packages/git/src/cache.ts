@@ -1,6 +1,3 @@
-import { getBranchId } from '@gitlens/git/utils/branch.utils.js';
-import { createReference } from '@gitlens/git/utils/reference.utils.js';
-import { getCommonRepositoryPath, getRepositoryOrWorktreePath } from '@gitlens/git/utils/repository.utils.js';
 import { exhaustiveArray } from '@gitlens/utils/array.js';
 import { raceWithSignal } from '@gitlens/utils/cancellation.js';
 import { debug } from '@gitlens/utils/decorators/log.js';
@@ -32,6 +29,9 @@ import type { GitCommitReachability, LeftRightCommitCountResult } from './provid
 import type { GitContributorsResult } from './providers/contributors.js';
 import type { ResolvedRevision } from './providers/revision.js';
 import type { GitResult } from './run.types.js';
+import { getBranchId } from './utils/branch.utils.js';
+import { createReference } from './utils/reference.utils.js';
+import { getCommonRepositoryPath, getRepositoryOrWorktreePath } from './utils/repository.utils.js';
 import type { GitIgnoreFilter } from './watching/gitIgnoreFilter.js';
 
 type RepoPath = string;

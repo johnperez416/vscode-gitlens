@@ -6,9 +6,9 @@ import { basename } from '@gitlens/utils/path.js';
 import { GlyphChars } from '../constants.js';
 import type { Container } from '../container.js';
 import type { VirtualContentProvider, VirtualParent, VirtualRef } from './virtualContentProvider.js';
-import { VirtualFsError } from './virtualFsError.js';
 import type { VirtualUriAuthority } from './virtualFileSystemProvider.js';
 import { encodeVirtualUri, VirtualFileSystemProvider } from './virtualFileSystemProvider.js';
+import { VirtualFsError } from './virtualFsError.js';
 
 /** A concrete ref that either lives in a virtual session or is a real git SHA. */
 export type AnyRef =

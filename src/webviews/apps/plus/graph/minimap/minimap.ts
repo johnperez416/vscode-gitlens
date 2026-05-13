@@ -1,7 +1,6 @@
 import { css, html } from 'lit';
 import { customElement, property, query } from 'lit/decorators.js';
 import { getCssVariable } from '@gitlens/utils/color.js';
-import { debug } from '@gitlens/utils/decorators/log.js';
 import { groupByMap } from '@gitlens/utils/iterable.js';
 import { capitalize, pluralize } from '@gitlens/utils/string.js';
 import { GlElement, observe } from '../../../shared/components/element.js';

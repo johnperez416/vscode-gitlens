@@ -11,6 +11,7 @@ import importX from 'eslint-plugin-import-x';
 import { configs as litConfigs } from 'eslint-plugin-lit';
 import { configs as wcConfigs } from 'eslint-plugin-wc';
 import noSrcImports from './scripts/eslint-rules/no-src-imports.mjs';
+import noSelfPackageImports from './scripts/eslint-rules/no-self-package-imports.mjs';
 import noEnvWithoutJs from './scripts/eslint-rules/no-env-without-js.mjs';
 import logScopeUsage from './scripts/eslint-rules/scoped-logger-usage.mjs';
 import { fileURLToPath } from 'node:url';
@@ -190,6 +191,7 @@ export default defineConfig(
 			'@gitlens': {
 				rules: {
 					'no-src-imports': noSrcImports,
+					'no-self-package-imports': noSelfPackageImports,
 					'no-env-without-js': noEnvWithoutJs,
 					'scoped-logger-usage': logScopeUsage,
 				},
@@ -198,6 +200,7 @@ export default defineConfig(
 		rules: {
 			// Custom rules
 			'@gitlens/no-src-imports': 'error',
+			'@gitlens/no-self-package-imports': 'error',
 			'@gitlens/no-env-without-js': 'error',
 			'@gitlens/scoped-logger-usage': 'error',
 			'anti-trojan-source/no-bidi': 'error',
@@ -430,6 +433,9 @@ export default defineConfig(
 			'import-x/extensions': ['.ts', '.tsx'],
 			'import-x/parsers': { '@typescript-eslint/parser': ['.ts', '.tsx'] },
 			'import-x/resolver-next': [createCustomTypeScriptImportResolver()],
+			// Force Node subpath imports (`#...`) into the `internal` group so import-x/order is
+			// stable regardless of whether the target package's `dist/` exists at lint time.
+			'import-x/internal-regex': '^#',
 		},
 	},
 
