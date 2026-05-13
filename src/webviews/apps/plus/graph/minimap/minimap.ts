@@ -750,7 +750,6 @@ export class GlGraphMinimap extends GlElement {
 		this.requestDraw();
 	}
 
-	@debug({ onlyExit: true })
 	private drawNow() {
 		if (this._ctx == null || this._observedWidth === 0 || this._observedHeight === 0) return;
 		const dpr = window.devicePixelRatio || 1;
