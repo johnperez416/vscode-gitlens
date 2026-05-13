@@ -13,7 +13,7 @@ import { PromiseCache, PromiseMap, RepoPromiseCacheMap } from '@gitlens/utils/pr
 import type { Uri } from '@gitlens/utils/uri.js';
 import type { ProgressiveGitBlame } from './models/blame.js';
 import type { BranchMetadata, GitBranch } from './models/branch.js';
-import type { GitStashCommit } from './models/commit.js';
+import type { GitCommit, GitStashCommit } from './models/commit.js';
 import type { GitContributor, GitContributorsStats } from './models/contributor.js';
 import type { ParsedGitDiffHunks } from './models/diff.js';
 import type { GitLog } from './models/log.js';
@@ -82,6 +82,8 @@ interface Caches {
 	bestRemotes: PromiseMap<RepoPath, GitRemote<RemoteProvider>[]> | undefined;
 	blame: RepoPromiseCacheMap<string, ProgressiveGitBlame | undefined> | undefined;
 	branch: PromiseMap<RepoPath, GitBranch | undefined> | undefined;
+	commit: RepoPromiseCacheMap<string, GitCommit | undefined> | undefined;
+	commitCount: RepoPromiseCacheMap<string, number | undefined> | undefined;
 	conflictDetection: RepoPromiseCacheMap<ConflictDetectionCacheKey, ConflictDetectionResult> | undefined;
 	currentBranchReference: PromiseCache<RepoPath, GitBranchReference | undefined> | undefined;
 	currentUser: Map<RepoPath, GitUser | null> | undefined;
@@ -93,6 +95,7 @@ interface Caches {
 	ignoreRevsFile: PromiseCache<string, boolean> | undefined;
 	lastFetched: PromiseCache<RepoPath, number | undefined> | undefined;
 	leftRightCommitCount: RepoPromiseCacheMap<string, LeftRightCommitCountResult | undefined> | undefined;
+	mergeBase: RepoPromiseCacheMap<string, string | undefined> | undefined;
 	pausedOperationStatus: PromiseMap<RepoPath, GitPausedOperationStatus | undefined> | undefined;
 	reachability: RepoPromiseCacheMap<string, GitCommitReachability | undefined> | undefined;
 	resolvedRevisions: RepoPromiseCacheMap<string, ResolvedRevision> | undefined;
@@ -167,9 +170,12 @@ function createEmptyCaches(): AllCaches {
 		branchMetadataMap: undefined,
 		branchOverviews: undefined,
 		branches: undefined,
+		commit: undefined,
+		commitCount: undefined,
 		fileExistence: undefined,
 		ignoreRevsFile: undefined,
 		leftRightCommitCount: undefined,
+		mergeBase: undefined,
 		configKeys: undefined,
 		configPatterns: undefined,
 		conflictDetection: undefined,
@@ -378,17 +384,25 @@ export class Cache implements Disposable {
 		}));
 	}
 
-	getLeftRightCommitCount(
-		repoPath: string,
-		key: string,
-		factory: () => PromiseOrValue<LeftRightCommitCountResult | undefined>,
-	): Promise<LeftRightCommitCountResult | undefined> {
-		const cached = this.leftRightCommitCount.get(repoPath, key);
-		if (cached != null) return cached;
+	get commit(): RepoPromiseCacheMap<string, GitCommit | undefined> {
+		return (this._caches.commit ??= new RepoPromiseCacheMap<string, GitCommit | undefined>({
+			accessTTL: 1000 * 60 * 60, // 60 minutes
+			capacity: 100, // Limit to 100 commits per repo
+		}));
+	}
 
-		const factoryPromise = Promise.resolve(factory());
-		this.leftRightCommitCount.set(repoPath, key, factoryPromise);
-		return factoryPromise;
+	get commitCount(): RepoPromiseCacheMap<string, number | undefined> {
+		return (this._caches.commitCount ??= new RepoPromiseCacheMap<string, number | undefined>({
+			accessTTL: 1000 * 60 * 60, // 60 minutes
+			capacity: 50,
+		}));
+	}
+
+	get mergeBase(): RepoPromiseCacheMap<string, string | undefined> {
+		return (this._caches.mergeBase ??= new RepoPromiseCacheMap<string, string | undefined>({
+			accessTTL: 1000 * 60 * 60, // 60 minutes
+			capacity: 50,
+		}));
 	}
 
 	get logShas(): RepoPromiseCacheMap<string, string[]> {
@@ -501,9 +515,15 @@ export class Cache implements Disposable {
 				keysToClear.add('branch');
 				keysToClear.add('branchMergedStatus');
 				keysToClear.add('branchOverviews');
+				// `commit`/`commitCount` are keyed by symbolic ref or SHA — symbolic-ref entries
+				// can drift when branches move; cascade-clear conservatively.
+				keysToClear.add('commit');
+				keysToClear.add('commitCount');
 				keysToClear.add('conflictDetection');
 				keysToClear.add('currentBranchReference');
 				keysToClear.add('leftRightCommitCount');
+				// `mergeBase` keyed by ref-pairs — symbolic refs can move; cascade-clear.
+				keysToClear.add('mergeBase');
 				keysToClear.add('reachability');
 				keysToClear.add('resolvedRevisions');
 			}

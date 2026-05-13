@@ -32,32 +32,42 @@ export class RefsGitSubProvider implements GitRefsSubProvider {
 	}
 
 	@debug()
-	async getMergeBase(
+	getMergeBase(
 		repoPath: string,
 		ref1: string,
 		ref2: string,
 		_options?: { forkPoint?: boolean; priority?: GitCommandPriority },
 		_cancellation?: AbortSignal,
 	): Promise<string | undefined> {
-		if (repoPath == null) return undefined;
+		if (repoPath == null) return Promise.resolve(undefined);
 
-		const scope = getScopedLogger();
+		const a = stripOrigin(ref1);
+		const b = stripOrigin(ref2);
+		// `merge-base` is symmetric, so normalize ref order in the cache key to coalesce
+		// `(A, B)` and `(B, A)` lookups onto a single entry.
+		const [left, right] = a < b ? [a, b] : [b, a];
+		const cacheKey = `${left}...${right}`;
+		const queryRange = createRevisionRange(a, b, '...');
 
-		const { metadata, github, session } = await this.provider.ensureRepositoryContext(repoPath);
+		return this.cache.mergeBase.getOrCreate(repoPath, cacheKey, async () => {
+			const scope = getScopedLogger();
 
-		try {
-			const result = await github.getComparison(
-				toTokenInfo(this.provider.authenticationProviderId, session),
-				metadata.repo.owner,
-				metadata.repo.name,
-				createRevisionRange(stripOrigin(ref1), stripOrigin(ref2), '...'),
-			);
-			return result?.merge_base_commit?.sha;
-		} catch (ex) {
-			scope?.error(ex);
-			debugger;
-			return undefined;
-		}
+			const { metadata, github, session } = await this.provider.ensureRepositoryContext(repoPath);
+
+			try {
+				const result = await github.getComparison(
+					toTokenInfo(this.provider.authenticationProviderId, session),
+					metadata.repo.owner,
+					metadata.repo.name,
+					queryRange,
+				);
+				return result?.merge_base_commit?.sha;
+			} catch (ex) {
+				scope?.error(ex);
+				debugger;
+				return undefined;
+			}
+		});
 	}
 
 	@debug()

@@ -177,12 +177,14 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 			}
 		};
 
-		// Bypass cache entirely for paged follow-ups — they're driven by an opaque cursor and
-		// don't represent "all branches".
-		const branchesPromise =
-			options?.paging?.cursor != null
-				? load()
-				: this.cache.branches.getOrCreate(path, cacheable => load(cacheable), cancellation);
+		// Compose cache key with cursor so re-loads of the same page hit the cache;
+		// `repoPath` (no suffix) is reserved for the full "all branches" entry.
+		// TODO: `cache.branches` is `PromiseMap<RepoPath, ...>` keyed exactly by repoPath, so
+		// `clearCaches('branches')` / `unregisterRepoPath` will not invalidate composite-key entries.
+		// Acceptable today because branches don't change during a virtual-repo session, but the entries
+		// leak in memory until provider GC. Long-term: switch to RepoPromiseCacheMap or add prefix-invalidate.
+		const cacheKey = options?.paging?.cursor != null ? `${path}#${options.paging.cursor}` : path;
+		const branchesPromise = this.cache.branches.getOrCreate(cacheKey, cacheable => load(cacheable), cancellation);
 
 		let result = await branchesPromise;
 		if (options?.filter != null) {
@@ -362,7 +364,7 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	@debug()
 	async getDefaultBranchName(
 		repoPath: string | undefined,
-		_remote?: string,
+		remote?: string,
 		// `priority` is unused — the GitHub provider doesn't go through the local git command
 		// queue, so the priority signal has no effect here. Accepted for interface compatibility.
 		_options?: { priority?: GitCommandPriority },
@@ -370,15 +372,22 @@ export class BranchesGitSubProvider implements GitBranchesSubProvider {
 	): Promise<string | undefined> {
 		if (repoPath == null) return undefined;
 
+		remote ??= 'origin';
+
 		const scope = getScopedLogger();
 
+		// Throw inside the factory so RepoPromiseCacheMap's default `expireOnError` evicts the
+		// entry — a transient API failure shouldn't poison the cache for the rest of the session.
+		// The outer try/catch preserves the existing `undefined`-on-error contract for callers.
 		try {
-			const { metadata, github, session } = await this.provider.ensureRepositoryContext(repoPath);
-			return await github.getDefaultBranchName(
-				toTokenInfo(this.provider.authenticationProviderId, session),
-				metadata.repo.owner,
-				metadata.repo.name,
-			);
+			return await this.cache.getDefaultBranchName(repoPath, remote, async () => {
+				const { metadata, github, session } = await this.provider.ensureRepositoryContext(repoPath);
+				return github.getDefaultBranchName(
+					toTokenInfo(this.provider.authenticationProviderId, session),
+					metadata.repo.owner,
+					metadata.repo.name,
+				);
+			});
 		} catch (ex) {
 			scope?.error(ex);
 			debugger;

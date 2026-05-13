@@ -477,7 +477,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 		// Cache key: range + excludeMerges. RepositoryChange events affecting branches/remotes
 		// invalidate this cache via clearCaches('branches').
 		const cacheKey = `${range}\x1f${options?.excludeMerges ? 'no-merges' : ''}`;
-		return this.cache.getLeftRightCommitCount(repoPath, cacheKey, run);
+		return this.cache.leftRightCommitCount.getOrCreate(repoPath, cacheKey, run);
 	}
 
 	@debug()
