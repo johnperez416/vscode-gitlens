@@ -696,6 +696,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.progressMessage=${this._state.composeProgressMessage.get()}
 			?applying=${this._state.composeApplying.get()}
 			?forward-available=${this._state.composeForwardAvailable.get()}
+			.backPreview=${this._state.composeBackPreview.get()}
 			@compose-generate=${handleCompose}
 			@compose-refine=${handleCompose}
 			@compose-back=${() => this._workflow.compose.back()}
@@ -1027,6 +1028,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.repoPath=${this.effectiveRepoPath}
 			.aiModel=${this._state.aiModel.get()}
 			?forward-available=${this._state.reviewForwardAvailable.get()}
+			.backPreview=${this._state.reviewBackPreview.get()}
 			@review-run=${(e: CustomEvent<{ prompt?: string }>) => {
 				// Same model gate as compose — open the picker first when no model is set.
 				if (this._state.aiModel.get() == null) {

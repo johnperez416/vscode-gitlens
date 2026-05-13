@@ -7,6 +7,7 @@ export {
 	panelLoadingStyles,
 	panelScopeSplitStyles,
 	panelStaleBannerStyles,
+	resumeBarStyles,
 } from './shared-panel.css.js';
 
 export const composeModePanelStyles = css`
@@ -38,14 +39,6 @@ export const composeModePanelStyles = css`
 
 	.stale-banner {
 		margin: 0.4rem 1.2rem 0;
-	}
-
-	/* Resume Last chip — right-align the toolbar button above the scope split or idle hero so
-	   the user can return to the prior compose result without rerunning the AI. */
-	.review-forward {
-		align-self: flex-end;
-		margin: 0.6rem 1.2rem 0 0;
-		font-size: var(--gl-font-sm);
 	}
 
 	.compose-plan {
@@ -99,6 +92,33 @@ export const composeModePanelStyles = css`
 		align-self: center;
 		margin-top: 1rem;
 		margin-bottom: 1.2rem;
+	}
+
+	/* Wraps the loading branch so the vertical-stream animation can sit behind the spinner +
+	   progress text + cancel block. The stage takes the full available panel height; the
+	   foreground sits on top, top-anchored. */
+	.compose-loading-stage {
+		position: relative;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.compose-loading-stage > gl-categorizing-loading-animation {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.compose-loading-foreground {
+		position: relative;
+		z-index: 1;
+		display: flex;
+		flex-direction: column;
+		flex: none;
 	}
 
 	.compose-plan__list {

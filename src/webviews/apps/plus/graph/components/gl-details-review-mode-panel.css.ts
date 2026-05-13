@@ -7,6 +7,7 @@ export {
 	panelLoadingStyles,
 	panelScopeSplitStyles,
 	panelStaleBannerStyles,
+	resumeBarStyles,
 } from './shared-panel.css.js';
 
 export const reviewModePanelStyles = css`
@@ -96,13 +97,19 @@ export const reviewModePanelStyles = css`
 	.review-header__count {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.3rem;
+		gap: 0.6rem;
 		font-size: var(--gl-font-sm);
 		color: var(--vscode-descriptionForeground);
 		margin-left: auto;
 	}
 
-	.review-header__count > code-icon {
+	.review-header__count-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+
+	.review-header__count-item > code-icon {
 		font-size: 1.2rem;
 		opacity: 0.85;
 	}
@@ -159,23 +166,34 @@ export const reviewModePanelStyles = css`
 		margin-bottom: 0.8rem;
 	}
 
-	/* Resume Last chip — right-align the toolbar button above the file curation so the user
-	   can return to the prior review result without rerunning the AI. */
-	.review-forward-banner {
-		align-self: flex-end;
-		margin: 0.6rem 1.2rem 0 0;
-		font-size: var(--gl-font-sm);
+	/* Wraps the loading branch so the categorizing animation can sit behind the spinner +
+	   cancel block. Stage takes the full panel height; foreground is top-anchored. */
+	.review-loading-stage {
+		position: relative;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.review-loading-stage > gl-categorizing-loading-animation {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 0;
 	}
 
 	/* Loading state wrapper for the in-flight review — centers the shared spinner and the
 	   Cancel chip as a vertical column so the spinner stays visually anchored. */
 	.review-loading-wrap {
+		position: relative;
+		z-index: 1;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 1rem;
-		flex: 1;
-		min-height: 0;
+		flex: none;
 	}
 
 	.review-cancel {

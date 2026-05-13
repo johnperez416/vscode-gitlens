@@ -25,6 +25,7 @@ import {
 	panelLoadingStyles,
 	panelScopeSplitStyles,
 	panelStaleBannerStyles,
+	resumeBarStyles,
 } from './gl-details-compose-mode-panel.css.js';
 import { renderErrorState, renderLoadingState } from './shared-panel-templates.js';
 import '../../../shared/components/code-icon.js';
@@ -36,6 +37,7 @@ import '../../../shared/components/split-panel/split-panel.js';
 import '../../../shared/components/panes/pane-group.js';
 import '../../../shared/components/tree/gl-file-tree-pane.js';
 import './gl-commits-scope-pane.js';
+import './gl-categorizing-loading-animation.js';
 
 export interface ComposeCommitDetail {
 	upToIndex: number;
@@ -52,6 +54,7 @@ export class GlDetailsComposeModePanel extends LitElement {
 		panelErrorStyles,
 		panelStaleBannerStyles,
 		panelScopeSplitStyles,
+		resumeBarStyles,
 		composeModePanelStyles,
 	];
 
@@ -115,10 +118,15 @@ export class GlDetailsComposeModePanel extends LitElement {
 	@state() private _aiExcludedSet: ReadonlySet<string> | undefined;
 
 	/** Pushed by the orchestrator from `state.composeForwardAvailable`. See review panel for the
-	 * full restore-vs-rerun rationale — chip click emits `compose-forward` for the orchestrator
+	 * full restore-vs-rerun rationale — bar click emits `compose-forward` for the orchestrator
 	 * to mutate the resource back to the snapshot (no AI re-run). */
 	@property({ type: Boolean, attribute: 'forward-available', reflect: true })
 	forwardAvailable = false;
+
+	/** Preview metadata pushed from `state.composeBackPreview` — drives the count display on the
+	 * resume bar. Cleared by the orchestrator in lockstep with `forwardAvailable`. */
+	@property({ type: Object, attribute: false })
+	backPreview?: { commitCount: number; fileCount: number };
 
 	get excludedFiles(): ReadonlySet<string> {
 		return this._excludedFiles;
@@ -188,15 +196,29 @@ export class GlDetailsComposeModePanel extends LitElement {
 		}
 	}
 
-	private renderForwardChip() {
-		return html`<gl-button
-			class="review-forward"
-			appearance="toolbar"
-			density="tight"
-			tooltip="Resume Last Compose"
+	private renderResumeBar() {
+		const preview = this.backPreview;
+		return html`<button
+			class="resume-bar"
+			type="button"
+			aria-label="Resume Last Compose"
 			@click=${this.handleForward}
-			>Resume Last Compose<code-icon slot="suffix" icon="arrow-right"></code-icon
-		></gl-button>`;
+		>
+			<span class="resume-bar__title">Resume Last Compose</span>
+			${preview != null
+				? html`<span class="resume-bar__count">
+						<span class="resume-bar__count-item">
+							<code-icon icon="git-commit"></code-icon>
+							${pluralize('commit', preview.commitCount)}
+						</span>
+						<span class="resume-bar__count-item">
+							<code-icon icon="files"></code-icon>
+							${pluralize('file', preview.fileCount)}
+						</span>
+					</span>`
+				: nothing}
+			<code-icon class="resume-bar__arrow" icon="arrow-right"></code-icon>
+		</button>`;
 	}
 
 	private handleCancel = (): void => {
@@ -228,7 +250,15 @@ export class GlDetailsComposeModePanel extends LitElement {
 		if (this.status === 'loading') {
 			// Cancel chip lets the user abort an in-flight AI call; the orchestrator wires
 			// `compose-cancel` to the actual cancellation plumbing.
-			return html`${renderLoadingState(this.progressMessage ?? 'Composing changes…')}${this.renderCancelButton()}`;
+			// The animation sits behind the spinner/text/cancel as decoration; it self-removes
+			// when this branch is no longer rendered (status flips to 'ready'/'error') and
+			// auto-disables under prefers-reduced-motion.
+			return html`<div class="compose-loading-stage">
+				<gl-categorizing-loading-animation variant="compose"></gl-categorizing-loading-animation>
+				<div class="compose-loading-foreground">
+					${renderLoadingState(this.progressMessage ?? 'Composing changes…')}${this.renderCancelButton()}
+				</div>
+			</div>`;
 		}
 
 		if (this.status === 'error') {
@@ -265,11 +295,11 @@ export class GlDetailsComposeModePanel extends LitElement {
 			</gl-ai-input>
 		</div>`;
 
-		const forwardBar = this.forwardAvailable ? this.renderForwardChip() : nothing;
+		const resumeBar = this.forwardAvailable ? this.renderResumeBar() : nothing;
 
 		if (!hasPicker) {
 			return html`
-				${forwardBar}
+				${resumeBar}
 				<div class="review-idle">
 					<div class="review-idle__scope">
 						<code-icon icon="wand"></code-icon>
@@ -285,7 +315,7 @@ export class GlDetailsComposeModePanel extends LitElement {
 		}
 
 		return html`
-			${forwardBar}
+			${resumeBar}
 			<gl-split-panel
 				orientation="vertical"
 				primary="start"

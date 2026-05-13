@@ -419,6 +419,22 @@ export class DetailsWorkflowController implements ReactiveController {
 				if (value != null) {
 					this._reviewBackSnapshot = value;
 					this.actions.state.reviewForwardAvailable.set(true);
+					if ('result' in value) {
+						const filesSet = new Set<string>();
+						let findingCount = 0;
+						for (const area of value.result.focusAreas) {
+							findingCount += area.findings?.length ?? 0;
+							for (const f of area.files) {
+								filesSet.add(f);
+							}
+						}
+						this.actions.state.reviewBackPreview.set({
+							findingCount: findingCount,
+							fileCount: filesSet.size,
+						});
+					} else {
+						this.actions.state.reviewBackPreview.set(undefined);
+					}
 				}
 			}
 			this.actions.resources.review.reset();
@@ -434,6 +450,7 @@ export class DetailsWorkflowController implements ReactiveController {
 		invalidateSnapshot: (): void => {
 			this._reviewBackSnapshot = undefined;
 			this.actions.state.reviewForwardAvailable.set(false);
+			this.actions.state.reviewBackPreview.set(undefined);
 		},
 	};
 
@@ -466,6 +483,11 @@ export class DetailsWorkflowController implements ReactiveController {
 				if (value != null && 'result' in value) {
 					this._composeBackSnapshot = value;
 					this.actions.state.composeForwardAvailable.set(true);
+					const totalFiles = value.result.commits.reduce((sum, c) => sum + c.files.length, 0);
+					this.actions.state.composeBackPreview.set({
+						commitCount: value.result.commits.length,
+						fileCount: totalFiles,
+					});
 				}
 			}
 			this.actions.resources.compose.reset();
@@ -479,6 +501,7 @@ export class DetailsWorkflowController implements ReactiveController {
 		invalidateSnapshot: (): void => {
 			this._composeBackSnapshot = undefined;
 			this.actions.state.composeForwardAvailable.set(false);
+			this.actions.state.composeBackPreview.set(undefined);
 		},
 	};
 

@@ -34,7 +34,7 @@ export const panelActionInputStyles = css`
 		margin: 0.6rem auto 0.8rem;
 	}
 
-	/* Wraps the AI input so the Restore Previous chip can sit below it, right-aligned. */
+	/* Wraps the AI input so adjacent affordances can sit below it. */
 	.review-input-row {
 		display: flex;
 		flex-direction: column;
@@ -45,42 +45,73 @@ export const panelActionInputStyles = css`
 	.review-input-row > .review-action-input {
 		margin-bottom: 0.2rem;
 	}
+`;
 
-	/* Restore Previous chip — appears below the AI input after the user has clicked Back to Files.
-	   Click restores the previous AI result via mutate (no AI re-run). Auto-invalidated when the
-	   user types in the AI input or modifies file selection. Right-aligned. */
-	.review-forward {
-		display: inline-flex;
+/* Resume bar — full-width clickable surface that replaces the older "Resume Last …" chip.
+   Mirrors the visual language of `.compose-plan__header` / `.review-header` so the bar
+   reads as a preview of the destination. Shared by review + compose panels. */
+export const resumeBarStyles = css`
+	.resume-bar {
+		display: flex;
 		align-items: center;
 		gap: 0.4rem;
-		padding: 0.3rem 0.7rem;
-		margin: 0 1.2rem 0.6rem auto;
-		background: color-mix(
-			in srgb,
-			var(--gl-color-foreground--accent, var(--vscode-textLink-foreground)) 10%,
-			transparent
-		);
-		color: var(--gl-color-foreground--accent, var(--vscode-textLink-foreground));
-		border: 1px solid
-			color-mix(in srgb, var(--gl-color-foreground--accent, var(--vscode-textLink-foreground)) 30%, transparent);
-		border-radius: 0.4rem;
-		font-size: var(--gl-font-sm);
+		padding: 0.4rem 0.8rem;
+		margin: 0.6rem 0.6rem 0 0.6rem;
+		flex: none;
+		background: transparent;
+		color: var(--vscode-foreground);
+		border: 1px solid var(--vscode-button-border);
+		border-radius: 0.3rem;
 		cursor: pointer;
-		align-self: flex-end;
+		font: inherit;
+		text-align: left;
 	}
 
-	.review-forward:hover,
-	.review-forward:focus-visible {
-		background: color-mix(
-			in srgb,
-			var(--gl-color-foreground--accent, var(--vscode-textLink-foreground)) 20%,
-			transparent
-		);
-		outline: none;
+	.resume-bar:hover {
+		background: var(--vscode-list-hoverBackground);
 	}
 
-	.review-forward > code-icon {
+	.resume-bar:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
+	.resume-bar__title {
+		font-size: var(--gl-font-base);
+		font-weight: 500;
+	}
+
+	.resume-bar__count {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		font-size: var(--gl-font-sm);
+		color: var(--vscode-descriptionForeground);
+		margin-left: auto;
+	}
+
+	.resume-bar__count-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+
+	.resume-bar__count-item > code-icon {
 		font-size: 1.2rem;
+		opacity: 0.85;
+	}
+
+	.resume-bar__arrow {
+		flex-shrink: 0;
+		font-size: 1.4rem;
+		opacity: 0.85;
+		margin-left: 0.4rem;
+	}
+
+	/* When no preview data is available, the arrow follows the title directly — push it
+	   to the far right so the bar's right edge still reads as the resume affordance. */
+	.resume-bar > .resume-bar__title:first-child + .resume-bar__arrow {
+		margin-left: auto;
 	}
 `;
 
@@ -140,7 +171,7 @@ export const panelScopeSplitStyles = css`
 		display: flex;
 		flex-direction: column;
 		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
-		padding: 0 0.6rem;
+		padding: 0.6rem;
 	}
 
 	.scope-split__files {

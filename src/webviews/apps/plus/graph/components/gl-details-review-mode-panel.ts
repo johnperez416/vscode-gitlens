@@ -32,6 +32,7 @@ import {
 	panelLoadingStyles,
 	panelScopeSplitStyles,
 	panelStaleBannerStyles,
+	resumeBarStyles,
 	reviewModePanelStyles,
 } from './gl-details-review-mode-panel.css.js';
 import { renderErrorState, renderLoadingState } from './shared-panel-templates.js';
@@ -45,6 +46,7 @@ import '../../../shared/components/overlays/tooltip.js';
 import '../../../shared/components/split-panel/split-panel.js';
 import '../../../shared/components/panes/pane-group.js';
 import '../../../shared/components/tree/gl-file-tree-pane.js';
+import './gl-categorizing-loading-animation.js';
 import './gl-commits-scope-pane.js';
 
 export interface ReviewOpenFileDetail {
@@ -69,6 +71,7 @@ export class GlDetailsReviewModePanel extends LitElement {
 		panelErrorStyles,
 		panelStaleBannerStyles,
 		panelScopeSplitStyles,
+		resumeBarStyles,
 		reviewModePanelStyles,
 	];
 
@@ -113,11 +116,16 @@ export class GlDetailsReviewModePanel extends LitElement {
 	/**
 	 * Pushed by the orchestrator from `state.reviewForwardAvailable`. True after the user clicked
 	 * Back on a successfully-resolved review — the orchestrator owns a snapshot of that result so
-	 * the chip's click can RESTORE the previous findings (no AI re-run). The panel only renders
-	 * the chip; the orchestrator handles `review-forward` and `review-forward-invalidate`.
+	 * the bar's click can RESTORE the previous findings (no AI re-run). The panel only renders
+	 * the bar; the orchestrator handles `review-forward` and `review-forward-invalidate`.
 	 */
 	@property({ type: Boolean, attribute: 'forward-available', reflect: true })
 	forwardAvailable = false;
+
+	/** Preview metadata pushed from `state.reviewBackPreview` — drives the count display on the
+	 * resume bar. Cleared by the orchestrator in lockstep with `forwardAvailable`. */
+	@property({ type: Object, attribute: false })
+	backPreview?: { findingCount: number; fileCount: number };
 
 	get excludedFiles(): ReadonlySet<string> {
 		return this._excludedFiles;
@@ -195,9 +203,14 @@ export class GlDetailsReviewModePanel extends LitElement {
 	}
 
 	private renderLoadingWithCancel() {
-		return html`<div class="review-loading-wrap">
-			${renderLoadingState('Analyzing changes...')}
-			<gl-button class="review-cancel" appearance="secondary" @click=${this.handleCancel}>Cancel</gl-button>
+		// Animation sits behind the spinner/cancel as decoration; uses the review color triplet
+		// (green/yellow/red) and self-disables under prefers-reduced-motion.
+		return html`<div class="review-loading-stage">
+			<gl-categorizing-loading-animation variant="review"></gl-categorizing-loading-animation>
+			<div class="review-loading-wrap">
+				${renderLoadingState('Analyzing changes...')}
+				<gl-button class="review-cancel" appearance="secondary" @click=${this.handleCancel}>Cancel</gl-button>
+			</div>
 		</div>`;
 	}
 
@@ -206,6 +219,7 @@ export class GlDetailsReviewModePanel extends LitElement {
 		// in the curation list minus both user and AI exclusions).
 		const includedCount = this.getEffectiveFileCount();
 		const scopeLabel = this.scopeSummary();
+		const findingCount = this.result?.focusAreas.reduce((sum, a) => sum + (a.findings?.length ?? 0), 0) ?? 0;
 
 		return html`<div class="review-header">
 			<gl-button
@@ -219,8 +233,14 @@ export class GlDetailsReviewModePanel extends LitElement {
 			</gl-button>
 			<span class="review-header__title">Reviewing ${scopeLabel}</span>
 			<span class="review-header__count">
-				<code-icon icon="file"></code-icon>
-				${pluralize('file', includedCount)}
+				<span class="review-header__count-item">
+					<code-icon icon="search"></code-icon>
+					${pluralize('finding', findingCount)}
+				</span>
+				<span class="review-header__count-item">
+					<code-icon icon="files"></code-icon>
+					${pluralize('file', includedCount)}
+				</span>
 			</span>
 		</div>`;
 	}
@@ -310,7 +330,7 @@ export class GlDetailsReviewModePanel extends LitElement {
 		const hasSelectedFiles = this.getEffectiveFileCount() > 0;
 
 		return html`
-			${this.forwardAvailable ? this.renderForwardBanner() : nothing}
+			${this.forwardAvailable ? this.renderResumeBar() : nothing}
 			${scope.type === 'wip'
 				? html`<gl-split-panel
 						orientation="vertical"
@@ -350,15 +370,29 @@ export class GlDetailsReviewModePanel extends LitElement {
 		`;
 	}
 
-	private renderForwardBanner() {
-		return html`<gl-button
-			class="review-forward-banner"
-			appearance="toolbar"
-			density="tight"
-			tooltip="Resume Last Review"
+	private renderResumeBar() {
+		const preview = this.backPreview;
+		return html`<button
+			class="resume-bar"
+			type="button"
+			aria-label="Resume Last Review"
 			@click=${this.handleForward}
-			>Resume Last Review<code-icon slot="suffix" icon="arrow-right"></code-icon
-		></gl-button>`;
+		>
+			<span class="resume-bar__title">Resume Last Review</span>
+			${preview != null
+				? html`<span class="resume-bar__count">
+						<span class="resume-bar__count-item">
+							<code-icon icon="search"></code-icon>
+							${pluralize('finding', preview.findingCount)}
+						</span>
+						<span class="resume-bar__count-item">
+							<code-icon icon="files"></code-icon>
+							${pluralize('file', preview.fileCount)}
+						</span>
+					</span>`
+				: nothing}
+			<code-icon class="resume-bar__arrow" icon="arrow-right"></code-icon>
+		</button>`;
 	}
 
 	private handleCancel = (): void => {

@@ -258,6 +258,13 @@ function createTransientState() {
 	const reviewForwardAvailable = signal(false);
 	const composeForwardAvailable = signal(false);
 
+	// Preview metadata for the resume bar shown above the idle panel — derived from the
+	// orchestrator's back-snapshot so the bar can show counts (commits/files, focus areas)
+	// without re-deriving them from data the panel doesn't own. Cleared in lockstep with
+	// the *ForwardAvailable signals above.
+	const composeBackPreview = signal<{ commitCount: number; fileCount: number } | undefined>(undefined);
+	const reviewBackPreview = signal<{ findingCount: number; fileCount: number } | undefined>(undefined);
+
 	// Compose progress + apply state. `composeProgressMessage` mirrors the latest phase label
 	// streamed by the library while compose is running (cleared to undefined when the run ends).
 	// `composeApplying` is true between an apply-plan click and the IPC's resolution — drives
@@ -315,6 +322,8 @@ function createTransientState() {
 		wipStale: wipStale,
 		reviewForwardAvailable: reviewForwardAvailable,
 		composeForwardAvailable: composeForwardAvailable,
+		composeBackPreview: composeBackPreview,
+		reviewBackPreview: reviewBackPreview,
 		composeProgressMessage: composeProgressMessage,
 		composeApplying: composeApplying,
 

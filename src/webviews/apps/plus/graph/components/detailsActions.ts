@@ -1899,6 +1899,7 @@ export class DetailsActions {
 				this.state.activeModeContext.set(null);
 				this.resources.compose.reset();
 				this.state.composeForwardAvailable.set(false);
+				this.state.composeBackPreview.set(undefined);
 				this.refreshWip();
 				void this.fetchDetails(sha, repoPath, graphReachability);
 			}
@@ -1933,6 +1934,7 @@ export class DetailsActions {
 				this.state.activeModeContext.set(null);
 				this.resources.compose.reset();
 				this.state.composeForwardAvailable.set(false);
+				this.state.composeBackPreview.set(undefined);
 				this.refreshWip();
 				void this.fetchDetails(sha, repoPath, graphReachability);
 			}
