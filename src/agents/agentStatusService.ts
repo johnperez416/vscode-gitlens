@@ -12,6 +12,13 @@ export class AgentStatusService implements Disposable {
 	private readonly _onDidChange = new EventEmitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly _onDidChangeHooksInstallState = new EventEmitter<void>();
+	/**
+	 * Fires after the user installs or uninstalls Claude Code hooks. Webviews subscribe so banners
+	 * and integration chips reflect the new state without waiting for the 30s cache to expire.
+	 */
+	readonly onDidChangeHooksInstallState = this._onDidChangeHooksInstallState.event;
+
 	private readonly _onDidChangeSerializedSessions = new EventEmitter<AgentSessionState[]>();
 	/**
 	 * Fires only when the serialized session snapshot has actually changed (deep equality on the
@@ -64,7 +71,20 @@ export class AgentStatusService implements Disposable {
 			d.dispose();
 		}
 		this._onDidChange.dispose();
+		this._onDidChangeHooksInstallState.dispose();
 		this._onDidChangeSerializedSessions.dispose();
+	}
+
+	private async invalidateHooksState(): Promise<void> {
+		try {
+			const env = await import('@env/providers.js');
+			env.invalidateAgentsCache();
+			// Warm the cache so the next read returns the new state without a delay.
+			await env.getClaudeAgent();
+		} catch {
+			// Browser build: silently skip — webviews will refresh on the next state pull.
+		}
+		this._onDidChangeHooksInstallState.fire();
 	}
 
 	get sessions(): readonly AgentSession[] {
@@ -105,6 +125,7 @@ export class AgentStatusService implements Disposable {
 				try {
 					const { installClaudeHook } = await import('@env/agents/installClaudeHook.js');
 					await installClaudeHook();
+					await this.invalidateHooksState();
 					this.container.telemetry.sendEvent('agents/hookInstalled', { 'agent.provider': 'claudeCode' });
 				} catch (ex) {
 					Logger.error(ex, 'AgentStatusService.installClaudeHook');
@@ -117,6 +138,7 @@ export class AgentStatusService implements Disposable {
 				try {
 					const { uninstallClaudeHook } = await import('@env/agents/uninstallClaudeHook.js');
 					await uninstallClaudeHook();
+					await this.invalidateHooksState();
 					this.container.telemetry.sendEvent('agents/hookUninstalled', { 'agent.provider': 'claudeCode' });
 				} catch (ex) {
 					Logger.error(ex, 'AgentStatusService.uninstallClaudeHook');

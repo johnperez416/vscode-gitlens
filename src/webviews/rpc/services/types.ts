@@ -161,7 +161,16 @@ export interface AIState {
 	};
 	/** AI hooks state — whether a hook-supporting agent is detected. */
 	readonly hooks: {
-		/** True if the `claude` CLI is on PATH. Drives the banner's "Install Claude Hook" secondary action. */
+		/** Per-agent Claude hook state from `gk agents list`. `supported` may be false if gkcli is missing. */
+		readonly claude: {
+			readonly detected: boolean;
+			readonly supported: boolean;
+			readonly installed: boolean;
+		};
+		/**
+		 * True when the install action is currently relevant (supported, detected, not yet installed).
+		 * Banners and the integrations-chip "Install" CTA gate on this; the uninstall CTA gates on `claude.installed`.
+		 */
 		readonly canInstallClaudeHook: boolean;
 	};
 }

@@ -583,7 +583,29 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 
 	private renderHooksRow() {
 		if (!this.aiEnabled) return nothing;
-		if (!this.ai.hooks.canInstallClaudeHook) return nothing;
+		const claude = this.ai.hooks.claude;
+		// Don't render at all if gkcli says hooks aren't supported for Claude on this machine, or
+		// if Claude isn't detected — there's nothing to install OR uninstall.
+		if (!claude.supported || !claude.detected) return nothing;
+
+		if (claude.installed) {
+			return html`<div class="integration-row integration-row--hooks status--connected">
+				<span class="integration__icon"><code-icon icon="hubot"></code-icon></span>
+				<span class="integration__content">
+					<span class="integration__title">GitKraken Claude Code Hooks</span>
+					<span class="integration__details">Installed — Claude surfaces agent status</span>
+				</span>
+				<span class="integration__actions">
+					<gl-button
+						appearance="toolbar"
+						href="${createCommandLink('gitlens.agents.uninstallClaudeHook')}"
+						tooltip="Uninstall Claude Hook"
+						aria-label="Uninstall Claude Hook"
+						><code-icon icon="debug-disconnect"></code-icon
+					></gl-button>
+				</span>
+			</div>`;
+		}
 
 		return html`<div class="integration-row integration-row--hooks status--disconnected">
 			<span class="integration__icon"><code-icon icon="hubot"></code-icon></span>
@@ -598,13 +620,6 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 					tooltip="Install Claude Hook"
 					aria-label="Install Claude Hook"
 					><code-icon icon="plug"></code-icon
-				></gl-button>
-				<gl-button
-					appearance="toolbar"
-					href="${createCommandLink('gitlens.agents.uninstallClaudeHook')}"
-					tooltip="Uninstall Claude Hook"
-					aria-label="Uninstall Claude Hook"
-					><code-icon icon="trash"></code-icon
 				></gl-button>
 			</span>
 		</div>`;

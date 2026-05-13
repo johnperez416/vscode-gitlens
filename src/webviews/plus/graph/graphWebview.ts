@@ -2,7 +2,7 @@ import type { emptySetMarker, GraphRefOptData, GraphSearchMode } from '@gitkrake
 import type { CancellationToken, ColorTheme, ConfigurationChangeEvent, TextDocumentShowOptions } from 'vscode';
 import { CancellationTokenSource, Disposable, env, ProgressLocation, Uri, ViewColumn, window } from 'vscode';
 import { createGraphComposeIntegration } from '@env/coretools/composer.js';
-import { isClaudeAvailable } from '@env/providers.js';
+import { getClaudeAgent } from '@env/providers.js';
 import { GitSearchError } from '@gitlens/git/errors.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
@@ -605,6 +605,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			this.container.agentStatus?.onDidChangeSerializedSessions(this.onAgentSessionsChanged, this) ?? {
 				dispose: () => {},
 			},
+			this.container.agentStatus?.onDidChangeHooksInstallState(
+				() => void this.notifyDidChangeCanInstallClaudeHook(),
+				this,
+			) ?? { dispose: () => {} },
 		);
 	}
 
@@ -4614,9 +4618,17 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		void this.host.notify(DidChangeOrgSettings, { orgSettings: this.getOrgSettings() });
 	}
 
+	/** Last value sent to the webview — seeds bulk state pushes without awaiting `gk`, and
+	 *  doubles as a dedup sentinel for `notifyDidChangeCanInstallClaudeHook`. */
+	private _lastCanInstallClaudeHook: boolean | undefined;
+
 	@trace()
 	private async notifyDidChangeCanInstallClaudeHook() {
-		const canInstall = getContext('gitlens:agents:enabled', false) && (await isClaudeAvailable());
+		if (!this.host.visible) return;
+		const claude = getContext('gitlens:agents:enabled', false) ? await getClaudeAgent() : undefined;
+		const canInstall = claude?.detected === true && claude.hooksSupported && !claude.hooksInstalled;
+		if (canInstall === this._lastCanInstallClaudeHook) return;
+		this._lastCanInstallClaudeHook = canInstall;
 		void this.host.notify(DidChangeCanInstallClaudeHook, canInstall);
 	}
 
@@ -4678,6 +4690,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				const result = await this.host.notify(DidChangeNotification, { state: state });
 				this._lastStateSentAt = performance.now();
 				this._lastSentBranchState = state.branchState;
+
+				// Refresh canInstallClaudeHook asynchronously so the bulk push doesn't block on `gk`.
+				// Dedups internally — only fires `DidChangeCanInstallClaudeHook` when the value diverges.
+				void this.notifyDidChangeCanInstallClaudeHook();
 				return result;
 			} finally {
 				this._pendingStateNotify = undefined;
@@ -5574,7 +5590,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			overview: this.getOverviewData(),
 			mcpBannerCollapsed: this.getMcpBannerCollapsed(),
 			hooksBannerCollapsed: this.getHooksBannerCollapsed(),
-			canInstallClaudeHook: getContext('gitlens:agents:enabled', false) && (await isClaudeAvailable()),
+			canInstallClaudeHook: this._lastCanInstallClaudeHook ?? false,
 			searchRequest: searchRequest,
 			detailsVisible: storedPanels?.details?.visible ?? true,
 			detailsPosition: storedPanels?.details?.position,
