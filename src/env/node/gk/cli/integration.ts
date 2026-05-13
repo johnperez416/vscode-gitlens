@@ -19,7 +19,7 @@ import { openUrl } from '../../../../system/-webview/vscode/uris.js';
 import { getHostAppName, isHostVSCode } from '../../../../system/-webview/vscode.js';
 import { gate } from '../../../../system/decorators/gate.js';
 import { getCliPublishInfo } from '../../ipc/ipcService.js';
-import { getPlatform, isOffline, isWeb } from '../../platform.js';
+import { getIsOffline, getPlatform, isWeb } from '../../platform.js';
 import { CliCommandHandlers } from './commands.js';
 import { showMcpAgentPicker } from './mcpAgentPicker.js';
 import type { McpAgent } from './mcpAgents.js';
@@ -524,7 +524,7 @@ export class GkCliIntegrationProvider implements Disposable {
 				throw new CLIInstallError(CLIInstallErrorReason.UnsupportedPlatform, undefined, 'web');
 			}
 
-			if (isOffline) {
+			if (getIsOffline()) {
 				throw new CLIInstallError(CLIInstallErrorReason.Offline);
 			}
 			cliInstallAttempts += 1;

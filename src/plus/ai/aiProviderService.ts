@@ -1,6 +1,7 @@
 import type { CancellationToken, Disposable, Event, MessageItem, ProgressOptions } from 'vscode';
 import { CancellationTokenSource, env, EventEmitter, window } from 'vscode';
 import { fetch } from '@env/fetch.js';
+import { getIsOffline } from '@env/platform.js';
 import type { AIPrimaryProviders, AIProviderAndModel, AIProviders, SupportedAIModels } from '@gitlens/ai/constants.js';
 import {
 	anthropicProviderDescriptor,
@@ -49,7 +50,13 @@ import { getSettledValue, getSettledValues } from '@gitlens/utils/promise.js';
 import { PromiseCache } from '@gitlens/utils/promiseCache.js';
 import type { Source, TelemetryEvents } from '../../constants.telemetry.js';
 import type { Container } from '../../container.js';
-import { AIError, AIErrorReason, AINoRequestDataError, AuthenticationRequiredError } from '../../errors.js';
+import {
+	AIError,
+	AIErrorReason,
+	AINoRequestDataError,
+	AuthenticationRequiredError,
+	classifyNetworkError,
+} from '../../errors.js';
 import type { AIFeatures } from '../../features.js';
 import { isAdvancedFeature } from '../../features.js';
 import type { GlRepository } from '../../git/models/repository.js';
@@ -957,77 +964,262 @@ export class AIProviderService implements AIService, Disposable {
 			return undefined;
 		}
 
-		const controller = new AbortController();
-		cancellation.onCancellationRequested(() => controller.abort());
-
-		const requestPromise = this._provider!.sendRequest(
-			action,
-			model,
-			apiKey,
-			provider.getMessages.bind(this, model, telementry.data, cancellation),
-			{
-				signal: controller.signal,
-				modelOptions: options?.modelOptions,
-			},
-		);
-		options?.generating?.fulfill(model);
-
-		const start = performance.now();
 		const promise = (async (): Promise<AIProviderResponse<void> | 'cancelled' | undefined> => {
-			try {
-				const result = await (options?.progress != null
-					? window.withProgress(
-							{ ...options.progress, cancellable: true, title: provider.getProgressTitle(model, 0) },
-							(_progress, token) => {
-								token.onCancellationRequested(() => cancellationSource.cancel());
-								return requestPromise;
-							},
-						)
-					: requestPromise);
+			let fulfilled = false;
+			while (true) {
+				const controller = new AbortController();
+				const cancellationListener = cancellation.onCancellationRequested(() => controller.abort());
+				const start = performance.now();
+				try {
+					if (getIsOffline()) {
+						throw new AIError(AIErrorReason.NoNetwork);
+					}
 
-				telementry.data['output.length'] = result?.content?.length;
-				telementry.data['usage.promptTokens'] = result?.usage?.promptTokens;
-				telementry.data['usage.completionTokens'] = result?.usage?.completionTokens;
-				telementry.data['usage.totalTokens'] = result?.usage?.totalTokens;
-				telementry.data['usage.limits.used'] = result?.usage?.limits?.used;
-				telementry.data['usage.limits.limit'] = result?.usage?.limits?.limit;
-				telementry.data['usage.limits.resetsOn'] = result?.usage?.limits?.resetsOn?.toISOString();
+					const requestPromise = this._provider!.sendRequest(
+						action,
+						model,
+						apiKey,
+						provider.getMessages.bind(this, model, telementry.data, cancellation),
+						{ signal: controller.signal, modelOptions: options?.modelOptions },
+					);
+					if (!fulfilled) {
+						options?.generating?.fulfill(model);
+						fulfilled = true;
+					}
 
-				scope?.addExitInfo(`id: ${result?.id}`);
-				this.container.telemetry.sendEvent(
-					telementry.key,
-					{ ...telementry.data, duration: performance.now() - start, id: result?.id },
-					source,
-				);
+					const result = await (options?.progress != null
+						? window.withProgress(
+								{
+									...options.progress,
+									cancellable: true,
+									title: provider.getProgressTitle(model, 0),
+								},
+								(_progress, token) => {
+									token.onCancellationRequested(() => cancellationSource.cancel());
+									return requestPromise;
+								},
+							)
+						: requestPromise);
 
-				if (result != null && supportedAIProviders.get(model.provider.id)?.requiresUserKey) {
-					void this.reportBYOKUsage(action, result);
-				}
+					telementry.data['output.length'] = result?.content?.length;
+					telementry.data['usage.promptTokens'] = result?.usage?.promptTokens;
+					telementry.data['usage.completionTokens'] = result?.usage?.completionTokens;
+					telementry.data['usage.totalTokens'] = result?.usage?.totalTokens;
+					telementry.data['usage.limits.used'] = result?.usage?.limits?.used;
+					telementry.data['usage.limits.limit'] = result?.usage?.limits?.limit;
+					telementry.data['usage.limits.resetsOn'] = result?.usage?.limits?.resetsOn?.toISOString();
 
-				if (!isGkModel) {
-					void this.showAiAllAccessNotificationIfNeeded();
-				}
-
-				return result;
-			} catch (ex) {
-				if (isCancellationError(ex)) {
-					scope?.setFailed('cancelled: user cancelled');
+					scope?.addExitInfo(`id: ${result?.id}`);
 					this.container.telemetry.sendEvent(
 						telementry.key,
-						{
-							...telementry.data,
-							duration: performance.now() - start,
-							failed: true,
-							'failed.reason': 'user-cancelled',
-						},
+						{ ...telementry.data, duration: performance.now() - start, id: result?.id },
 						source,
 					);
 
-					return 'cancelled';
-				}
-				if (ex instanceof AIError) {
-					scope?.setFailed(`failed: ${String(ex)} (${String(ex.original)})`);
+					if (result != null && supportedAIProviders.get(model.provider.id)?.requiresUserKey) {
+						void this.reportBYOKUsage(action, result);
+					}
 
+					if (!isGkModel) {
+						void this.showAiAllAccessNotificationIfNeeded();
+					}
+
+					return result;
+				} catch (ex) {
+					if (isCancellationError(ex)) {
+						scope?.setFailed('cancelled: user cancelled');
+						this.container.telemetry.sendEvent(
+							telementry.key,
+							{
+								...telementry.data,
+								duration: performance.now() - start,
+								failed: true,
+								'failed.reason': 'user-cancelled',
+							},
+							source,
+						);
+
+						if (!fulfilled) {
+							options?.generating?.cancel();
+						}
+						return 'cancelled';
+					}
+
+					const networkReason = ex instanceof AIError ? undefined : classifyNetworkError(ex);
+					const error =
+						networkReason != null ? new AIError(networkReason, ex instanceof Error ? ex : undefined) : ex;
+
+					if (error instanceof AIError) {
+						scope?.setFailed(
+							`failed: ${String(error)}${error.original ? ` (${String(error.original)})` : ''}`,
+						);
+
+						this.container.telemetry.sendEvent(
+							telementry.key,
+							{
+								...telementry.data,
+								duration: performance.now() - start,
+								failed: true,
+								'failed.error': String(error),
+								'failed.error.detail': error.original ? String(error.original) : undefined,
+							},
+							source,
+						);
+
+						switch (error.reason) {
+							case AIErrorReason.NoNetwork:
+							case AIErrorReason.Unreachable: {
+								const retry: MessageItem = { title: 'Retry' };
+								const result = await window.showErrorMessage(
+									error.reason === AIErrorReason.NoNetwork
+										? 'Unable to reach the AI service. Please check your internet connection and try again.'
+										: 'The AI service is temporarily unreachable. Please try again.',
+									retry,
+								);
+								if (cancellation.isCancellationRequested) {
+									if (!fulfilled) {
+										options?.generating?.cancel();
+									}
+									return 'cancelled';
+								}
+								if (result === retry) {
+									continue;
+								}
+								if (!fulfilled) {
+									options?.generating?.cancel();
+								}
+								return undefined;
+							}
+							case AIErrorReason.NoRequestData:
+								void window.showInformationMessage(error.message);
+								return undefined;
+
+							case AIErrorReason.NoEntitlement: {
+								const sub = await this.container.subscription.getSubscription();
+
+								if (isSubscriptionPaid(sub)) {
+									const plan =
+										compareSubscriptionPlans(sub.plan.actual.id, 'advanced') <= 0
+											? 'teams'
+											: 'advanced';
+
+									const upgrade = { title: `Upgrade to ${getSubscriptionPlanName(plan)}` };
+									const result = await window.showErrorMessage(
+										"This AI feature isn't included in your current plan. Please upgrade and try again.",
+										upgrade,
+									);
+
+									if (result === upgrade) {
+										void this.container.subscription.manageSubscription(source);
+									}
+								} else {
+									// Users without accounts would never get here since they would have been blocked by `ensureFeatureAccess`
+									const upgrade = { title: 'Upgrade to Pro' };
+									const result = await window.showErrorMessage(
+										'Please upgrade to GitLens Pro to access this AI feature and try again.',
+										upgrade,
+									);
+
+									if (result === upgrade) {
+										void this.container.subscription.upgrade('pro', source);
+									}
+								}
+
+								return undefined;
+							}
+							case AIErrorReason.RequestTooLarge: {
+								const switchModel: MessageItem = { title: 'Switch Model' };
+								const result = await window.showErrorMessage(
+									'Your request is too large. Please reduce the size of your request or switch to a different model, and then try again.',
+									switchModel,
+								);
+								if (result === switchModel) {
+									void this.switchModel(source);
+								}
+								return undefined;
+							}
+							case AIErrorReason.UserQuotaExceeded: {
+								const increaseLimit: MessageItem = { title: 'Increase Limit' };
+								const result = await window.showErrorMessage(
+									"Your request could not be completed because you've reached the weekly AI usage limit for your current plan. Upgrade to unlock more AI-powered actions.",
+									increaseLimit,
+								);
+
+								if (result === increaseLimit) {
+									void this.container.subscription.manageSubscription(source);
+								}
+
+								return undefined;
+							}
+							case AIErrorReason.RateLimitExceeded: {
+								const switchModel: MessageItem = { title: 'Switch Model' };
+								const result = await window.showErrorMessage(
+									'Rate limit exceeded. Please wait a few moments or switch to a different model, and then try again.',
+									switchModel,
+								);
+								if (result === switchModel) {
+									void this.switchModel(source);
+								}
+
+								return undefined;
+							}
+							case AIErrorReason.RateLimitOrFundsExceeded: {
+								const switchModel: MessageItem = { title: 'Switch Model' };
+								const result = await window.showErrorMessage(
+									'Rate limit exceeded, or your account is out of funds. Please wait a few moments, check your account balance, or switch to a different model, and then try again.',
+									switchModel,
+								);
+								if (result === switchModel) {
+									void this.switchModel(source);
+								}
+								return undefined;
+							}
+							case AIErrorReason.ServiceCapacityExceeded: {
+								void window.showErrorMessage(
+									'GitKraken AI is temporarily unable to process your request due to high volume. Please wait a few moments and try again. If this issue persists, please contact support.',
+									'OK',
+								);
+								return undefined;
+							}
+							case AIErrorReason.ModelNotSupported: {
+								const switchModel: MessageItem = { title: 'Switch Model' };
+								const result = await window.showErrorMessage(
+									'The selected model is not supported for this request. Please select a different model and try again.',
+									switchModel,
+								);
+								if (result === switchModel) {
+									void this.switchModel(source);
+								}
+								return undefined;
+							}
+							case AIErrorReason.Unauthorized: {
+								const switchModel: MessageItem = { title: 'Switch Model' };
+								const result = await window.showErrorMessage(
+									'You do not have access to the selected model. Please select a different model and try again.',
+									switchModel,
+								);
+								if (result === switchModel) {
+									void this.switchModel(source);
+								}
+								return undefined;
+							}
+							case AIErrorReason.DeniedByUser: {
+								const switchModel: MessageItem = { title: 'Switch Model' };
+								const result = await window.showErrorMessage(
+									'You have denied access to the selected model. Please provide access or select a different model, and then try again.',
+									switchModel,
+								);
+								if (result === switchModel) {
+									void this.switchModel(source);
+								}
+								return undefined;
+							}
+						}
+
+						return undefined;
+					}
+
+					scope?.setFailed(`failed: ${String(ex)}${ex.original ? ` (${String(ex.original)})` : ''}`);
 					this.container.telemetry.sendEvent(
 						telementry.key,
 						{
@@ -1035,154 +1227,14 @@ export class AIProviderService implements AIService, Disposable {
 							duration: performance.now() - start,
 							failed: true,
 							'failed.error': String(ex),
-							'failed.error.detail': String(ex.original),
+							'failed.error.detail': ex.original ? String(ex.original) : undefined,
 						},
 						source,
 					);
-
-					switch (ex.reason) {
-						case AIErrorReason.NoRequestData:
-							void window.showInformationMessage(ex.message);
-							return undefined;
-
-						case AIErrorReason.NoEntitlement: {
-							const sub = await this.container.subscription.getSubscription();
-
-							if (isSubscriptionPaid(sub)) {
-								const plan =
-									compareSubscriptionPlans(sub.plan.actual.id, 'advanced') <= 0
-										? 'teams'
-										: 'advanced';
-
-								const upgrade = { title: `Upgrade to ${getSubscriptionPlanName(plan)}` };
-								const result = await window.showErrorMessage(
-									"This AI feature isn't included in your current plan. Please upgrade and try again.",
-									upgrade,
-								);
-
-								if (result === upgrade) {
-									void this.container.subscription.manageSubscription(source);
-								}
-							} else {
-								// Users without accounts would never get here since they would have been blocked by `ensureFeatureAccess`
-								const upgrade = { title: 'Upgrade to Pro' };
-								const result = await window.showErrorMessage(
-									'Please upgrade to GitLens Pro to access this AI feature and try again.',
-									upgrade,
-								);
-
-								if (result === upgrade) {
-									void this.container.subscription.upgrade('pro', source);
-								}
-							}
-
-							return undefined;
-						}
-						case AIErrorReason.RequestTooLarge: {
-							const switchModel: MessageItem = { title: 'Switch Model' };
-							const result = await window.showErrorMessage(
-								'Your request is too large. Please reduce the size of your request or switch to a different model, and then try again.',
-								switchModel,
-							);
-							if (result === switchModel) {
-								void this.switchModel(source);
-							}
-							return undefined;
-						}
-						case AIErrorReason.UserQuotaExceeded: {
-							const increaseLimit: MessageItem = { title: 'Increase Limit' };
-							const result = await window.showErrorMessage(
-								"Your request could not be completed because you've reached the weekly AI usage limit for your current plan. Upgrade to unlock more AI-powered actions.",
-								increaseLimit,
-							);
-
-							if (result === increaseLimit) {
-								void this.container.subscription.manageSubscription(source);
-							}
-
-							return undefined;
-						}
-						case AIErrorReason.RateLimitExceeded: {
-							const switchModel: MessageItem = { title: 'Switch Model' };
-							const result = await window.showErrorMessage(
-								'Rate limit exceeded. Please wait a few moments or switch to a different model, and then try again.',
-								switchModel,
-							);
-							if (result === switchModel) {
-								void this.switchModel(source);
-							}
-
-							return undefined;
-						}
-						case AIErrorReason.RateLimitOrFundsExceeded: {
-							const switchModel: MessageItem = { title: 'Switch Model' };
-							const result = await window.showErrorMessage(
-								'Rate limit exceeded, or your account is out of funds. Please wait a few moments, check your account balance, or switch to a different model, and then try again.',
-								switchModel,
-							);
-							if (result === switchModel) {
-								void this.switchModel(source);
-							}
-							return undefined;
-						}
-						case AIErrorReason.ServiceCapacityExceeded: {
-							void window.showErrorMessage(
-								'GitKraken AI is temporarily unable to process your request due to high volume. Please wait a few moments and try again. If this issue persists, please contact support.',
-								'OK',
-							);
-							return undefined;
-						}
-						case AIErrorReason.ModelNotSupported: {
-							const switchModel: MessageItem = { title: 'Switch Model' };
-							const result = await window.showErrorMessage(
-								'The selected model is not supported for this request. Please select a different model and try again.',
-								switchModel,
-							);
-							if (result === switchModel) {
-								void this.switchModel(source);
-							}
-							return undefined;
-						}
-						case AIErrorReason.Unauthorized: {
-							const switchModel: MessageItem = { title: 'Switch Model' };
-							const result = await window.showErrorMessage(
-								'You do not have access to the selected model. Please select a different model and try again.',
-								switchModel,
-							);
-							if (result === switchModel) {
-								void this.switchModel(source);
-							}
-							return undefined;
-						}
-						case AIErrorReason.DeniedByUser: {
-							const switchModel: MessageItem = { title: 'Switch Model' };
-							const result = await window.showErrorMessage(
-								'You have denied access to the selected model. Please provide access or select a different model, and then try again.',
-								switchModel,
-							);
-							if (result === switchModel) {
-								void this.switchModel(source);
-							}
-							return undefined;
-						}
-					}
-
-					return undefined;
+					throw ex;
+				} finally {
+					cancellationListener.dispose();
 				}
-
-				scope?.setFailed(`failed: ${String(ex)}${ex.original ? ` (${String(ex.original)})` : ''}`);
-				this.container.telemetry.sendEvent(
-					telementry.key,
-					{
-						...telementry.data,
-						duration: performance.now() - start,
-						failed: true,
-						'failed.error': String(ex),
-						'failed.error.detail': ex.original ? String(ex.original) : undefined,
-					},
-					source,
-				);
-				throw ex;
 			}
 		})();
 
