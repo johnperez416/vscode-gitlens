@@ -39,7 +39,7 @@ import { compare, fromString } from '@gitlens/utils/version.js';
 import { CancelledRunError, RunError } from './exec.errors.js';
 import type { RunOptions, RunResult } from './exec.js';
 import { fsExists, runSpawn } from './exec.js';
-import type { GitCommandPriority, GitExecOptions, GitResult, GitSpawnOptions } from './exec.types.js';
+import type { GitCommandPriority, GitResult, GitRunOptions, GitSpawnOptions } from './exec.types.js';
 import type { FilteredGitFeatures, GitFeatureOrPrefix, GitFeatures } from './features.js';
 import { gitFeaturesByVersion } from './features.js';
 import type { GitQueueConfig } from './gitQueue.js';
@@ -508,7 +508,7 @@ const trailingNewlineRegex = /[\r|\n]+$/;
 const uniqueCounterForStdin = getScopedCounter();
 const uniqueCounterForStream = getScopedCounter();
 
-type ExitCodeOnlyGitCommandOptions = GitExecOptions & { exitCodeOnly: true };
+type ExitCodeOnlyGitCommandOptions = GitRunOptions & { exitCodeOnly: true };
 
 export class Git {
 	/** Map of running git commands — avoids running duplicate overlapping commands */
@@ -636,11 +636,11 @@ export class Git {
 		...args: readonly (string | undefined)[]
 	): Promise<GitResult<unknown>>;
 	async run<T extends string | Buffer = string>(
-		options: GitExecOptions,
+		options: GitRunOptions,
 		...args: readonly (string | undefined)[]
 	): Promise<GitResult<T>>;
 	async run<T extends string | Buffer = string>(
-		options: GitExecOptions,
+		options: GitRunOptions,
 		...args: readonly (string | undefined)[]
 	): Promise<GitResult<T | unknown>> {
 		if (this.options.isTrusted?.() === false) throw new WorkspaceUntrustedError();
@@ -668,7 +668,7 @@ export class Git {
 	}
 
 	private async runCore<T extends string | Buffer>(
-		options: GitExecOptions,
+		options: GitRunOptions,
 		args: string[],
 		gitCommand: string,
 	): Promise<GitResult<T | unknown>> {

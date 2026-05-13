@@ -1,8 +1,8 @@
 import type { Uri } from '@gitlens/utils/uri.js';
-import type { GitCommandPriority } from '../exec.types.js';
 import type { GitBranch } from '../models/branch.js';
 import type { GitReference, GitRefTip } from '../models/reference.js';
 import type { GitTag } from '../models/tag.js';
+import type { GitCommandPriority } from '../run.types.js';
 
 export interface GitRefsSubProvider {
 	checkIfCouldBeValidBranchOrTagName(repoPath: string, ref: string): Promise<boolean>;

@@ -1,12 +1,12 @@
 import type { PagedResult, PagingOptions } from '@gitlens/utils/paging.js';
 import type { GkConfigInvalidationTarget } from '../cache.js';
-import type { GitCommandPriority } from '../exec.types.js';
 import type { BranchDisposition, GitBranch } from '../models/branch.js';
 import type { GitCommitStats } from '../models/commit.js';
 import type { GitContributor } from '../models/contributor.js';
 import type { ConflictDetectionResult } from '../models/mergeConflicts.js';
 import type { PullRequest } from '../models/pullRequest.js';
 import type { GitBranchReference } from '../models/reference.js';
+import type { GitCommandPriority } from '../run.types.js';
 import type { BranchSortOptions } from '../utils/sorting.js';
 
 export interface BranchContributionsOverview extends GitCommitStats<number> {

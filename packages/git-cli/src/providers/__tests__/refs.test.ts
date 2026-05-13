@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
-import type { GitResult } from '@gitlens/git/exec.types.js';
+import type { GitResult } from '@gitlens/git/run.types.js';
 import * as sinon from 'sinon';
 import type { CliGitProviderInternal } from '../../cliGitProvider.js';
 import type { Git } from '../../exec/git.js';

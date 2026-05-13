@@ -11,7 +11,6 @@ import type { PromiseOrValue } from '@gitlens/utils/promise.js';
 import type { CacheController } from '@gitlens/utils/promiseCache.js';
 import { PromiseCache, PromiseMap, RepoPromiseCacheMap } from '@gitlens/utils/promiseCache.js';
 import type { Uri } from '@gitlens/utils/uri.js';
-import type { GitResult } from './exec.types.js';
 import type { ProgressiveGitBlame } from './models/blame.js';
 import type { BranchMetadata, GitBranch } from './models/branch.js';
 import type { GitStashCommit } from './models/commit.js';
@@ -32,6 +31,7 @@ import type { BranchContributionsOverview, GitBranchMergedStatus } from './provi
 import type { GitCommitReachability, LeftRightCommitCountResult } from './providers/commits.js';
 import type { GitContributorsResult } from './providers/contributors.js';
 import type { ResolvedRevision } from './providers/revision.js';
+import type { GitResult } from './run.types.js';
 import type { GitIgnoreFilter } from './watching/gitIgnoreFilter.js';
 
 type RepoPath = string;

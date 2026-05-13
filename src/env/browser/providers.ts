@@ -1,7 +1,7 @@
 import type { Disposable } from 'vscode';
 import type { Cache } from '@gitlens/git/cache.js';
-import type { GitExecOptions, GitResult } from '@gitlens/git/exec.types.js';
 import type { GitProvider } from '@gitlens/git/providers/provider.js';
+import type { GitResult, GitRunOptions } from '@gitlens/git/run.types.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
 import type { AgentSessionProvider } from '../../agents/provider.js';
 import type { Container } from '../../container.js';
@@ -16,7 +16,7 @@ import type { TelemetryService } from '../../telemetry/telemetry.js';
 
 export function git(
 	_container: Container,
-	_options: GitExecOptions,
+	_options: GitRunOptions,
 	..._args: any[]
 ): Promise<GitResult<string | Buffer>> {
 	return Promise.resolve({ stdout: '', exitCode: 0 });

@@ -1,7 +1,6 @@
 import type { Cache, ConflictDetectionCacheKey, GkConfigInvalidationTarget } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
 import { BranchError } from '@gitlens/git/errors.js';
-import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { BranchDisposition, BranchMetadata } from '@gitlens/git/models/branch.js';
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import type { ConflictDetectionResult } from '@gitlens/git/models/mergeConflicts.js';
@@ -11,6 +10,7 @@ import type {
 	GitBranchesSubProvider,
 	GitBranchMergedStatus,
 } from '@gitlens/git/providers/branches.js';
+import type { GitCommandPriority } from '@gitlens/git/run.types.js';
 import {
 	formatDetachedHeadName,
 	getBranchId,

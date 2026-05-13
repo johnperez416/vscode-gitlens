@@ -3,8 +3,8 @@ import type { Disposable } from 'vscode';
 import { workspace } from 'vscode';
 import { ClaudeCodeProvider } from '@gitlens/agents/providers/claudeCodeProvider.js';
 import type { Cache } from '@gitlens/git/cache.js';
-import type { GitExecOptions, GitResult } from '@gitlens/git/exec.types.js';
 import type { GitProvider } from '@gitlens/git/providers/provider.js';
+import type { GitResult, GitRunOptions } from '@gitlens/git/run.types.js';
 import { Git } from '@gitlens/git-cli/exec/git.js';
 import { findGitPath } from '@gitlens/git-cli/exec/locator.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
@@ -46,7 +46,7 @@ function ensureVslsGit() {
 
 export function git(
 	_container: Container,
-	options: GitExecOptions,
+	options: GitRunOptions,
 	...args: any[]
 ): Promise<GitResult<string | Buffer>> {
 	return ensureVslsGit().run(options, ...args);

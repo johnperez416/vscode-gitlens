@@ -1,4 +1,3 @@
-import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { Issue } from '@gitlens/git/models/issue.js';
 import type { PullRequest, PullRequestShape } from '@gitlens/git/models/pullRequest.js';
@@ -7,6 +6,7 @@ import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import type { GitStatus } from '@gitlens/git/models/status.js';
 import { GitWorktree } from '@gitlens/git/models/worktree.js';
 import type { BranchContributionsOverview } from '@gitlens/git/providers/branches.js';
+import type { GitCommandPriority } from '@gitlens/git/run.types.js';
 import { createRevisionRange } from '@gitlens/git/utils/revision.utils.js';
 import { filterMap } from '@gitlens/utils/iterable.js';
 import { getSettledValue } from '@gitlens/utils/promise.js';

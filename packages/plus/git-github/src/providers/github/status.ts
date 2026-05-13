@@ -1,8 +1,8 @@
-import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import type { GitConflictFile } from '@gitlens/git/models/staging.js';
 import { GitStatus } from '@gitlens/git/models/status.js';
 import type { GitStatusSubProvider, GitWorkingChangesState } from '@gitlens/git/providers/status.js';
+import type { GitCommandPriority } from '@gitlens/git/run.types.js';
 import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug } from '@gitlens/utils/decorators/log.js';
 import { HeadType } from '../../context.js';

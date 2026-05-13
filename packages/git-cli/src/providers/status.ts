@@ -1,12 +1,12 @@
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
-import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import { GitFileWorkingTreeStatus } from '@gitlens/git/models/fileStatus.js';
 import type { GitConflictFile } from '@gitlens/git/models/staging.js';
 import { GitStatus } from '@gitlens/git/models/status.js';
 import type { GitStatusFile } from '@gitlens/git/models/statusFile.js';
 import type { GitStatusSubProvider, GitWorkingChangesState } from '@gitlens/git/providers/status.js';
+import type { GitCommandPriority } from '@gitlens/git/run.types.js';
 import { isCancellationError } from '@gitlens/utils/cancellation.js';
 import { gate } from '@gitlens/utils/decorators/gate.js';
 import { debug } from '@gitlens/utils/decorators/log.js';

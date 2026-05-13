@@ -31,7 +31,7 @@ export interface GitResultCache {
  */
 export type GitCommandPriority = 'interactive' | 'normal' | 'background';
 
-export interface GitExecOptions {
+export interface GitRunOptions {
 	cancellation?: AbortSignal;
 	configs?: readonly string[];
 	readonly correlationKey?: string;

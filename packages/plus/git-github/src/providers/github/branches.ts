@@ -1,7 +1,7 @@
 import type { Cache } from '@gitlens/git/cache.js';
-import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import { GitBranch } from '@gitlens/git/models/branch.js';
 import type { BranchContributionsOverview, GitBranchesSubProvider } from '@gitlens/git/providers/branches.js';
+import type { GitCommandPriority } from '@gitlens/git/run.types.js';
 import { createRevisionRange, stripOrigin } from '@gitlens/git/utils/revision.utils.js';
 import type { BranchSortOptions } from '@gitlens/git/utils/sorting.js';
 import { sortBranches, sortContributors } from '@gitlens/git/utils/sorting.js';

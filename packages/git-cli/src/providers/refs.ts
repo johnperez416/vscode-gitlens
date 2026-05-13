@@ -1,11 +1,11 @@
 import type { Cache } from '@gitlens/git/cache.js';
 import type { GitServiceContext } from '@gitlens/git/context.js';
-import type { GitCommandPriority } from '@gitlens/git/exec.types.js';
 import type { GitBranch } from '@gitlens/git/models/branch.js';
 import type { GitReference, GitRefTip, RefRecord } from '@gitlens/git/models/reference.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import type { GitTag } from '@gitlens/git/models/tag.js';
 import type { GitRefsSubProvider } from '@gitlens/git/providers/refs.js';
+import type { GitCommandPriority } from '@gitlens/git/run.types.js';
 import { isRemoteHEAD } from '@gitlens/git/utils/branch.utils.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import { isSha, isShaWithOptionalRevisionSuffix, isUncommitted } from '@gitlens/git/utils/revision.utils.js';

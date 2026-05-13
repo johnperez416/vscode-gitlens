@@ -19,7 +19,7 @@ import { splitPath } from '@gitlens/utils/path.js';
 import type { Uri } from '@gitlens/utils/uri.js';
 import { toFsPath } from '@gitlens/utils/uri.js';
 import type { CliGitProviderInternal } from '../cliGitProvider.js';
-import type { GitErrorHandling, GitExecOptions } from '../exec/exec.types.js';
+import type { GitErrorHandling, GitRunOptions } from '../exec/exec.types.js';
 import type { Git } from '../exec/git.js';
 import { defaultExceptionHandler, getGitCommandError, gitConfigsLog, GitErrors } from '../exec/git.js';
 import { parseGitLsFilesStaged } from '../parsers/indexParser.js';
@@ -165,7 +165,7 @@ export class RevisionGitSubProvider implements GitRevisionSubProvider {
 		}
 		if (isUncommitted(rev)) throw new Error(`ref=${rev} is uncommitted`);
 
-		const opts: GitExecOptions = {
+		const opts: GitRunOptions = {
 			configs: gitConfigsLog,
 			cwd: root,
 			encoding: options?.encoding ?? 'utf8',

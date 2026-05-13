@@ -41,7 +41,7 @@ import { escapeRegex } from '@gitlens/utils/string.js';
 import type { Uri } from '@gitlens/utils/uri.js';
 import { fileUri, joinUriPath, toFsPath } from '@gitlens/utils/uri.js';
 import type { CliGitProviderInternal } from '../cliGitProvider.js';
-import type { GitExecOptions, GitResult } from '../exec/exec.types.js';
+import type { GitResult, GitRunOptions } from '../exec/exec.types.js';
 import type { Git } from '../exec/git.js';
 import { gitConfigsLog, gitConfigsLogWithFiles, GitErrors } from '../exec/git.js';
 import type {
@@ -617,7 +617,7 @@ export class CommitsGitSubProvider implements GitCommitsSubProvider {
 			const currentUser = await currentUserPromise.catch(() => undefined);
 			if (cancellation?.aborted) throw new CancellationError();
 
-			const cmdOpts: GitExecOptions = {
+			const cmdOpts: GitRunOptions = {
 				cwd: repoPath,
 				cancellation: cancellation,
 				configs: gitConfigsLogWithFiles,
