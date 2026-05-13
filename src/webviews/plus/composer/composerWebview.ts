@@ -1255,8 +1255,9 @@ export class ComposerWebviewProvider implements WebviewProvider<State, State, Co
 				this._repositorySubscription = undefined;
 
 				try {
+					const svc = this.container.git.getRepositoryService(this._currentRepository.path);
 					const planResult = await this._composeTools.generatePlan({
-						svc: this.container.git.getRepositoryService(this._currentRepository.path),
+						svc: svc,
 						source: librarySource,
 						customInstructions: params.customInstructions,
 						cancellation: this._generateCommitsCancellation.token,

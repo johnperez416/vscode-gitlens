@@ -107,8 +107,11 @@ export class ComposeToolsIntegration {
 }
 
 function createComposeGitPort(svc: GitRepositoryService): ComposeGitPort {
-	const exec = async (args: string[], options?: GitExecOptions): Promise<string> => {
-		const result = await svc.exec(args, {
+	const git = svc.createUnsafeGit();
+	if (git == null) throw new Error('Compose is not available in virtual repositories');
+
+	const run = async (args: string[], options?: GitExecOptions): Promise<string> => {
+		const result = await git.run(args, {
 			env: options?.env,
 			stdin: options?.stdin,
 			cancellation: options?.signal,
@@ -117,7 +120,7 @@ function createComposeGitPort(svc: GitRepositoryService): ComposeGitPort {
 		return result.stdout;
 	};
 
-	return { exec: exec };
+	return { exec: run };
 }
 
 /*

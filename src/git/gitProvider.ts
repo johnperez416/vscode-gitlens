@@ -1,7 +1,7 @@
 import type { WorkspaceFolder } from 'vscode';
-import type { GitExecOptions, GitResult } from '@gitlens/git/exec.types.js';
 import type { GitDir } from '@gitlens/git/models/repository.js';
 import type { GitProviderDescriptor, RepositoryVisibility } from '@gitlens/git/providers/types.js';
+import type { UnsafeGit } from '@gitlens/git/run.types.js';
 import type { RevisionUriOptions } from '@gitlens/git/utils/uriAuthority.js';
 import type { UnifiedDisposable } from '@gitlens/utils/disposable.js';
 import type { Event } from '@gitlens/utils/event.js';
@@ -87,7 +87,15 @@ export interface GlGitProvider extends UnifiedDisposable {
 	isTrackable(uri: Uri): boolean;
 	isTracked(uri: Uri): Promise<boolean>;
 
-	exec?(repoPath: string, args: readonly string[], options?: GitExecOptions): Promise<GitResult>;
+	/**
+	 * Build an {@link UnsafeGit} for raw `git <args>` invocation against `repoPath`.
+	 *
+	 * Implemented by CLI-backed providers; omitted by virtual providers (GitHub,
+	 * `vscode-vfs`, PRs) that have no `git` binary to invoke. Consumers should
+	 * not call this directly — go through `createUnsafeGit` in `src/git/internal/unsafeGit.ts`,
+	 * which is import-restricted to the compose-tools adapter and provider code.
+	 */
+	createUnsafeGit?(repoPath: string): UnsafeGit;
 }
 
 export type { RevisionUriData, RevisionUriOptions } from '@gitlens/git/utils/uriAuthority.js';

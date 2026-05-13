@@ -6,13 +6,13 @@ import { extensions, FileType, Uri, window, workspace } from 'vscode';
 import { fetch } from '@env/fetch.js';
 import { isLinux, isWindows } from '@env/platform.js';
 import type { Cache } from '@gitlens/git/cache.js';
-import type { GitExecOptions, GitResult } from '@gitlens/git/exec.types.js';
 import type { GitRemote } from '@gitlens/git/models/remote.js';
 import { RemoteResourceType } from '@gitlens/git/models/remoteResource.js';
 import type { GitDir } from '@gitlens/git/models/repository.js';
 import { deletedOrMissing, uncommitted } from '@gitlens/git/models/revision.js';
 import type { GitProvider } from '@gitlens/git/providers/provider.js';
 import type { GitProviderDescriptor, RepositoryVisibility } from '@gitlens/git/providers/types.js';
+import type { UnsafeGit } from '@gitlens/git/run.types.js';
 import { getVisibilityCacheKey } from '@gitlens/git/utils/remote.utils.js';
 import {
 	getRevisionRangeParts,
@@ -1319,8 +1319,10 @@ export class GlCliGitProvider implements GlGitProvider {
 		return (await this.isTrackedWithDetails(uri)) != null;
 	}
 
-	exec(repoPath: string, args: readonly string[], options?: GitExecOptions): Promise<GitResult> {
-		return this.provider.git.run({ cwd: repoPath, errors: 'throw', ...options }, ...args);
+	createUnsafeGit(repoPath: string): UnsafeGit {
+		return {
+			run: (args, options) => this.provider.git.run({ cwd: repoPath, errors: 'throw', ...options }, ...args),
+		};
 	}
 
 	private async isTrackedWithDetails(uri: Uri | GitUri): Promise<[string, string] | undefined>;

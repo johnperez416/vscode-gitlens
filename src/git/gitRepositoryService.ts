@@ -1,12 +1,12 @@
 import type { Uri } from 'vscode';
 import { ProgressLocation, window } from 'vscode';
 import { CheckoutError, FetchError, PullError, PushError, SigningError } from '@gitlens/git/errors.js';
-import type { GitExecOptions, GitResult } from '@gitlens/git/exec.types.js';
 import type { GitFile } from '@gitlens/git/models/file.js';
 import type { GitBranchReference, GitReference } from '@gitlens/git/models/reference.js';
 import { deletedOrMissing } from '@gitlens/git/models/revision.js';
 import type { GitProviderDescriptor } from '@gitlens/git/providers/types.js';
 import type { RepositoryService } from '@gitlens/git/repositoryService.js';
+import type { UnsafeGit } from '@gitlens/git/run.types.js';
 import { isBranchReference } from '@gitlens/git/utils/reference.utils.js';
 import { getRemoteThemeIconString } from '@gitlens/git/utils/remote.utils.js';
 import { debug, trace } from '@gitlens/utils/decorators/log.js';
@@ -32,7 +32,7 @@ import type { GlRepository } from './models/repository.js';
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export interface GitRepositoryService extends RepositoryService {}
 
-const skipOverlappingProperties = new Set(['path', 'provider', 'getAbsoluteUri', 'exec']);
+const skipOverlappingProperties = new Set(['path', 'provider', 'getAbsoluteUri', 'exec', 'run']);
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class GitRepositoryService {
@@ -63,8 +63,23 @@ export class GitRepositoryService {
 		return this._provider.excludeIgnoredUris(this.path, uris);
 	}
 
-	exec(args: readonly string[], options?: GitExecOptions): Promise<GitResult> {
-		return this._svc.exec(this.path, args, options);
+	/**
+	 * Build an {@link UnsafeGit} escape hatch for this repository, or `undefined`
+	 * if the provider doesn't support raw git (virtual GitHub repos, `vscode-vfs://`,
+	 * PRs).
+	 *
+	 * Hand the result to libraries that need to issue raw `git <args>` commands
+	 * (`@gitkraken/compose-tools`, `@gitkraken/shared-tools` undo). Inside GitLens,
+	 * use the typed sub-providers (`this.branches`, `this.commits`, `this.diff`, …)
+	 * for everything else — those carry cancellation, caching, signing-awareness,
+	 * and decorator behaviors that raw invocation skips.
+	 *
+	 * The `UnsafeGit` type name is the discouragement: any callsite holding one
+	 * just to call `run(...)` for an ad-hoc command should be reviewed as a
+	 * layering violation. New callers should be the rare exception, not the rule.
+	 */
+	createUnsafeGit(): UnsafeGit | undefined {
+		return this._provider.createUnsafeGit?.(this.path);
 	}
 
 	@trace()
