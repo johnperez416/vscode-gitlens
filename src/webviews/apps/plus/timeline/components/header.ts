@@ -657,7 +657,7 @@ export class GlTimelineHeader extends LitElement {
 					<option value="all" ?selected=${period === 'all'}>Full history</option>
 				</select>
 			</span>
-			<small class="config__help">Older history loads as you scroll or zoom out.</small>
+			<small class="config__help">Older history loads dynamically as you scroll</small>
 		</section>`;
 	}
 
