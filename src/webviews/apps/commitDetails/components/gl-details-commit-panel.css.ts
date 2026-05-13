@@ -101,6 +101,11 @@ export const detailsCommitPanelStyles = css`
 		padding: 0 var(--gl-panel-padding-right) 0 var(--gl-panel-padding-left);
 		gap: 0.6rem;
 		flex: none;
+		min-width: 0;
+		// Contain children's intrinsic overflow so an unwrapped SHA / branch name / date
+		// can't bleed into the .commit-detail-panel's scrollWidth and trigger a phantom
+		// horizontal scrollbar at narrow sidebar widths.
+		overflow: hidden;
 		min-height: var(--gl-metadata-bar-min-height);
 		font-size: var(--gl-font-sm);
 		background-color: var(--gl-metadata-bar-bg);

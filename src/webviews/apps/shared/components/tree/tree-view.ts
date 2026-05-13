@@ -162,14 +162,10 @@ export class GlTreeView extends GlElement {
 
 			.hover-popover {
 				pointer-events: none;
+				--max-width: min(40rem, 90vw);
 			}
-			/* gl-popover's body uses auto-size="horizontal", which shrinks to the space left of
-			   the anchor — on a narrow webview that produces a cramped tooltip that wraps mid-path.
-			   The min-width also gives Floating UI's flip middleware a reason to prefer the
-			   opposite side when crowded. */
 			.hover-popover::part(body) {
-				min-width: 20rem;
-				max-width: min(50rem, 92vw);
+				box-sizing: border-box;
 			}
 
 			.hover-content {
@@ -849,6 +845,17 @@ export class GlTreeView extends GlElement {
 		});
 	}
 
+	// A single, persistent virtual element used as the popover anchor. We mutate its rect
+	// in place on every hover instead of allocating a fresh object — that way the popover's
+	// `.anchor` property keeps the same identity, wa-popup never runs its handleAnchorChange
+	// (which does hidePopover → rAF → showPopover and produces a visible disappear/reappear
+	// jump when the cursor hops between rows), and we just ask wa-popup to recompute the
+	// position against the updated rect via reposition().
+	private readonly _virtualAnchorRect = { x: 0, y: 0, top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 };
+	private readonly _virtualAnchor = {
+		getBoundingClientRect: (): Omit<DOMRect, 'toJSON'> => this._virtualAnchorRect,
+	};
+
 	private onTreeItemHover(event: MouseEvent, model: TreeModelFlat) {
 		if (!model.tooltip) {
 			this.onTreeItemUnhover();
@@ -864,28 +871,37 @@ export class GlTreeView extends GlElement {
 		// vertically with the row so the tooltip floats just to the side and never sits in the
 		// vertical path the cursor takes when moving between rows.
 		const x = this.tooltipAnchorRight ? this.getBoundingClientRect().right : event.clientX;
-		this._hoveredAnchor = {
-			getBoundingClientRect: () => ({
-				x: x,
-				y: itemRect.top,
-				top: itemRect.top,
-				bottom: itemRect.bottom,
-				left: x,
-				right: x,
-				width: 0,
-				height: itemRect.height,
-			}),
-		};
+		const rect = this._virtualAnchorRect;
+		rect.x = rect.left = rect.right = x;
+		rect.y = rect.top = itemRect.top;
+		rect.bottom = itemRect.bottom;
+		rect.height = itemRect.height;
+		// width stays 0
+		this._hoveredAnchor = this._virtualAnchor;
 		this._hoveredTooltip = model.tooltip;
 
 		if (this._hoverOpen) {
-			// Already showing — update immediately for the new item
+			// Already showing — anchor identity is unchanged so Lit/wa-popup won't trigger a
+			// stop/start cycle on the popover. Ask wa-popup to recompute its position against
+			// the freshly-mutated rect so the tooltip follows the new row without disappearing.
+			void this._repositionHoverPopover();
 			return;
 		}
 
 		this._hoverTimer = setTimeout(() => {
 			this._hoverOpen = true;
 		}, 500);
+	}
+
+	private async _repositionHoverPopover(): Promise<void> {
+		// Wait for Lit to flush any pending property updates (e.g. `_hoveredTooltip` →
+		// `gl-markdown`), then ask wa-popup to recompute its position.
+		await this.updateComplete;
+		const popover = this.renderRoot?.querySelector('gl-popover.hover-popover');
+		const waPopup = popover?.shadowRoot?.querySelector('wa-popup') as
+			| (HTMLElement & { reposition?: () => void })
+			| null;
+		waPopup?.reposition?.();
 	}
 
 	private onTreeItemUnhover() {
