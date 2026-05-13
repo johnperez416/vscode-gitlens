@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { cspStyleMap } from './csp-style-map.directive.js';
 import './code-icon.js';
 
 try {
@@ -138,9 +139,10 @@ export class GlAiInput extends LitElement {
 		textarea {
 			resize: none;
 			field-sizing: content;
-			/* Min-height is overridden inline via the rows property so callers can request a
-			   2-row default without affecting the explain inputs that want a single row. */
-			min-height: 1.4em;
+			/* min-height comes from --gl-ai-input-min-height (set on the host via CSSOM in
+			   updated()) so callers can request a 2-row default without affecting the explain
+			   inputs that want a single row. */
+			min-height: var(--gl-ai-input-min-height, 1.4em);
 			max-height: 6em;
 			line-height: 1.4;
 			scrollbar-width: thin;
@@ -331,13 +333,13 @@ export class GlAiInput extends LitElement {
 	rows = 1;
 
 	override render(): unknown {
-		const minHeight = this.rows > 1 ? `${this.rows * 1.4}em` : undefined;
-		const textareaStyle = minHeight != null ? `min-height: ${minHeight}` : undefined;
+		// `cspStyleMap` treats `null` as "remove", so single-row falls back to the CSS default.
+		const minHeight = this.rows > 1 ? `${this.rows * 1.4}em` : null;
 		const inputPart = this.multiline
 			? html`<textarea
 					part="input"
 					rows=${this.rows}
-					style=${textareaStyle ?? nothing}
+					style=${cspStyleMap({ '--gl-ai-input-min-height': minHeight })}
 					aria-label=${this.placeholder}
 					placeholder=${this.busy ? this.busyLabel : this.placeholder}
 					?disabled=${this.disabled || this.busy}

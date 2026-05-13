@@ -1471,7 +1471,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 						tabindex="0"
 						@click=${this.onCurrentCommitClick}
 						@keydown=${this.onCurrentCommitKeydown}
-						style="cursor: pointer"
+						class="clickable"
 					></gl-commit-sha>
 				</gl-tooltip>`
 			: nothing;
@@ -1803,7 +1803,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 					tabindex="0"
 					@click=${this.onBranchClick}
 					@keydown=${this.onBranchKeydown}
-					style="cursor: pointer"
+					class="clickable"
 				></gl-branch-name>
 			</gl-tooltip>
 			${this.state.onto
@@ -1815,7 +1815,7 @@ export class GlRebaseEditor extends GlAppHost<State, RebaseStateProvider> {
 								tabindex="0"
 								@click=${this.onOntoClick}
 								@keydown=${this.onOntoKeydown}
-								style="cursor: pointer"
+								class="clickable"
 							></gl-commit-sha>
 						</gl-tooltip>
 					</span>`

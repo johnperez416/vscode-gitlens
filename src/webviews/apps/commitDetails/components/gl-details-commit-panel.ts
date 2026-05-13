@@ -342,7 +342,6 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 			.activeMode=${this.activeMode}
 			.loading=${this.loading}
 			.modes=${this.computeCommitModes()}
-			style="--mode-header-bg: var(--titlebar-bg, var(--vscode-sideBar-background, var(--color-background)))"
 		>
 			${slot}
 			${when(

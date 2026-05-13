@@ -96,7 +96,9 @@ export class GlDetailsBase extends LitElement {
 				@gl-file-tree-pane-open-multi-diff=${multiDiff ? () => this.onOpenMultiDiff(multiDiff) : null}
 			>
 				${options?.stats
-					? html`<span slot="subtitle" style="opacity: 1">${this.renderCommitStats(options.stats)}</span>`
+					? html`<span class="commit-stats-subtitle" slot="subtitle"
+							>${this.renderCommitStats(options.stats)}</span
+						>`
 					: nothing}
 				${isLoadingEmpty
 					? html`<div slot="before-tree" class="files-loading" aria-busy="true">

@@ -16,6 +16,10 @@ export const detailsBaseStyles = [
 			display: contents;
 		}
 
+		.commit-stats-subtitle {
+			opacity: 1;
+		}
+
 		a {
 			text-decoration: none;
 		}

@@ -8,6 +8,7 @@ import { getCssVariable } from '@gitlens/utils/color.js';
 import { defer } from '@gitlens/utils/promise.js';
 import { pluralize } from '@gitlens/utils/string.js';
 import type { State, TimelineDatum, TimelineSliceBy } from '../../../../plus/timeline/protocol.js';
+import { cspStyleMap } from '../../../shared/components/csp-style-map.directive.js';
 import { GlElement } from '../../../shared/components/element.js';
 import { formatDate, fromNow } from '../../../shared/date.js';
 import type { Disposable } from '../../../shared/events.js';
@@ -1146,7 +1147,7 @@ export class GlTimelineChart extends GlElement {
 					data-dimmed=${dimmed ? 'true' : 'false'}
 					data-active=${active ? 'true' : 'false'}
 					data-hidden=${hidden ? 'true' : 'false'}
-					style=${`top: ${cy}px; --rail-avatar-color: ${color};`}
+					style=${cspStyleMap({ top: `${cy}px`, '--rail-avatar-color': color })}
 					@pointerenter=${() => this._setSliceHover(i)}
 					@pointerleave=${() => this._setSliceHover(undefined)}
 					@click=${(e: MouseEvent) => this._toggleSlice(i, e)}
@@ -1172,7 +1173,11 @@ export class GlTimelineChart extends GlElement {
 				data-dimmed=${dimmed ? 'true' : 'false'}
 				data-active=${active ? 'true' : 'false'}
 				data-hidden=${hidden ? 'true' : 'false'}
-				style=${`top: ${cy}px; --rail-avatar-color: ${color}; --gl-avatar-size: ${railSize}px;`}
+				style=${cspStyleMap({
+					top: `${cy}px`,
+					'--rail-avatar-color': color,
+					'--gl-avatar-size': `${railSize}px`,
+				})}
 				@pointerenter=${() => this._setSliceHover(i)}
 				@pointerleave=${() => this._setSliceHover(undefined)}
 				@click=${(e: MouseEvent) => this._toggleSlice(i, e)}
@@ -1216,15 +1221,16 @@ export class GlTimelineChart extends GlElement {
 				const stops = tickCount > 0 ? pickY2TickStops(yMax, tickCount) : [];
 				const y2Ticks = stops.map(v => {
 					const y = baselineY - volumeBarHeight(v, yMax, usableH);
+					const top = `${y}px`;
 					return html`
-						<div class="rail__y2-tick" style="top: ${y}px;"></div>
-						<div class="rail__y2-label" style="top: ${y}px;">${formatY2(v)}</div>
+						<div class="rail__y2-tick" style=${cspStyleMap({ top: top })}></div>
+						<div class="rail__y2-label" style=${cspStyleMap({ top: top })}>${formatY2(v)}</div>
 					`;
 				});
 
 				y2Axis = html`
 					${showTitle
-						? html`<div class="rail__y2-title" style="top: ${(baselineY + farY) / 2}px;">
+						? html`<div class="rail__y2-title" style=${cspStyleMap({ top: `${(baselineY + farY) / 2}px` })}>
 								Lines changed
 							</div>`
 						: nothing}
@@ -1264,42 +1270,51 @@ export class GlTimelineChart extends GlElement {
 		// since they don't fit cleanly in that height.
 		const compact = lo.volumeBottom - lo.volumeTop <= 0;
 
-		const overlayStyle = [
-			`top: ${lo.axisStripTop}px`,
-			`height: ${axisHeight}px`,
-			`--axis-label-color: ${theme.axisLabel}`,
-			`--axis-domain-color: ${theme.axisDomain}`,
-			`--axis-scrollbar-track: ${theme.scrollThumb}`,
-			`--axis-scrollbar-thumb: ${theme.scrollThumbHover}`,
-		].join('; ');
-		const glassStyle = `left: ${lo.chartLeft}px; width: ${lo.chartRight - lo.chartLeft}px;`;
-		const baselineStyle = `left: 0; top: ${axisHeight - 1}px; width: 100%;`;
+		const overlayStyle = {
+			top: `${lo.axisStripTop}px`,
+			height: `${axisHeight}px`,
+			'--axis-label-color': theme.axisLabel,
+			'--axis-domain-color': theme.axisDomain,
+			'--axis-scrollbar-track': theme.scrollThumb,
+			'--axis-scrollbar-thumb': theme.scrollThumbHover,
+		};
+		const glassStyle = { left: `${lo.chartLeft}px`, width: `${lo.chartRight - lo.chartLeft}px` };
+		const baselineStyle = { left: '0', top: `${axisHeight - 1}px`, width: '100%' };
 
 		return html`<div
 			class="axis-overlay"
 			data-compact=${compact ? 'true' : 'false'}
 			aria-hidden="true"
-			style=${overlayStyle}
+			style=${cspStyleMap(overlayStyle)}
 		>
-			<div class="axis-overlay__glass" style=${glassStyle}></div>
-			<div class="axis-overlay__baseline" style=${baselineStyle}></div>
-			${ticks.map(tick =>
-				compact
-					? html`<div class="axis-overlay__label" style=${`left: ${tick.x}px;`}>${tick.label}</div>`
+			<div class="axis-overlay__glass" style=${cspStyleMap(glassStyle)}></div>
+			<div class="axis-overlay__baseline" style=${cspStyleMap(baselineStyle)}></div>
+			${ticks.map(tick => {
+				const left = `${tick.x}px`;
+				return compact
+					? html`<div class="axis-overlay__label" style=${cspStyleMap({ left: left })}>${tick.label}</div>`
 					: html`<div
 								class="axis-overlay__tick"
-								style=${`left: ${tick.x}px; top: ${axisHeight - 2}px;`}
+								style=${cspStyleMap({ left: left, top: `${axisHeight - 2}px` })}
 							></div>
-							<div class="axis-overlay__label" style=${`left: ${tick.x}px;`}>${tick.label}</div>`,
-			)}
+							<div class="axis-overlay__label" style=${cspStyleMap({ left: left })}>${tick.label}</div>`;
+			})}
 			${scrollbar != null
 				? html`<div
 						class="axis-overlay__scrollbar"
-						style=${`left: ${scrollbar.trackX}px; top: ${scrollbar.trackY - lo.axisStripTop}px; width: ${scrollbar.trackWidth}px; height: ${scrollbar.trackHeight}px;`}
+						style=${cspStyleMap({
+							left: `${scrollbar.trackX}px`,
+							top: `${scrollbar.trackY - lo.axisStripTop}px`,
+							width: `${scrollbar.trackWidth}px`,
+							height: `${scrollbar.trackHeight}px`,
+						})}
 					>
 						<div
 							class="axis-overlay__scrollbar-thumb"
-							style=${`left: ${scrollbar.thumbX - scrollbar.trackX}px; width: ${scrollbar.thumbWidth}px;`}
+							style=${cspStyleMap({
+								left: `${scrollbar.thumbX - scrollbar.trackX}px`,
+								width: `${scrollbar.thumbWidth}px`,
+							})}
 						></div>
 					</div>`
 				: nothing}

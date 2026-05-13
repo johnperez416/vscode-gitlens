@@ -1,6 +1,10 @@
 import { css } from 'lit';
 
 export const detailsCommitPanelStyles = css`
+	:host {
+		--mode-header-bg: var(--titlebar-bg, var(--vscode-sideBar-background, var(--color-background)));
+	}
+
 	/* Split panel layout */
 	:host([variant='embedded']) .split {
 		flex: 1;

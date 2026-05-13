@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import { ref } from 'lit/directives/ref.js';
+import { cspStyleMap } from './csp-style-map.directive.js';
 import { focusableBaseStyles, srOnlyStyles } from './styles/lit/a11y.css.js';
 import './code-icon.js';
 import './overlays/popover.js';
@@ -344,19 +345,13 @@ export class GlBreadcrumbs extends LitElement {
 	private renderOverflowIndicator(run: { startIdx: number; items: GlBreadcrumbItem[] }) {
 		// Position the indicator at an odd flex `order` between the previous visible item
 		// (order = (startIdx - 1) * 2) and the run's would-be slot (order = startIdx * 2).
-		// Set via CSSOM (ref callback) instead of an inline `style="..."` attribute — VS Code
-		// webview CSP forbids inline style attributes; direct property writes are allowed.
+		// Applied via `cspStyleMap` (CSSOM) — the webview CSP forbids inline `style="…"` attributes.
 		const order = run.startIdx * 2 - 1;
-		const setOrder = (el: Element | undefined) => {
-			if (el instanceof HTMLElement) {
-				el.style.order = String(order);
-			}
-		};
 		// If the run starts with a folded fold-target, its icon becomes the popover trigger
 		// instead of the default `…` glyph.
 		const first = run.items[0];
 		const foldedIcon = first?.foldable && first.icon ? first.icon : undefined;
-		return html`<span class="overflow-wrapper" ${ref(setOrder)}>
+		return html`<span class="overflow-wrapper" style=${cspStyleMap({ order: String(order) })}>
 			<gl-popover appearance="menu" trigger="click focus" placement="bottom-start" .arrow=${false} distance="0">
 				<gl-breadcrumb-item
 					slot="anchor"

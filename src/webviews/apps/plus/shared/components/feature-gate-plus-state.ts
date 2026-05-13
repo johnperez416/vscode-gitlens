@@ -81,6 +81,10 @@ export class GlFeatureGatePlusState extends LitElement {
 				text-align: center;
 			}
 
+			.preview-image {
+				width: 100%;
+			}
+
 			.actions-row {
 				display: flex;
 				gap: 0.6em;
@@ -295,8 +299,8 @@ export class GlFeatureGatePlusState extends LitElement {
 							</p>
 							<p>
 								<img
+									class="preview-image"
 									src="${this.webroot ?? ''}/media/graph-commit-search.webp"
-									style="width:100%"
 									alt="Graph Commit Search"
 								/>
 							</p> `;
@@ -310,8 +314,8 @@ export class GlFeatureGatePlusState extends LitElement {
 							</p>
 							<p>
 								<img
+									class="preview-image"
 									src="${this.webroot ?? ''}/media/graph-minimap.webp"
-									style="width:100%"
 									alt="Graph Minimap"
 								/>
 							</p>
