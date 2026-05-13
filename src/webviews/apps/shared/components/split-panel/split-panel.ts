@@ -154,20 +154,31 @@ export class GlSplitPanel extends LitElement {
 		this._resizeObserver = new ResizeObserver(entries => {
 			const rect = entries[0].contentRect;
 			const size = Math.round(this.isHorizontal ? rect.width : rect.height);
+			// Ignore zero-size measurements (e.g. when the host is `display: none`). Recomputing
+			// `_position` against a 0 size collapses it to 0 or 100 via division-by-zero clamp,
+			// emits a spurious change event that persists corrupted state, and causes a one-frame
+			// flash of the collapsed position when the element is re-shown.
+			if (size === 0) return;
 			if (size !== this._size) {
 				const oldPos = this._position;
 				this._size = size;
 
 				// When a primary panel is set, maintain its pixel width
 				if (this.primary && this._cachedPrimaryPx > 0) {
-					if (this.primary === 'end') {
-						this._position = clampPosition(100 - (this._cachedPrimaryPx / size) * 100);
-					} else {
-						this._position = clampPosition((this._cachedPrimaryPx / size) * 100);
-					}
+					const raw =
+						this.primary === 'end'
+							? clampPosition(100 - (this._cachedPrimaryPx / size) * 100)
+							: clampPosition((this._cachedPrimaryPx / size) * 100);
 					// Apply snap for visual constraints but DON'T update the cache —
-					// this preserves the intended pixel width for when the container grows back
-					this._position = this.applySnap(this._position);
+					// this preserves the intended pixel width for when the container grows back.
+					const snapped = this.applySnap(raw);
+					// A resize is not a user gesture — the container changed shape, the user
+					// didn't ask to close the panel. If snap would transition open → closed,
+					// refuse and keep the unsnapped raw position (still clamped 0–100, still
+					// honors the cached pixel width). User-driven paths (pointer/keyboard/
+					// setter) still honor close-snap because they don't go through this branch.
+					const wasClosed = this._closedState === true;
+					this._position = !wasClosed && this.computeClosed(snapped) ? raw : snapped;
 				}
 				// No primary: position stays the same percentage → proportional scaling
 
