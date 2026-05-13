@@ -316,8 +316,13 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
 	private applyOptimisticEntries(entries: RebaseEntry[]): void {
 		if (this._state == null) return;
 
-		this._state = { ...this._state, entries: entries, timestamp: Date.now() };
-		this._expectedEntriesSignature = getEntriesSignature(entries);
+		// Mirror the host's validation: the oldest commit entry can never be `squash` or `fixup`
+		// (there'd be nothing to squash into). If the user's optimistic state would violate that,
+		// preemptively force it to `pick` so the local signature matches what the host will write.
+		const fixed = enforceOldestPickable(entries);
+
+		this._state = { ...this._state, entries: fixed, timestamp: Date.now() };
+		this._expectedEntriesSignature = getEntriesSignature(fixed);
 		this._expectedSignatureSetAt = performance.now();
 		this.provider.setValue(this._state, true);
 		this.host.requestUpdate();
@@ -434,6 +439,29 @@ export class RebaseStateProvider extends StateProviderBase<State['webviewId'], S
  * detect when the host's notification matches its optimistic state. Includes order,
  * id, and action (the only fields the user can mutate via optimistic ops).
  */
-function getEntriesSignature(entries: RebaseEntry[]): string {
+export function getEntriesSignature(entries: RebaseEntry[]): string {
 	return entries.map(e => (isCommitEntry(e) ? `${e.id}:${e.action}` : `${e.id}:cmd`)).join('|');
+}
+
+/**
+ * Mirrors the host's validation rule: the oldest commit entry's action cannot be `squash`
+ * or `fixup` (there's nothing earlier to squash/fixup into). If it is, override to `pick`.
+ * Returns the input array unchanged when no fix is needed.
+ *
+ * Keeping this rule in sync with the host (see `RebaseTodoDocument.changeActions` /
+ * `ensureValidOldestAction`) keeps optimistic state matching what the host will write,
+ * avoiding the 1s reconciliation timeout flicker.
+ */
+export function enforceOldestPickable(entries: RebaseEntry[]): RebaseEntry[] {
+	const oldestIndex = entries.findIndex(isCommitEntry);
+	if (oldestIndex === -1) return entries;
+
+	const oldest = entries[oldestIndex];
+	if (!isCommitEntry(oldest) || (oldest.action !== 'squash' && oldest.action !== 'fixup')) {
+		return entries;
+	}
+
+	const next = entries.slice();
+	next[oldestIndex] = { ...oldest, action: 'pick' };
+	return next;
 }

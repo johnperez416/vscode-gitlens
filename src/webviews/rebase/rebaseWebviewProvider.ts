@@ -1274,7 +1274,7 @@ export class RebaseWebviewProvider implements Disposable {
 					this._etagRepository = repo.etag;
 				}
 
-				void this.host.notify(DidChangeNotification, { state: state });
+				await this.host.notify(DidChangeNotification, { state: state });
 			} finally {
 				this._pendingStateNotify = undefined;
 				// Trailing run: if a change arrived during the in-flight notify, kick off another pass
