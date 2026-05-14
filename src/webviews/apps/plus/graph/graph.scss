@@ -1220,6 +1220,8 @@ web-graph {
 
 // Light DOM
 .graph-container {
+	container-type: inline-size;
+
 	& .resizable-handle.horizontal {
 		display: none;
 	}
@@ -1230,7 +1232,7 @@ web-graph {
 
 	& .graph-adjust-commit-count {
 		display: flex;
-		width: calc(100vw - var(--graph-column-scrollbar-thickness));
+		width: calc(100cqw - var(--graph-column-scrollbar-thickness));
 		align-items: center;
 		justify-content: center;
 	}
