@@ -983,6 +983,21 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 									: html`Jump to HEAD<br />[${getAltKeySymbol()}] Jump to Reference...`}
 							</span>
 						</gl-button>
+						<gl-tooltip placement="bottom">
+							<a
+								class="action-button"
+								href=${createCommandLink<BranchGitCommandArgs>('gitlens.git.branch', {
+									command: 'branch',
+									confirm: true,
+									state: { subcommand: 'create', reference: branch },
+								})}
+							>
+								<code-icon class="action-button__icon" icon="custom-start-work"></code-icon>
+							</a>
+							<span slot="content">
+								Create New Branch from <gl-branch-name .name=${branch?.name}></gl-branch-name>
+							</span>
+						</gl-tooltip>
 					`,
 				)}
 			</div>
@@ -1061,21 +1076,6 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 				)}
 				<gl-tooltip placement="bottom">
 					<a
-						class="action-button"
-						href=${createCommandLink<BranchGitCommandArgs>('gitlens.git.branch', {
-							command: 'branch',
-							confirm: true,
-							state: { subcommand: 'create', reference: branch },
-						})}
-					>
-						<code-icon class="action-button__icon" icon="custom-start-work"></code-icon>
-					</a>
-					<span slot="content">
-						Create New Branch from <gl-branch-name .name=${branch?.name}></gl-branch-name>
-					</span>
-				</gl-tooltip>
-				<gl-tooltip placement="bottom">
-					<a
 						href=${`command:gitlens.showLaunchpad?${encodeURIComponent(
 							JSON.stringify({
 								source: 'graph',
@@ -1088,25 +1088,6 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 					<span slot="content">
 						<strong>Launchpad</strong> &mdash; organizes your pull requests into actionable groups to help
 						you focus and keep your team unblocked
-					</span>
-				</gl-tooltip>
-				<gl-tooltip placement="bottom">
-					<a
-						href=${this._webview.createCommandLink('gitlens.visualizeHistory.repo:')}
-						class="action-button"
-						aria-label=${`Open Visual History`}
-					>
-						<span>
-							<code-icon
-								class="action-button__icon"
-								icon=${'graph-scatter'}
-								aria-hidden="true"
-							></code-icon>
-						</span>
-					</a>
-					<span slot="content">
-						<strong>Visual History</strong> — visualize the evolution of a repository, branch, folder, or
-						file and identify when the most impactful changes were made and by whom
 					</span>
 				</gl-tooltip>
 				<gl-tooltip placement="bottom">

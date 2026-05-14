@@ -8342,15 +8342,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		});
 	}
 
-	@command('gitlens.visualizeHistory.repo:')
-	@debug()
-	private visualizeHistoryRepo() {
-		void executeCommand<TimelineCommandArgs | undefined>(
-			'gitlens.visualizeHistory',
-			this.repository != null ? { type: 'repo', uri: this.repository.uri } : undefined,
-		);
-	}
-
 	private getCommitFromGraphItemRef(item?: GraphItemContext): Promise<GitCommit | undefined> {
 		let ref: GitRevisionReference | GitStashReference | undefined = this.getGraphItemRef(item, 'revision');
 		if (ref != null) return this.container.git.getRepositoryService(ref.repoPath).commits.getCommit(ref.ref);
