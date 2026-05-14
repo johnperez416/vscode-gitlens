@@ -1053,7 +1053,7 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 					() => html`
 						<gl-popover class="hooks-tooltip" placement="bottom" trigger="click focus hover">
 							<button type="button" class="action-button action-button--hooks" slot="anchor">
-								<code-icon class="action-button__icon" icon="hubot"></code-icon>
+								<code-icon class="action-button__icon" icon="robot"></code-icon>
 							</button>
 							<div class="hooks-tooltip__content" slot="content">
 								<strong>Install Claude Code Hooks</strong><br />

@@ -16,5 +16,5 @@ export async function installClaudeHook(): Promise<void> {
 		args.push('--blocking-event', event);
 	}
 	await runCLICommand(args);
-	void window.showInformationMessage('Claude hook installed successfully.');
+	void window.showInformationMessage('Claude Hooks installed successfully.');
 }

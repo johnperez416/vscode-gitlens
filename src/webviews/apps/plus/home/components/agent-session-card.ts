@@ -152,7 +152,7 @@ export class GlAgentSessionCard extends LitElement {
 	private renderSession(session: AgentSessionState): unknown {
 		return html`
 			<div class="session">
-				<code-icon icon="hubot" title="Agent"></code-icon>
+				<code-icon icon="robot" title="Agent"></code-icon>
 				<gl-agent-status-pill .session=${session}></gl-agent-status-pill>
 				<span class="session__name">${session.name}</span>
 				${session.subagentCount > 0

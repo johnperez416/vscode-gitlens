@@ -229,7 +229,7 @@ export class AgentStatusService implements Disposable {
 				} catch (ex) {
 					Logger.error(ex, 'AgentStatusService.installClaudeHook');
 					void window.showErrorMessage(
-						`Failed to install Claude hook: ${ex instanceof Error ? ex.message : String(ex)}`,
+						`Failed to install Claude Hooks: ${ex instanceof Error ? ex.message : String(ex)}`,
 					);
 				}
 			}),
@@ -242,7 +242,7 @@ export class AgentStatusService implements Disposable {
 				} catch (ex) {
 					Logger.error(ex, 'AgentStatusService.uninstallClaudeHook');
 					void window.showErrorMessage(
-						`Failed to uninstall Claude hook: ${ex instanceof Error ? ex.message : String(ex)}`,
+						`Failed to uninstall Claude Hooks: ${ex instanceof Error ? ex.message : String(ex)}`,
 					);
 				}
 			}),
@@ -292,7 +292,7 @@ export class AgentStatusService implements Disposable {
 				for (const s of workspaceSessions) {
 					const worktreeName = this.getWorktreeNameForSession(s);
 					items.push({
-						label: `$(hubot) ${s.name}`,
+						label: `$(robot) ${s.name}`,
 						description: s.status,
 						detail: worktreeName ? `worktree: ${worktreeName}` : undefined,
 						session: s,
@@ -304,7 +304,7 @@ export class AgentStatusService implements Disposable {
 				items.push(createQuickPickSeparator('Other workspaces'));
 				for (const s of externalSessions) {
 					items.push({
-						label: `$(hubot) ${s.name}`,
+						label: `$(robot) ${s.name}`,
 						description: s.status,
 						detail: s.workspacePath ?? undefined,
 						session: s,

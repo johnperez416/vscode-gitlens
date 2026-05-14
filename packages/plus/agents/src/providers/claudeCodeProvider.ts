@@ -118,7 +118,7 @@ function normalizeWorkspacePath(value: string | null | undefined): string | unde
 export class ClaudeCodeProvider implements AgentSessionProvider {
 	readonly id = 'claudeCode';
 	readonly name = 'Claude Code';
-	readonly icon = 'hubot';
+	readonly icon = 'robot';
 
 	private readonly _onDidChangeSessions = new Emitter<void>();
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;

@@ -577,7 +577,7 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 	private renderHooksStatus() {
 		if (!this.aiEnabled || !this.ai.hooks.canInstallClaudeHook) return nothing;
 		return html`<span class="integration status--disconnected" slot="anchor">
-			<code-icon icon="hubot"></code-icon>
+			<code-icon icon="robot"></code-icon>
 		</span>`;
 	}
 
@@ -590,7 +590,7 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 
 		if (claude.installed) {
 			return html`<div class="integration-row integration-row--hooks status--connected">
-				<span class="integration__icon"><code-icon icon="hubot"></code-icon></span>
+				<span class="integration__icon"><code-icon icon="robot"></code-icon></span>
 				<span class="integration__content">
 					<span class="integration__title">GitKraken Claude Code Hooks</span>
 					<span class="integration__details">Installed — Claude surfaces agent status</span>
@@ -599,8 +599,8 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 					<gl-button
 						appearance="toolbar"
 						href="${createCommandLink('gitlens.agents.uninstallClaudeHook')}"
-						tooltip="Uninstall Claude Hook"
-						aria-label="Uninstall Claude Hook"
+						tooltip="Uninstall Claude Hooks"
+						aria-label="Uninstall Claude Hooks"
 						><code-icon icon="debug-disconnect"></code-icon
 					></gl-button>
 				</span>
@@ -608,7 +608,7 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 		}
 
 		return html`<div class="integration-row integration-row--hooks status--disconnected">
-			<span class="integration__icon"><code-icon icon="hubot"></code-icon></span>
+			<span class="integration__icon"><code-icon icon="robot"></code-icon></span>
 			<span class="integration__content">
 				<span class="integration__title">GitKraken Claude Code Hooks</span>
 				<span class="integration__details">Configure Claude to surface agent status</span>
@@ -617,8 +617,8 @@ export class GlIntegrationsChip extends SignalWatcher(LitElement) {
 				<gl-button
 					appearance="toolbar"
 					href="${createCommandLink('gitlens.agents.installClaudeHook')}"
-					tooltip="Install Claude Hook"
-					aria-label="Install Claude Hook"
+					tooltip="Install Claude Hooks"
+					aria-label="Install Claude Hooks"
 					><code-icon icon="plug"></code-icon
 				></gl-button>
 			</span>

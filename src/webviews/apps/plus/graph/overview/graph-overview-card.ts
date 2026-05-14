@@ -874,7 +874,7 @@ export class GlGraphOverviewCard extends LitElement {
 
 		return html`<gl-tooltip placement="bottom"
 			><span class="branch-item__count"
-				><code-icon icon="hubot"></code-icon>${when(
+				><code-icon icon="robot"></code-icon>${when(
 					sessions.length > 1,
 					() => html`<span>${sessions.length}</span>`,
 				)}</span

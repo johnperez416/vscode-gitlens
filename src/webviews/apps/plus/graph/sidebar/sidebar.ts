@@ -22,7 +22,7 @@ interface Icon {
 type IconTypes = 'agents' | 'branches' | 'overview' | 'remotes' | 'stashes' | 'tags' | 'worktrees';
 const icons: Icon[] = [
 	{ type: 'overview', icon: 'home', tooltip: 'Overview' },
-	{ type: 'agents', icon: 'hubot', tooltip: 'Agents' },
+	{ type: 'agents', icon: 'robot', tooltip: 'Agents' },
 	{ type: 'worktrees', icon: 'gl-worktrees-view', tooltip: 'Worktrees' },
 	{ type: 'branches', icon: 'gl-branches-view', tooltip: 'Branches' },
 	{ type: 'remotes', icon: 'gl-remotes-view', tooltip: 'Remotes' },

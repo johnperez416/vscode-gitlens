@@ -188,7 +188,7 @@ export class GlTreeView extends GlElement {
 				border: 1px solid;
 			}
 
-			/* Phase-tinted hubot icon for agent leaves. Tokens mirror those used by
+			/* Phase-tinted robot icon for agent leaves. Tokens mirror those used by
 			   gl-details-agent-status and gl-agent-status-pill so the sidebar leaf reads as
 			   the same status surface. code-icon's :host inherits color from its parent, so
 			   styling the element here flows through to its rendered glyph. */

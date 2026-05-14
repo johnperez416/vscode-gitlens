@@ -6458,18 +6458,18 @@
 			},
 			{
 				"command": "gitlens.agents.installClaudeHook",
-				"title": "Install Claude Hook",
+				"title": "Install Claude Hooks",
 				"category": "GitLens"
 			},
 			{
 				"command": "gitlens.agents.openSession",
 				"title": "Open AI Agent Session",
 				"category": "GitLens",
-				"icon": "$(hubot)"
+				"icon": "$(robot)"
 			},
 			{
 				"command": "gitlens.agents.uninstallClaudeHook",
-				"title": "Uninstall Claude Hook",
+				"title": "Uninstall Claude Hooks",
 				"category": "GitLens"
 			},
 			{

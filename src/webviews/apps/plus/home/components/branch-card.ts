@@ -810,7 +810,7 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 		if (this.expanded) {
 			return html`
 				<div class="branch-item__agents">
-					<code-icon icon="hubot"></code-icon>
+					<code-icon icon="robot"></code-icon>
 					${sessions.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
 				</div>
 			`;
@@ -834,7 +834,7 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 
 		return html`
 			<div class="branch-item__agents">
-				<code-icon icon="hubot"></code-icon>
+				<code-icon icon="robot"></code-icon>
 				${needsInput.map(s => html`<gl-agent-status-pill .session=${s}></gl-agent-status-pill>`)}
 				${working.length > 0
 					? html`<gl-agent-status-pill
