@@ -950,20 +950,33 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.experimentalFeaturesEnabled=${this._graphState?.config?.experimentalFeaturesEnabled === true}
 			.activeMode=${this._state.activeMode.get()}
 			.subPanelContent=${subPanelContent}
-			@file-open=${(e: CustomEvent<FileChangeListItemDetail>) =>
-				this._actions.openFile(e.detail, this._actions.toSha(shas, swapped))}
-			@file-compare-between=${(e: CustomEvent<FileChangeListItemDetail>) =>
+			@file-open=${(e: CustomEvent<FileChangeListItemDetail>) => {
+				// Sub-panels (review / compare) own their file actions when active — their events
+				// bubble through the host element and would otherwise re-route to the multicommit
+				// default, replacing the editor the sub-panel just opened.
+				if (this._state.activeMode.get() != null) return;
+				this._actions.openFile(e.detail, this._actions.toSha(shas, swapped));
+			}}
+			@file-compare-between=${(e: CustomEvent<FileChangeListItemDetail>) => {
+				if (this._state.activeMode.get() != null) return;
 				this._actions.openFileCompareBetween(
 					e.detail,
 					this._actions.fromSha(shas, swapped),
 					this._actions.toSha(shas, swapped),
-				)}
-			@file-compare-working=${(e: CustomEvent<FileChangeListItemDetail>) =>
-				this._actions.openFileCompareWorking(e.detail, this._actions.toSha(shas, swapped))}
-			@file-compare-previous=${(e: CustomEvent<FileChangeListItemDetail>) =>
-				this._actions.openFileComparePrevious(e.detail, this._actions.fromSha(shas, swapped))}
-			@file-more-actions=${(e: CustomEvent<FileChangeListItemDetail>) =>
-				this._actions.executeFileAction(e.detail, this._actions.toSha(shas, swapped))}
+				);
+			}}
+			@file-compare-working=${(e: CustomEvent<FileChangeListItemDetail>) => {
+				if (this._state.activeMode.get() != null) return;
+				this._actions.openFileCompareWorking(e.detail, this._actions.toSha(shas, swapped));
+			}}
+			@file-compare-previous=${(e: CustomEvent<FileChangeListItemDetail>) => {
+				if (this._state.activeMode.get() != null) return;
+				this._actions.openFileComparePrevious(e.detail, this._actions.fromSha(shas, swapped));
+			}}
+			@file-more-actions=${(e: CustomEvent<FileChangeListItemDetail>) => {
+				if (this._state.activeMode.get() != null) return;
+				this._actions.executeFileAction(e.detail, this._actions.toSha(shas, swapped));
+			}}
 			@swap-selection=${() => this._actions.swap(shas)}
 			@gl-explain=${(e: CustomEvent<{ prompt?: string }>) =>
 				this._actions.compareExplain(shas, repoPath, e.detail?.prompt)}
