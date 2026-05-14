@@ -223,6 +223,7 @@ export interface GraphInspectService {
 		scope: ScopeSelection,
 		instructions?: string,
 		excludedFiles?: string[],
+		aiExcludedFiles?: string[],
 		signal?: AbortSignal,
 	): Promise<ComposeResult>;
 	commitCompose(repoPath: string, plan: ComposeCommitPlan): Promise<CommitResult>;

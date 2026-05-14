@@ -4,7 +4,6 @@ import type { Source } from '../../../../constants.telemetry.js';
 import type { GitRepositoryService } from '../../../../git/gitRepositoryService.js';
 import { ComposeToolsIntegration } from '../../../../plus/coretools/compose/integration.js';
 import type {
-	ApplyUpTo,
 	ComposeApplyPlan,
 	ComposeHunk,
 	ComposePlan,
@@ -23,6 +22,7 @@ export interface GeneratePlanForGraphDetailsInput {
 	scope: ScopeSelection;
 	customInstructions?: string;
 	excludedFiles?: string[];
+	aiExcludedFiles?: string[];
 	cancellation?: CancellationToken;
 	telemetrySource: Source;
 	suppressLargePromptWarning?: boolean;
@@ -84,10 +84,18 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 			const resolved = await this.resolveGraphScope(input.svc, input.scope);
 			const source = this.scopeToComposeSource(input.scope, resolved);
 
-			const excluded = input.excludedFiles?.length ? new Set(input.excludedFiles) : undefined;
-			const hunkFilter = excluded?.size
+			const aiExcluded = input.aiExcludedFiles?.length ? new Set(input.aiExcludedFiles) : undefined;
+			const userExcluded = input.excludedFiles?.length
+				? new Set(input.excludedFiles.filter(p => !aiExcluded?.has(p)))
+				: undefined;
+			const hunkFilter = userExcluded?.size
 				? (hunks: ComposeHunk[]) =>
-						hunks.filter(h => !excluded.has(h.fileName) && !excluded.has(h.originalFileName ?? h.fileName))
+						hunks.filter(
+							h => !userExcluded.has(h.fileName) && !userExcluded.has(h.originalFileName ?? h.fileName),
+						)
+				: undefined;
+			const redactHunkContent = aiExcluded?.size
+				? (h: ComposeHunk) => aiExcluded.has(h.fileName) || aiExcluded.has(h.originalFileName ?? h.fileName)
 				: undefined;
 
 			const result: ComposePlanResult = await composePlan({
@@ -99,6 +107,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 				cancellation: signal,
 				onBeforePrompt: onBeforePrompt,
 				hunkFilter: hunkFilter,
+				redactHunkContent: redactHunkContent,
 			});
 
 			const cacheKey = this.createCacheKey(input.svc.path);
@@ -107,7 +116,8 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 				snapshot: result.snapshot,
 				source: source,
 				sourceHunks: result.source.hunks,
-				excludedFiles: input.excludedFiles?.length ? [...input.excludedFiles] : undefined,
+				excludedFiles: userExcluded?.size ? [...userExcluded] : undefined,
+				aiExcludedFiles: input.aiExcludedFiles?.length ? [...input.aiExcludedFiles] : undefined,
 			});
 
 			return {
@@ -149,18 +159,18 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 			snapshot: cached.snapshot,
 		};
 
-		const totalCommits = cached.plan.allOrderedCommits.length;
-		const applyUpTo: ApplyUpTo =
+		const applyCommitIds =
 			input.mode === 'all'
-				? { kind: 'all' }
-				: { kind: 'count', count: totalCommits - (input.upToIndex ?? totalCommits) };
+				? undefined
+				: cached.plan.allOrderedCommits.slice(0, (input.upToIndex ?? -1) + 1).map(c => c.id);
 
 		const stashLabel = `${graphComposeStashPrefix}${new Date().toISOString().replace(/[:.]/g, '-')}`;
 
-		// Reconstruct the same hunkFilter the plan was generated with. The cached
-		// snapshot's diffHash was computed from the filtered hunk set; if we don't
-		// re-apply the filter at apply time, the library's drift check sees the
-		// fresh unfiltered diff and reports a false-positive SAFETY_CHECK_FAILED.
+		// Reconstruct the same user-only hunkFilter the plan was generated with. The cached
+		// snapshot's diffHash was computed from the filtered hunk set; if we don't re-apply the
+		// filter at apply time, the library's drift check sees the fresh unfiltered diff and
+		// reports a false-positive SAFETY_CHECK_FAILED. aiexclude-masked files were NOT filtered
+		// (only their AI prompt content was masked), so they don't participate here.
 		const excluded = cached.excludedFiles?.length ? new Set(cached.excludedFiles) : undefined;
 		const hunkFilter = excluded?.size
 			? (hunks: ComposeHunk[]) =>
@@ -174,7 +184,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 				onProgress: input.onProgress,
 				signing: input.signing,
 				authorAttribution: 'plurality',
-				applyUpTo: applyUpTo,
+				applyCommitIds: applyCommitIds,
 				stashLabel: stashLabel,
 				hunkFilter: hunkFilter,
 			});
@@ -257,7 +267,13 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 
 	private scopeToComposeSource(
 		scope: ScopeSelection,
-		resolved: { branchName: string; headSha: string; rewriteFromSha: string; kind: string },
+		resolved: {
+			branchName: string;
+			headSha: string;
+			rewriteFromSha: string;
+			selectedShas?: string[];
+			kind: string;
+		},
 	): ComposeSource {
 		if (scope.type !== 'wip') {
 			throw new Error(`Compose does not support scope type '${scope.type}'`);
@@ -274,11 +290,16 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 			};
 		}
 
+		const oldestSha = resolved.selectedShas?.at(-1);
+		if (oldestSha == null) {
+			throw new Error('Compose scope includeShas resolved to an empty selection');
+		}
+
 		if (!hasWip) {
 			return {
 				type: 'commit-range',
 				branch: resolved.branchName,
-				from: resolved.rewriteFromSha,
+				from: oldestSha,
 				to: resolved.headSha,
 			};
 		}
@@ -286,7 +307,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 		return {
 			type: 'commit-range',
 			branch: resolved.branchName,
-			from: resolved.rewriteFromSha,
+			from: oldestSha,
 			to: resolved.headSha,
 			includeWorkdir: {
 				includeStaged: scope.includeStaged,

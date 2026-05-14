@@ -133,7 +133,10 @@ export interface DetailsResources {
 		[string, string, string, 'ahead' | 'behind', BranchComparisonOptions]
 	>;
 	readonly review: Resource<ReviewResult, [string, ScopeSelection, string | undefined, string[] | undefined]>;
-	readonly compose: Resource<ComposeResult, [string, ScopeSelection, string | undefined, string[] | undefined]>;
+	readonly compose: Resource<
+		ComposeResult,
+		[string, ScopeSelection, string | undefined, string[] | undefined, string[] | undefined]
+	>;
 	readonly scopeFiles: Resource<GitFileChangeShape[], [string, ScopeSelection]>;
 }
 

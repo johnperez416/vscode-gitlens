@@ -1070,6 +1070,17 @@ export class ComposerWebviewProvider implements WebviewProvider<State, State, Co
 		}
 	}
 
+	private async resolveOldestInRange(
+		repo: GlRepository | undefined,
+		baseSha: string,
+		headSha: string,
+	): Promise<string | undefined> {
+		if (repo == null) return undefined;
+		const log = await repo.git.commits.getLog(`${baseSha}..${headSha}`, { limit: 0 });
+		if (!log?.commits.size) return undefined;
+		return [...log.commits.values()].at(-1)?.sha;
+	}
+
 	private subscribeToRepository(repository: GlRepository): void {
 		// Dispose existing subscription
 		this._repositorySubscription?.dispose();
@@ -1235,12 +1246,22 @@ export class ComposerWebviewProvider implements WebviewProvider<State, State, Co
 				const inRecompose = this._recompose?.enabled && this._safetyState?.hashes.commits;
 				let librarySource: import('./compose/integration.js').ComposerSource;
 				if (inRecompose && this._safetyState?.baseSha != null && this._safetyState?.headSha != null) {
-					librarySource = {
-						type: 'commit-range',
-						branch: this._recompose?.branchName ?? '',
-						from: this._safetyState.baseSha,
-						to: this._safetyState.headSha,
-					};
+					const oldestSha = await this.resolveOldestInRange(
+						this._currentRepository,
+						this._safetyState.baseSha,
+						this._safetyState.headSha,
+					);
+					if (oldestSha == null) {
+						const stagedOnly = !this._context.diff.unstagedIncluded;
+						librarySource = { type: 'workdir', stagedOnly: stagedOnly };
+					} else {
+						librarySource = {
+							type: 'commit-range',
+							branch: this._recompose?.branchName ?? '',
+							from: oldestSha,
+							to: this._safetyState.headSha,
+						};
+					}
 				} else {
 					const stagedOnly = !this._context.diff.unstagedIncluded;
 					librarySource = { type: 'workdir', stagedOnly: stagedOnly };

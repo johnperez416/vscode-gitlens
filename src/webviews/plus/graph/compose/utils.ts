@@ -23,16 +23,23 @@ const anchorRank: Record<ProposedCommitFile['anchor'], number> = { committed: 0,
  * resulting `ProposedCommitFile`s.
  */
 export function libraryPlanToProposedCommits(
-	planResult: { plan: ComposePlan; sourceHunks: ComposeHunk[]; headSha: string },
+	planResult: {
+		plan: ComposePlan;
+		sourceHunks: ComposeHunk[];
+		headSha: string;
+		kind: 'wip-only' | 'wip+commits' | 'commits-only';
+	},
 	repoPath: string,
 	wipByPath: ReadonlyMap<string, { status: GitFileStatus; originalPath?: string }>,
 	createCombinedDiffForCommit: (hunks: ComposerHunk[]) => { patch: string; filePatches: Map<string, string[]> },
 ): { commits: ProposedCommit[]; commitHunksByIndex: ComposerHunk[][] } {
-	const { plan, sourceHunks, headSha } = planResult;
+	const { plan, sourceHunks, headSha, kind } = planResult;
 	const hunkByIndex = new Map<number, ComposeHunk>();
 	for (const h of sourceHunks) {
 		hunkByIndex.set(h.index, h);
 	}
+
+	const hunkAnchor: ProposedCommitFile['anchor'] = kind === 'wip-only' ? 'unstaged' : 'committed';
 
 	const commitHunksByIndex: ComposerHunk[][] = [];
 	const commits: ProposedCommit[] = plan.allOrderedCommits.map((c, ci): ProposedCommit => {
@@ -46,13 +53,6 @@ export function libraryPlanToProposedCommits(
 
 		const filesByPath = new Map<string, ProposedCommitFile>();
 		for (const lh of c.hunkIndices.map(i => hunkByIndex.get(i)).filter((h): h is ComposeHunk => h != null)) {
-			const hunkAnchor: ProposedCommitFile['anchor'] =
-				lh.source === 'unstaged' || lh.source === 'untracked'
-					? 'unstaged'
-					: lh.source === 'staged'
-						? 'staged'
-						: 'committed';
-
 			const existing = filesByPath.get(lh.fileName);
 			const anchor =
 				existing == null || anchorRank[hunkAnchor] > anchorRank[existing.anchor] ? hunkAnchor : existing.anchor;
@@ -100,7 +100,7 @@ function toComposerHunk(h: ComposeHunk): ComposerHunk {
 		content: h.content,
 		additions: h.additions,
 		deletions: h.deletions,
-		source: h.source === 'branch' ? (h.sourceCommitSha ?? 'commits') : h.source,
+		source: 'unknown',
 		isRename: h.isRename,
 		originalFileName: h.originalFileName,
 		author: h.author

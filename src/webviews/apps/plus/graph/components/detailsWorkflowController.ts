@@ -509,6 +509,7 @@ export class DetailsWorkflowController implements ReactiveController {
 		repoPath: string | undefined,
 		instructions: string | undefined,
 		excludedFiles: string[] | undefined,
+		aiExcludedFiles: string[] | undefined,
 		selectedIds?: ReadonlySet<string>,
 		scopeItems?: ScopeItem[],
 	): void {
@@ -519,7 +520,7 @@ export class DetailsWorkflowController implements ReactiveController {
 		this.actions.state.wipStale.set(false);
 		this.compose.invalidateSnapshot();
 		this._composeFetchedForSelection = this.selectionKey();
-		void this.actions.resources.compose.fetch(repoPath, scope, instructions, excludedFiles);
+		void this.actions.resources.compose.fetch(repoPath, scope, instructions, excludedFiles, aiExcludedFiles);
 	}
 
 	// endregion

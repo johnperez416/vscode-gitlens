@@ -1271,7 +1271,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						return undefined;
 					}
 				},
-				composeChanges: async (repoPath, scope, instructions, excludedFiles, signal) => {
+				composeChanges: async (repoPath, scope, instructions, excludedFiles, aiExcludedFiles, signal) => {
 					const { token: cancellation, dispose: disposeCancellation } = fromAbortSignal(signal);
 					try {
 						signal?.throwIfAborted();
@@ -1300,6 +1300,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							scope: scope,
 							customInstructions: instructions,
 							excludedFiles: excludedFiles,
+							aiExcludedFiles: aiExcludedFiles,
 							cancellation: cancellation,
 							telemetrySource: { source: 'graph' },
 							onProgress: event => {

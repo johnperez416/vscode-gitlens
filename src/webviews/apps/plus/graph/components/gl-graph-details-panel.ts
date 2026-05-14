@@ -647,10 +647,12 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				'gl-details-compose-mode-panel',
 			);
 			const excludedFiles = panel?.excludedFiles.size ? [...panel.excludedFiles] : undefined;
+			const aiExcludedFiles = this._state.aiExcludedFiles.get();
 			this._workflow.runCompose(
 				this.effectiveRepoPath,
 				e.detail?.prompt,
 				excludedFiles,
+				aiExcludedFiles,
 				panel?.selectedIds,
 				scopeItems ?? undefined,
 			);
