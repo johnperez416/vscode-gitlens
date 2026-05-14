@@ -87,7 +87,7 @@ export class GlTrackingPill extends LitElement {
 			}
 
 			return html`<span part="base" class="pill${this.outlined ? ' pill--outlined' : ''}">
-				<span class="state${this.colorized ? ' state--ahead' : ''}"><code-icon icon="check"></code-icon></span>
+				<span class="state${this.colorized ? ' state--ahead' : ''}"><code-icon icon="sync"></code-icon></span>
 			</span>`;
 		}
 
