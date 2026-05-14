@@ -35,7 +35,7 @@ import {
 	resumeBarStyles,
 	reviewModePanelStyles,
 } from './gl-details-review-mode-panel.css.js';
-import { renderErrorState, renderLoadingState } from './shared-panel-templates.js';
+import { getScopeSplitPickerChrome, renderErrorState, renderLoadingState } from './shared-panel-templates.js';
 import '../../../shared/components/actions/action-item.js';
 import '../../../shared/components/actions/action-nav.js';
 import '../../../shared/components/ai-input.js';
@@ -564,8 +564,10 @@ export class GlDetailsReviewModePanel extends LitElement {
 		const scopeEl = this.renderRoot.querySelector<GlCommitsScopePane>('gl-commits-scope-pane');
 		if (!scopeEl || size <= 0) return Math.max(15, Math.min(pos, 70));
 
-		// Cap at scope picker's intrinsic content height so it can't expand beyond its content
-		const maxPercent = Math.min(70, (scopeEl.contentHeight / size) * 100);
+		// Cap at the scope picker's intrinsic height so it can't expand beyond its content.
+		// `contentHeight` is only the inner scroll pane; add the .scope-split__picker wrapper's
+		// padding + border-bottom or the fit-content track clamps short and clips / desyncs.
+		const maxPercent = Math.min(70, ((scopeEl.contentHeight + getScopeSplitPickerChrome(scopeEl)) / size) * 100);
 		return Math.max(15, Math.min(pos, maxPercent));
 	};
 

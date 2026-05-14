@@ -27,7 +27,7 @@ import {
 	panelStaleBannerStyles,
 	resumeBarStyles,
 } from './gl-details-compose-mode-panel.css.js';
-import { renderErrorState, renderLoadingState } from './shared-panel-templates.js';
+import { getScopeSplitPickerChrome, renderErrorState, renderLoadingState } from './shared-panel-templates.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/ai-input.js';
 import '../../../shared/components/gl-ai-model-chip.js';
@@ -457,7 +457,10 @@ export class GlDetailsComposeModePanel extends LitElement {
 		const scopeEl = this.renderRoot.querySelector<GlCommitsScopePane>('gl-commits-scope-pane');
 		if (!scopeEl || size <= 0) return Math.max(15, Math.min(pos, 70));
 
-		const maxPercent = Math.min(70, (scopeEl.contentHeight / size) * 100);
+		// `contentHeight` measures only the inner scroll pane; the .scope-split__picker wrapper adds
+		// padding + a border-bottom. Include that chrome so the fit-content track isn't clamped
+		// short of the picker's true height (which would clip its content / desync the divider).
+		const maxPercent = Math.min(70, ((scopeEl.contentHeight + getScopeSplitPickerChrome(scopeEl)) / size) * 100);
 		return Math.max(15, Math.min(pos, maxPercent));
 	};
 

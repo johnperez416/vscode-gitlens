@@ -31,3 +31,23 @@ export function renderErrorState(
 		</button>
 	</div>`;
 }
+
+/**
+ * Vertical chrome (padding + border) of the `.scope-split__picker` wrapper that hosts the scope
+ * pane in review/compose mode. `GlCommitsScopePane.contentHeight` only measures the inner scroll
+ * pane, so the `.scope-split` snap function adds this to size the fit-content track to the
+ * picker's true height — otherwise the track clamps short and clips the content / desyncs the
+ * divider. Pass the `gl-commits-scope-pane` element; returns 0 if it isn't inside a picker.
+ */
+export function getScopeSplitPickerChrome(scopeEl: Element): number {
+	const picker = scopeEl.closest<HTMLElement>('.scope-split__picker');
+	if (picker == null) return 0;
+
+	const style = getComputedStyle(picker);
+	return (
+		parseFloat(style.paddingTop) +
+		parseFloat(style.paddingBottom) +
+		parseFloat(style.borderTopWidth) +
+		parseFloat(style.borderBottomWidth)
+	);
+}

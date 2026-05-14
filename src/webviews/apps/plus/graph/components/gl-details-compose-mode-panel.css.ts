@@ -132,6 +132,10 @@ export const composeModePanelStyles = css`
 	.compose-plan__split {
 		flex: 1;
 		min-height: 0;
+		/* Size the start track to the commits list (capped at the drag position) instead of a
+		   fixed 50%, so a short list doesn't leave the divider + border-bottom floating in empty
+		   space far below the last commit. Mirrors panelScopeSplitStyles' .scope-split. */
+		--gl-split-panel-start-size: fit-content(var(--_start-size, 50%));
 	}
 
 	.compose-plan__split-start,

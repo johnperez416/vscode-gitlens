@@ -54,9 +54,12 @@ export const fileTreeStyles = css`
 	   the top of the header while .header-actions fills it — visually 3px too high.
 	   align-items: center re-centers .label so the title content lines up with the
 	   action buttons. */
+	/* !important is required: webview-pane's own .header rule (specificity 0,1,0) outranks this
+	   ::part() selector (0,0,2), so without it webview-pane's default border-top bleeds through
+	   wherever the --gl-file-tree-pane-header-border-top var isn't set (compose/review/etc.). */
 	webview-pane::part(header) {
 		background-color: inherit;
-		border-top: var(--gl-file-tree-pane-header-border-top, none);
+		border-top: var(--gl-file-tree-pane-header-border-top, none) !important;
 		align-items: center;
 	}
 

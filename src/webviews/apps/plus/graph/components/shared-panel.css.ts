@@ -167,6 +167,10 @@ export const panelScopeSplitStyles = css`
 	}
 
 	.scope-split__picker {
+		/* border-box so the padding + border-bottom live INSIDE height: 100% — otherwise (the UA
+		   default content-box) they render outside the grid track, pushing the picker ~13px past
+		   the split divider so the two overlap. */
+		box-sizing: border-box;
 		height: 100%;
 		overflow: hidden;
 		display: flex;
