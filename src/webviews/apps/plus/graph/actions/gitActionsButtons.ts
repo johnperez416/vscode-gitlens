@@ -129,6 +129,8 @@ export class GitActionsButtons extends LitElement {
 								></commit-stats>
 							</a>
 							<span slot="content">
+								Jump to WIP
+								<hr />
 								Working Changes
 								<br />
 								${this.workingTreeStats!.added
@@ -140,8 +142,6 @@ export class GitActionsButtons extends LitElement {
 								${this.workingTreeStats!.deleted
 									? html`${pluralize('file', this.workingTreeStats!.deleted)} deleted<br />`
 									: nothing}
-								<hr />
-								Click to jump to WIP
 							</span>
 						</gl-tooltip>
 						<gl-tooltip placement="bottom">
