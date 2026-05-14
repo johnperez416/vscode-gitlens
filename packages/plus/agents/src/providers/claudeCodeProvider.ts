@@ -125,6 +125,7 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 
 	private _sessions: AgentSession[] = [];
 	private _ipcStarted = false;
+	private _disposed = false;
 	private _handlerDisposables: UnifiedDisposable[] = [];
 	private readonly _pendingPermissions = new Map<string, PendingPermissionEntry>();
 	private readonly _sessionBookkeeping = new Map<string, SessionBookkeeping>();
@@ -180,6 +181,7 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 	}
 
 	dispose(): void {
+		this._disposed = true;
 		this.stop();
 		this._staleCheckTimer?.dispose();
 		this._staleCheckTimer = undefined;
@@ -205,7 +207,7 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 
 	@gate<typeof ClaudeCodeProvider.prototype.ensureIpcServer>()
 	private async ensureIpcServer(): Promise<void> {
-		if (this._ipcStarted) return;
+		if (this._ipcStarted || this._disposed) return;
 
 		// Register handlers before any async work so blocking permission requests aren't delayed.
 		const handlers: UnifiedDisposable[] = [
@@ -252,11 +254,20 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 			return;
 		}
 
+		if (this._disposed) {
+			for (const d of handlers) {
+				d.dispose();
+			}
+			return;
+		}
+
 		this._handlerDisposables = handlers;
 		this._ipcStarted = true;
 
 		try {
 			await this.syncSessions();
+			if (this._disposed) return;
+
 			void this.querySiblingWindowSessions();
 
 			this._staleCheckTimer?.dispose();
