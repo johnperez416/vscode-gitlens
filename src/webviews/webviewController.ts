@@ -584,16 +584,6 @@ export class WebviewController<
 
 	@trace()
 	async refresh(force?: boolean): Promise<void> {
-		// Capture the caller for diagnosis. `refresh(force=true)` tears down the iframe, so finding
-		// unexpected callers is critical. Stack is sliced to skip the Error+refresh frames so the first
-		// useful frame is the actual caller. Debug-level so it's off by default but available with
-		// outputLevel=debug for users hitting reload-loops in the wild.
-		Logger.debug(
-			`WebviewController(${this.id}|${this.instanceId}): refresh(force=${force ?? false}) called from:\n${
-				new Error().stack?.split('\n').slice(2).join('\n') ?? '<no stack>'
-			}`,
-		);
-
 		// In-flight coalesce: piggyback on an existing refresh rather than tearing down the iframe twice.
 		if (this._refreshing != null) return this._refreshing;
 
@@ -601,9 +591,7 @@ export class WebviewController<
 		// invocation (VS Code title-bar command double-dispatch, user double-click, or a late async
 		// caller) firing shortly after the previous refresh completes and tearing down a mid-render iframe.
 		if (Date.now() - this._lastRefreshCompletedAt < WebviewController.refreshCoalesceMs) {
-			Logger.info(
-				`WebviewController(${this.id}|${this.instanceId}): refresh coalesced (within ${WebviewController.refreshCoalesceMs}ms of previous)`,
-			);
+			getScopedLogger()?.info(`refresh coalesced (within ${WebviewController.refreshCoalesceMs}ms of previous)`);
 			return;
 		}
 
