@@ -8,7 +8,6 @@ import type { GitBranch } from '@gitlens/git/models/branch.js';
 import { GitCommit } from '@gitlens/git/models/commit.js';
 import { GitContributor } from '@gitlens/git/models/contributor.js';
 import type { GitFileChangeShape } from '@gitlens/git/models/fileChange.js';
-import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
 import type { GitGraph, GitGraphRowType } from '@gitlens/git/models/graph.js';
 import type { GitGraphSearch, GitGraphSearchProgress, GitGraphSearchResults } from '@gitlens/git/models/graphSearch.js';
 import type { IssueShape } from '@gitlens/git/models/issue.js';
@@ -1386,17 +1385,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 						this._activeComposeCacheKeys.set(repoPath, planResult.cacheKey);
 
-						const wipStatus = await svc.status.getStatus(undefined, signal);
-						signal?.throwIfAborted();
-						const wipByPath = new Map<string, { status: GitFileStatus; originalPath?: string }>();
-						if (wipStatus?.files) {
-							for (const f of wipStatus.files) {
-								if (!wipByPath.has(f.path)) {
-									wipByPath.set(f.path, { status: f.status, originalPath: f.originalPath });
-								}
-							}
-						}
-
 						const headCommit = await svc.commits.getCommit('HEAD');
 						signal?.throwIfAborted();
 
@@ -1416,7 +1404,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						const { commits, commitHunksByIndex } = libraryPlanToProposedCommits(
 							planResult,
 							repoPath,
-							wipByPath,
 							createCombinedDiffForCommit,
 						);
 

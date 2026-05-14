@@ -13,14 +13,9 @@ export const graphComposeStashPrefix = 'gitlens-compose-';
 const anchorRank: Record<ProposedCommitFile['anchor'], number> = { committed: 0, staged: 1, unstaged: 2 };
 
 /**
- * Translate the library's `ComposePlan` (plus the source hunks it collected)
- * into the graph's `ProposedCommit[]` wire format, while also producing the
- * per-commit `ComposerHunk[]` arrays used by the graph compose virtual
- * content provider.
- *
- * The `wipByPath` map carries the current working-tree status for files that
- * appear in the source — used to set `staged`/`anchor` correctly on the
- * resulting `ProposedCommitFile`s.
+ * Translate the library's `ComposePlan` (plus the source hunks it collected) into the graph's
+ * `ProposedCommit[]` wire format, while also producing the per-commit `ComposerHunk[]` arrays
+ * used by the graph compose virtual content provider.
  */
 export function libraryPlanToProposedCommits(
 	planResult: {
@@ -30,7 +25,6 @@ export function libraryPlanToProposedCommits(
 		kind: 'wip-only' | 'wip+commits' | 'commits-only';
 	},
 	repoPath: string,
-	wipByPath: ReadonlyMap<string, { status: GitFileStatus; originalPath?: string }>,
 	createCombinedDiffForCommit: (hunks: ComposerHunk[]) => { patch: string; filePatches: Map<string, string[]> },
 ): { commits: ProposedCommit[]; commitHunksByIndex: ComposerHunk[][] } {
 	const { plan, sourceHunks, headSha, kind } = planResult;
@@ -71,13 +65,11 @@ export function libraryPlanToProposedCommits(
 			const anchor =
 				existing == null || anchorRank[hunkAnchor] > anchorRank[existing.anchor] ? hunkAnchor : existing.anchor;
 
-			const wip = wipByPath.get(lh.fileName);
 			const ownsIntroduction = earliestCommitByFile.get(lh.fileName) === ci;
 			const { status, originalPath } = resolveProposedFileStatus(
 				lh,
 				c.hunkIndices,
 				hunkByIndex,
-				wip,
 				ownsIntroduction,
 			);
 			filesByPath.set(lh.fileName, {
@@ -109,25 +101,24 @@ export function libraryPlanToProposedCommits(
 }
 
 /**
- * Per-commit per-file status + originalPath for a proposed-commit row.
+ * Per-commit per-file status + originalPath for a proposed-commit row, derived from the
+ * library's hunks for this file in this commit. Hunks reflect the combined-diff git view
+ * (with rename detection) and match what apply will produce — that's the source of truth,
+ * not the working-tree status, which can disagree (e.g. an unstaged filesystem rename
+ * shows in `git status` as `D` + `?` even when the combined diff detects it as a rename).
  *
- * Introducing commit: WIP status when known, else `R` (any hunk carries `originalFileName` —
- * covers pure renames and rename-with-edits), `A` / `D` from `/dev/null` markers in the diff
- * header, else `M`. Follow-up commits in the chain always render as `M`.
+ * Introducing commit: `R` when any hunk carries `originalFileName` (covers pure renames and
+ * rename-with-edits), `A` / `D` from `/dev/null` markers in the diff header, else `M`.
+ * Follow-up commits in the chain always render as `M`.
  */
 function resolveProposedFileStatus(
 	hunk: ComposeHunk,
 	commitHunkIndices: readonly number[],
 	hunkByIndex: ReadonlyMap<number, ComposeHunk>,
-	wip: { status: GitFileStatus; originalPath?: string } | undefined,
 	ownsIntroduction: boolean,
 ): { status: GitFileStatus; originalPath?: string } {
 	if (!ownsIntroduction) {
 		return { status: 'M', originalPath: undefined };
-	}
-
-	if (wip != null) {
-		return { status: wip.status, originalPath: wip.originalPath };
 	}
 
 	// Rename-with-edits emits `originalFileName` on every hunk of the file with `isRename: false`;
