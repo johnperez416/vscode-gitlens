@@ -222,7 +222,11 @@ import type { EventVisibilityBuffer, SubscriptionTracker } from '../../rpc/event
 import { createRpcEvent } from '../../rpc/eventVisibilityBuffer.js';
 import { createSharedServices, proxyServices } from '../../rpc/services/common.js';
 import type { BranchAndTargetRefs, BranchRef } from '../../shared/branchRefs.js';
-import type { GetOverviewEnrichmentResponse, GetOverviewWipResponse } from '../../shared/overviewBranches.js';
+import type {
+	GetOverviewEnrichmentResponse,
+	GetOverviewWipResponse,
+	OverviewRecentThreshold,
+} from '../../shared/overviewBranches.js';
 import { getBranchOverviewType, toOverviewBranch } from '../../shared/overviewBranches.js';
 import { getOverviewEnrichment, getOverviewWip, getOverviewWipBasic } from '../../shared/overviewEnrichment.utils.js';
 import type { WebviewHost, WebviewProvider, WebviewShowingArgs } from '../../webviewProvider.js';
@@ -547,6 +551,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		| { added: number; deleted: number; modified: number }
 		| undefined;
 	private _lastSentWipMetadataBySha: GraphWipMetadataBySha | undefined;
+
+	// Timeframe for the Overview panel's "Recent" section. Seeded from the `graph:state` memento
+	// in `getState`, updated in-place by `onGetOverview` when the webview changes it.
+	private _overviewRecentThreshold: OverviewRecentThreshold = 'OneWeek';
 	// Count of staged files included in the last sent stats. Stats counts (added/deleted/
 	// modified) DON'T change when a file moves from unstaged → staged via SCM, so the dedup
 	// would otherwise drop those notifications and the WIP file list would go stale.
@@ -2056,7 +2064,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	}
 
 	@ipcRequest(GetOverviewRequest)
-	private onGetOverview(): GraphOverviewData {
+	private onGetOverview(params: IpcParams<typeof GetOverviewRequest>): GraphOverviewData {
+		if (params.recentThreshold != null) {
+			this._overviewRecentThreshold = params.recentThreshold;
+		}
 		return this.getOverviewData();
 	}
 
@@ -4768,7 +4779,12 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		for (const branch of data.branches.values()) {
 			if (branch.remote) continue;
 
-			const branchType = getBranchOverviewType(branch, worktreesByBranch, 'OneWeek', 'OneYear');
+			const branchType = getBranchOverviewType(
+				branch,
+				worktreesByBranch,
+				this._overviewRecentThreshold,
+				'OneYear',
+			);
 			switch (branchType) {
 				case 'active':
 					active.push(toOverviewBranch(branch, worktreesByBranch, true));
@@ -5822,6 +5838,10 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		const storedGraphState = this.container.storage.getWorkspace('graph:state');
 		const storedPanels = storedGraphState?.panels;
 
+		// Seed the Overview "Recent" timeframe from the memento before `getOverviewData()` runs
+		// below — keeps host-pushed overview updates in sync with the persisted choice on reload.
+		this._overviewRecentThreshold = storedGraphState?.overview?.recentThreshold ?? 'OneWeek';
+
 		// Resolve working tree stats outside the state literal so we can update the dedup cache
 		// only when the underlying fetch produced real data. If it returned undefined (cancelled/
 		// failed), we still send fallback zeros to the webview so the UI has a value, but we leave
@@ -5901,6 +5921,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			timelinePeriod: storedGraphState?.timeline?.period,
 			timelineSliceBy: storedGraphState?.timeline?.sliceBy,
 			timelineShowAllBranches: storedGraphState?.timeline?.showAllBranches,
+			overviewRecentThreshold: this._overviewRecentThreshold,
 		};
 		return result;
 	}

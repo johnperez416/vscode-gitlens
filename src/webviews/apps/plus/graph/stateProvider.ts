@@ -296,6 +296,9 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	@signalState()
 	accessor overview: State['overview'];
 
+	@signalState()
+	accessor overviewRecentThreshold: State['overviewRecentThreshold'];
+
 	@signalState<AppState['agentSessions']>([])
 	accessor agentSessions: AppState['agentSessions'] = [];
 

@@ -14,6 +14,7 @@ import type { IntegrationConnectedKey } from './plus/integrations/models/integra
 import type { DeepLinkServiceState } from './uris/deepLinks/deepLink.js';
 import type { GraphDisplayMode, GraphSidebarPanel } from './webviews/plus/graph/protocol.js';
 import type { TimelinePeriod, TimelineSliceBy } from './webviews/plus/timeline/protocol.js';
+import type { OverviewRecentThreshold } from './webviews/shared/overviewBranches.js';
 
 export type SecretKeys =
 	| IntegrationAuthenticationKeys
@@ -396,6 +397,9 @@ export interface StoredGraphState {
 		period?: TimelinePeriod;
 		sliceBy?: TimelineSliceBy;
 		showAllBranches?: boolean;
+	};
+	overview?: {
+		recentThreshold?: OverviewRecentThreshold;
 	};
 }
 

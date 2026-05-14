@@ -22,6 +22,7 @@ import type {
 	GraphDisplayMode,
 	GraphMinimapMarkerTypes,
 	GraphSidebarPanel,
+	OverviewRecentThreshold,
 } from '../../../plus/graph/protocol.js';
 import {
 	GetRowHoverRequest,
@@ -530,6 +531,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				date-format=${this.graphState.config?.dateFormat ?? nothing}
 				@gl-graph-sidebar-panel-select=${this.handleSidebarPanelSelect}
 				@gl-graph-overview-branch-selected=${this.handleOverviewBranchSelected}
+				@gl-graph-overview-recent-threshold-change=${this.handleOverviewRecentThresholdChange}
 			></gl-graph-sidebar-panel>
 			<div slot="end" class="graph__graph-content">${this.renderGraphMain()}</div>
 		</gl-split-panel>`;
@@ -629,6 +631,9 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				period: gs.timelinePeriod,
 				sliceBy: gs.timelineSliceBy,
 				showAllBranches: gs.timelineShowAllBranches,
+			},
+			overview: {
+				recentThreshold: gs.overviewRecentThreshold,
 			},
 		};
 		void (async () => {
@@ -900,6 +905,16 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private handleSidebarPanelSelect(e: CustomEvent<GraphSidebarPanelSelectEventDetail>) {
 		this.graph?.ensureAndSelectCommit(e.detail.sha);
 	}
+
+	private handleOverviewRecentThresholdChange = (e: CustomEvent<{ threshold: OverviewRecentThreshold }>): void => {
+		const gs = this.graphState;
+		if (gs.overviewRecentThreshold === e.detail.threshold) return;
+
+		// The overview panel sends the `GetOverviewRequest` itself — graph-app only owns the
+		// persisted signal + `graph:state` memento write (mirrors `handleTimelineConfigChange`).
+		gs.overviewRecentThreshold = e.detail.threshold;
+		this.persistState();
+	};
 
 	private handleOverviewBranchSelected(
 		e: CustomEvent<{ branchId: string; branchName: string; mergeTargetTipSha?: string }>,

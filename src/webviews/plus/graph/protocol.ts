@@ -53,6 +53,7 @@ import type {
 	GetOverviewEnrichmentResponse,
 	GetOverviewWipResponse,
 	OverviewBranch,
+	OverviewRecentThreshold,
 } from '../../shared/overviewBranches.js';
 import type { TimelinePeriod, TimelineSliceBy } from '../timeline/protocol.js';
 
@@ -84,6 +85,7 @@ export type {
 	OverviewBranchPullRequest,
 	OverviewBranchRemote,
 	OverviewBranchWip,
+	OverviewRecentThreshold,
 } from '../../shared/overviewBranches.js';
 
 export const scope: IpcScope = 'graph';
@@ -227,6 +229,8 @@ export interface State extends WebviewState<'gitlens.graph' | 'gitlens.views.gra
 	timelinePeriod?: TimelinePeriod;
 	timelineSliceBy?: TimelineSliceBy;
 	timelineShowAllBranches?: boolean;
+	// Persisted timeframe for the Overview panel's "Recent" section.
+	overviewRecentThreshold?: OverviewRecentThreshold;
 
 	// Props below are computed in the webview (not passed)
 	activeDay?: number;
@@ -583,7 +587,11 @@ export type DidGetCountParams =
 	| undefined;
 export const GetCountsRequest = new IpcRequest<void, DidGetCountParams>(scope, 'counts');
 
-export const GetOverviewRequest = new IpcRequest<void, GraphOverviewData>(scope, 'overview/get');
+export interface GetOverviewParams {
+	/** When set, updates the host's stored "Recent" timeframe before computing the overview. */
+	recentThreshold?: OverviewRecentThreshold;
+}
+export const GetOverviewRequest = new IpcRequest<GetOverviewParams, GraphOverviewData>(scope, 'overview/get');
 
 export interface GetOverviewWipParams {
 	branchIds: string[];

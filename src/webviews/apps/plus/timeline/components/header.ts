@@ -1,19 +1,17 @@
 import { css, html, LitElement, nothing } from 'lit';
-import { customElement, property, query } from 'lit/decorators.js';
+import { customElement, property } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import type { GitReference } from '@gitlens/git/models/reference.js';
 import type { RepositoryShape } from '../../../../../git/models/repositoryShape.js';
 import type { TimelinePeriod, TimelineScopeType, TimelineSliceBy } from '../../../../plus/timeline/protocol.js';
 import { compactBreadcrumbsConsumerStyles } from '../../../shared/components/breadcrumbs.js';
-import type { GlPopover } from '../../../shared/components/overlays/popover.js';
 import '../../../shared/components/button.js';
 import '../../../shared/components/checkbox/checkbox.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/copy-container.js';
 import '../../../shared/components/file-icon/file-icon.js';
-import '../../../shared/components/menu/menu-item.js';
 import '../../../shared/components/menu/menu-label.js';
-import '../../../shared/components/menu/menu-list.js';
+import '../../../shared/components/menu/menu-popover.js';
 import '../../../shared/components/overlays/popover.js';
 import '../../../shared/components/overlays/tooltip.js';
 import '../../../shared/components/ref-button.js';
@@ -195,47 +193,6 @@ export class GlTimelineHeader extends LitElement {
 			.details__timeframe--button code-icon {
 				font-size: 1rem;
 				opacity: 0.75;
-			}
-
-			/* Container — strips menu-list's default asymmetric padding (padding-bottom: 0.6rem,
-			   no padding-top) and its own border, then adds a small symmetric vertical pad so
-			   the first/last item have breathing room from the popover's menu-mode body padding.
-			   Matches gl-graph-scope-popover's mode-popover__content rhythm. */
-			.details__timeframe-menu {
-				padding: 0.2rem 0;
-				border: 0;
-				background: transparent;
-			}
-
-			/* Items match VS Code's native context-menu density — menu-item's host line-height
-			   (2.2rem ≈ 22px) IS the row height, no extra vertical padding stacked on top.
-			   Horizontal padding sized for comfortable hover targets without trailing dead space.
-			   Check icon column is narrow (1.4rem) and the icon itself is the label's font size,
-			   so the icon sits inline with the text rather than dominating the row. */
-			.details__timeframe-menu-item {
-				display: flex;
-				align-items: center;
-				gap: 0.4rem;
-				padding: 0 0.8rem;
-			}
-			.details__timeframe-menu-item[aria-selected='true'] {
-				background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 30%, transparent);
-			}
-			.details__timeframe-menu-item[aria-selected='true']:hover {
-				background: var(--vscode-menu-selectionBackground);
-			}
-			.details__timeframe-menu-item-check {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				flex: 0 0 1.4rem;
-				font-size: 1.2rem;
-				opacity: 0.85;
-			}
-			.details__timeframe-menu-item-label {
-				font-size: 1.2rem;
-				flex: 1;
-				min-width: 0;
 			}
 
 			.config__help {
@@ -533,9 +490,6 @@ export class GlTimelineHeader extends LitElement {
 		</span>`;
 	}
 
-	@query('.details__timeframe-popover')
-	private _timeframePopover?: GlPopover;
-
 	private renderTimeframe() {
 		// Prefer the chart's reported visible span so the pill stays accurate through zoom/pan.
 		// Falls back to the period label until the chart has emitted (initial paint). The pill
@@ -548,12 +502,19 @@ export class GlTimelineHeader extends LitElement {
 				? formatVisibleSpan(this.visibleSpanMs)
 				: periodLabels[this.period];
 		if (label == null) return nothing;
-		return html`<gl-popover
+		const items = (Object.entries(periodLabels) as [TimelinePeriod, string][]).map(([value, optionLabel]) => ({
+			value: value,
+			label: optionLabel,
+			selected: this.period === value,
+		}));
+		// `keep-open-on-select` — the menu stays open after a pick so the user can sweep through
+		// ranges; outside-click / Escape still dismiss it.
+		return html`<gl-menu-popover
 			class="details__timeframe-popover"
-			appearance="menu"
 			placement="bottom-end"
-			trigger="click focus"
-			hoist
+			keep-open-on-select
+			.items=${items}
+			@gl-menu-select=${this.onPeriodMenuSelect}
 		>
 			<button
 				slot="anchor"
@@ -563,33 +524,15 @@ export class GlTimelineHeader extends LitElement {
 			>
 				${label}<code-icon icon="chevron-down"></code-icon>
 			</button>
-			<menu-list class="details__timeframe-menu" slot="content">
-				${(Object.entries(periodLabels) as [TimelinePeriod, string][]).map(
-					([value, optionLabel]) =>
-						html`<menu-item
-							class="details__timeframe-menu-item"
-							aria-selected=${this.period === value ? 'true' : 'false'}
-							@click=${() => this.onPeriodMenuItemSelected(value)}
-						>
-							<code-icon
-								class="details__timeframe-menu-item-check"
-								icon=${this.period === value ? 'check' : 'blank'}
-							></code-icon>
-							<span class="details__timeframe-menu-item-label">${optionLabel}</span>
-						</menu-item>`,
-				)}
-			</menu-list>
-		</gl-popover>`;
+		</gl-menu-popover>`;
 	}
 
-	private onPeriodMenuItemSelected(period: TimelinePeriod): void {
+	private readonly onPeriodMenuSelect = (e: CustomEvent<{ value: string }>): void => {
+		const period = e.detail.value as TimelinePeriod;
 		if (this.period !== period) {
 			this.emit('gl-timeline-header-period-change', { period: period });
 		}
-		// Close the popover after the user picks — menu UX is "click an item to commit", not
-		// "click an item then click outside to dismiss" like a multi-control popover would be.
-		void this._timeframePopover?.hide();
-	}
+	};
 
 	private renderConfigPopover() {
 		return html`<gl-popover placement="bottom" trigger="hover focus click" hoist>

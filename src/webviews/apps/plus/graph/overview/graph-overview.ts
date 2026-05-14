@@ -11,6 +11,7 @@ import type {
 	GetOverviewEnrichmentResponse,
 	GetOverviewWipResponse,
 	GraphOverviewData,
+	OverviewRecentThreshold,
 } from '../../../../plus/graph/protocol.js';
 import {
 	GetOverviewEnrichmentRequest,
@@ -27,6 +28,14 @@ import type { AppState } from '../context.js';
 import { graphServicesContext, graphStateContext } from '../context.js';
 import './graph-overview-card.js';
 import '../../../shared/components/code-icon.js';
+import '../../../shared/components/menu/menu-popover.js';
+
+/** Labels for the Overview "Recent" timeframe filter, in display order. */
+const recentThresholdLabels: Record<OverviewRecentThreshold, string> = {
+	OneDay: '1 day',
+	OneWeek: '1 week',
+	OneMonth: '1 month',
+};
 
 @customElement('gl-graph-overview')
 export class GlGraphOverview extends SignalWatcher(LitElement) {
@@ -73,8 +82,45 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 				margin-block: 0 0.4rem;
 			}
 
+			.group__header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.4rem;
+			}
+
+			.group__header .group__label {
+				margin-block: 0;
+			}
+
 			.group__count {
 				opacity: 0.7;
+			}
+
+			.threshold-filter {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.2rem;
+				background: none;
+				border: none;
+				padding: 0 0.4rem;
+				font-family: inherit;
+				font-size: 1.1rem;
+				color: var(--color-foreground--50);
+				cursor: pointer;
+				white-space: nowrap;
+			}
+
+			.threshold-filter:hover {
+				color: var(--vscode-foreground);
+			}
+
+			.threshold-filter:focus-visible {
+				outline: 1px solid var(--color-focus-border);
+			}
+
+			.threshold-filter code-icon {
+				font-size: 1rem;
 			}
 
 			.section {
@@ -158,7 +204,9 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		this.addEventListener('gl-graph-overview-card-request-wip-details', this.onWipDetailsRequested);
 
 		if (this._state.overview == null) {
-			void this._ipc.sendRequest(GetOverviewRequest, undefined);
+			void this._ipc.sendRequest(GetOverviewRequest, {
+				recentThreshold: this._state.overviewRecentThreshold,
+			});
 		} else {
 			this.maybeRefetchOverviewData(this._state.overview);
 		}
@@ -179,7 +227,7 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 		this._enrichmentData = {};
 		this._pendingWipDetails.clear();
 		this._state.overviewEnrichment = undefined;
-		void this._ipc.sendRequest(GetOverviewRequest, undefined);
+		void this._ipc.sendRequest(GetOverviewRequest, { recentThreshold: this._state.overviewRecentThreshold });
 	}
 
 	private readonly onWipDetailsRequested = (e: Event) => {
@@ -429,8 +477,11 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 					hasRecent,
 					() => html`
 						<div class="group">
-							<div class="group__label">
-								Recent <span class="group__count">(${overview.recent.length})</span>
+							<div class="group__header">
+								<div class="group__label">
+									Recent <span class="group__count">(${overview.recent.length})</span>
+								</div>
+								${this.renderRecentThresholdFilter()}
 							</div>
 							${this.renderCards(overview.recent)}
 						</div>
@@ -438,6 +489,44 @@ export class GlGraphOverview extends SignalWatcher(LitElement) {
 				)}
 			</div>
 		`;
+	}
+
+	private renderRecentThresholdFilter() {
+		const threshold = this._state.overviewRecentThreshold ?? 'OneWeek';
+		const items = (Object.entries(recentThresholdLabels) as [OverviewRecentThreshold, string][]).map(
+			([value, label]) => ({ value: value, label: label, selected: threshold === value }),
+		);
+		return html`
+			<gl-menu-popover placement="bottom-end" .items=${items} @gl-menu-select=${this.onRecentThresholdSelect}>
+				<button slot="anchor" class="threshold-filter" type="button" aria-label="Change Recent Timeframe">
+					${recentThresholdLabels[threshold]}<code-icon icon="chevron-down"></code-icon>
+				</button>
+			</gl-menu-popover>
+		`;
+	}
+
+	private readonly onRecentThresholdSelect = (e: CustomEvent<{ value: string }>): void => {
+		this.onRecentThresholdSelected(e.detail.value as OverviewRecentThreshold);
+	};
+
+	private onRecentThresholdSelected(threshold: OverviewRecentThreshold): void {
+		if ((this._state.overviewRecentThreshold ?? 'OneWeek') === threshold) return;
+
+		// Let graph-app own the persisted signal + memento write (mirrors the timeline period
+		// flow); send the request here since this panel owns the overview fetch lifecycle.
+		this.dispatchEvent(
+			new CustomEvent('gl-graph-overview-recent-threshold-change', {
+				detail: { threshold: threshold },
+				bubbles: true,
+				composed: true,
+			}),
+		);
+		// Apply the re-partitioned response — unlike the host-pushed `DidChangeOverviewNotification`
+		// path (graph load, branch changes), a `GetOverviewRequest` reply isn't routed into state
+		// for us, so a threshold change would otherwise never re-render the Recent list.
+		void this._ipc.sendRequest(GetOverviewRequest, { recentThreshold: threshold }).then(overview => {
+			this._state.overview = overview;
+		});
 	}
 
 	private renderCards(branches: GraphOverviewData['active']) {
@@ -477,4 +566,14 @@ function filterToKeys<T>(record: Record<string, T>, keep: Set<string>): Record<s
 		}
 	}
 	return result;
+}
+
+declare global {
+	interface HTMLElementTagNameMap {
+		'gl-graph-overview': GlGraphOverview;
+	}
+
+	interface GlobalEventHandlersEventMap {
+		'gl-graph-overview-recent-threshold-change': CustomEvent<{ threshold: OverviewRecentThreshold }>;
+	}
 }

@@ -13,9 +13,10 @@ import type {
 import type { HomeState } from '../../../home/state.js';
 import { homeStateContext } from '../../../home/state.js';
 import { linkStyles } from '../../shared/components/vscode.css.js';
-import { selectStyles } from './branch-threshold-filter.js';
 import type { AgentOverviewState, InactiveOverviewState } from './overviewState.js';
 import { agentOverviewStateContext, inactiveOverviewStateContext } from './overviewState.js';
+import '../../../shared/components/code-icon.js';
+import '../../../shared/components/menu/menu-popover.js';
 import '../../../shared/components/skeleton-loader.js';
 import './agent-session-card.js';
 import './branch-section.js';
@@ -25,16 +26,75 @@ export const overviewTagName = 'gl-overview';
 type OverviewTab = 'recent' | 'agents';
 type AgentFilter = 'workspace' | 'all';
 
+/** Recent-timeframe options for the overview's "Recent" filter, in display order. */
+const recentThresholdItems: { value: OverviewRecentThreshold; label: string }[] = [
+	{ value: 'OneDay', label: '1 day' },
+	{ value: 'OneWeek', label: '1 week' },
+	{ value: 'OneMonth', label: '1 month' },
+];
+
 @customElement(overviewTagName)
 export class GlOverview extends SignalWatcher(LitElement) {
 	static override styles = [
 		linkStyles,
-		selectStyles,
 		css`
 			:host {
 				display: block;
 				margin-bottom: 2.4rem;
 				color: var(--vscode-foreground);
+			}
+
+			/* Native <select> styling — used by the agents workspace/all filter. */
+			.select {
+				background: none;
+				outline: none;
+				border: none;
+				text-decoration: none !important;
+				font-weight: 500;
+				color: var(--color-foreground--25);
+			}
+			.select option {
+				color: var(--vscode-foreground);
+				background-color: var(--vscode-dropdown-background);
+			}
+			.select:not(:disabled) {
+				cursor: pointer;
+				color: var(--color-foreground--50);
+			}
+			.select:not(:disabled):focus {
+				outline: 1px solid var(--color-focus-border);
+			}
+			.select:not(:disabled):hover {
+				color: var(--vscode-foreground);
+				text-decoration: underline !important;
+			}
+
+			/* Recent-timeframe filter — the gl-menu-popover anchor button. */
+			.threshold-filter {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.2rem;
+				background: none;
+				border: none;
+				padding: 0;
+				font: inherit;
+				font-weight: 500;
+				color: var(--color-foreground--50);
+				cursor: pointer;
+				white-space: nowrap;
+			}
+			.threshold-filter:hover:not(:disabled) {
+				color: var(--vscode-foreground);
+			}
+			.threshold-filter:focus-visible {
+				outline: 1px solid var(--color-focus-border);
+			}
+			.threshold-filter:disabled {
+				color: var(--color-foreground--25);
+				cursor: default;
+			}
+			.threshold-filter code-icon {
+				font-size: 1rem;
 			}
 
 			.tabs {
@@ -183,20 +243,7 @@ export class GlOverview extends SignalWatcher(LitElement) {
 				.repo=${repository.path}
 				.branches=${overview.recent}
 			>
-				<gl-branch-threshold-filter
-					slot="heading-actions"
-					@gl-change=${this.onChangeRecentThresholdFilter}
-					.options=${[
-						{ value: 'OneDay', label: '1 day' },
-						{ value: 'OneWeek', label: '1 week' },
-						{ value: 'OneMonth', label: '1 month' },
-					] satisfies {
-						value: OverviewRecentThreshold;
-						label: string;
-					}[]}
-					.disabled=${isFetching}
-					.value=${this._inactiveOverviewState.filter.recent?.threshold}
-				></gl-branch-threshold-filter>
+				${this.renderRecentThresholdFilter(isFetching)}
 			</gl-branch-section>
 			${when(
 				this._inactiveOverviewState.filter.stale?.show === true && overview.stale,
@@ -211,13 +258,44 @@ export class GlOverview extends SignalWatcher(LitElement) {
 		`;
 	}
 
-	private readonly onChangeRecentThresholdFilter = (e: CustomEvent<{ threshold: OverviewRecentThreshold }>) => {
+	private renderRecentThresholdFilter(isFetching: boolean) {
+		const threshold = this._inactiveOverviewState.filter.recent?.threshold;
+		const label = recentThresholdItems.find(o => o.value === threshold)?.label ?? recentThresholdItems[1].label;
+		return html`
+			<gl-menu-popover
+				slot="heading-actions"
+				placement="bottom-end"
+				?disabled=${isFetching}
+				.items=${recentThresholdItems.map(o => ({
+					value: o.value,
+					label: o.label,
+					selected: o.value === threshold,
+				}))}
+				@gl-menu-select=${this.onChangeRecentThresholdFilter}
+			>
+				<button
+					slot="anchor"
+					class="threshold-filter"
+					type="button"
+					?disabled=${isFetching}
+					aria-label="Change Recent Timeframe"
+				>
+					${label}<code-icon icon="chevron-down"></code-icon>
+				</button>
+			</gl-menu-popover>
+		`;
+	}
+
+	private readonly onChangeRecentThresholdFilter = (e: CustomEvent<{ value: string }>) => {
 		if (!this._inactiveOverviewState.filter.stale || !this._inactiveOverviewState.filter.recent) {
 			return;
 		}
 		void this._homeCtx.homeService?.setOverviewFilter({
 			stale: this._inactiveOverviewState.filter.stale,
-			recent: { ...this._inactiveOverviewState.filter.recent, threshold: e.detail.threshold },
+			recent: {
+				...this._inactiveOverviewState.filter.recent,
+				threshold: e.detail.value as OverviewRecentThreshold,
+			},
 		});
 	};
 
@@ -256,21 +334,7 @@ export class GlOverview extends SignalWatcher(LitElement) {
 		const { repository } = overview;
 		return html`
 			<gl-section ?loading=${isFetching}>
-				${this.renderTabs()}
-				<gl-branch-threshold-filter
-					slot="heading-actions"
-					@gl-change=${this.onChangeRecentThresholdFilter}
-					.options=${[
-						{ value: 'OneDay', label: '1 day' },
-						{ value: 'OneWeek', label: '1 week' },
-						{ value: 'OneMonth', label: '1 month' },
-					] satisfies {
-						value: OverviewRecentThreshold;
-						label: string;
-					}[]}
-					.disabled=${isFetching}
-					.value=${this._inactiveOverviewState.filter.recent?.threshold}
-				></gl-branch-threshold-filter>
+				${this.renderTabs()} ${this.renderRecentThresholdFilter(isFetching)}
 				${this.renderBranchCards(overview.recent, repository.path)}
 			</gl-section>
 			${when(
