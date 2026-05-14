@@ -415,7 +415,7 @@ export class GlDetailsReviewModePanel extends LitElement {
 	private renderFileCuration(files?: readonly GitFileChangeShape[]) {
 		// Always render the section — when there are no files, gl-file-tree-pane shows the
 		// `empty-text` message inside its body so the section header / scope context stays
-		// visible (consistent with the wip-compare empty-state pattern).
+		// visible (consistent with the compare empty-state pattern).
 		const renderFiles = files ?? this.files ?? [];
 
 		const aiExcluded = this._aiExcludedSet;

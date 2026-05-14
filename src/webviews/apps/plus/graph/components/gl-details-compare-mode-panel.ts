@@ -238,7 +238,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		// tree expand state, file-tree filter input, gl-split-panel position) independently when
 		// the user toggles between tabs. Coming back to a previously-active tab restores its
 		// prior gl-file-tree-pane instance instead of mounting a fresh one.
-		return html`<div class="wip-compare-panel">
+		return html`<div class="compare-panel">
 			<progress-indicator position="top" ?active=${this.loading}></progress-indicator>
 			${this.renderComparisonBar()} ${this.renderTabs()} ${this.renderStaleBanner()} ${this.renderError()}
 			${cache(
@@ -253,7 +253,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 	private renderError() {
 		if (!this.errorMessage) return nothing;
-		return html`<div class="wip-compare-error" role="alert">
+		return html`<div class="compare-error" role="alert">
 			<code-icon icon="error"></code-icon>
 			<span>${this.errorMessage}</span>
 		</div>`;
@@ -261,7 +261,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 	private renderStaleBanner() {
 		if (!this.stale) return nothing;
-		return html`<div class="wip-compare-stale" role="status">
+		return html`<div class="compare-stale" role="status">
 			<code-icon icon="warning"></code-icon>
 			<span>Working tree data changed since this comparison was loaded.</span>
 			<gl-action-chip
@@ -289,29 +289,29 @@ export class GlDetailsCompareModePanel extends LitElement {
 	}
 
 	private renderAllFilesTab() {
-		return html`<div class="wip-compare-all" data-tab="all">
+		return html`<div class="compare-all" data-tab="all">
 			${this.renderAutolinksRow()}${this.renderEmbeddedAIActions()}${this.renderRightPane(this.allFiles)}
 		</div>`;
 	}
 
 	private renderAheadTab() {
 		if (!this.aheadLoaded) {
-			return html`<div class="wip-compare-side-loading" data-tab="ahead" aria-busy="true">
+			return html`<div class="compare-side-loading" data-tab="ahead" aria-busy="true">
 				<code-icon icon="loading" modifier="spin"></code-icon>
 				<span>Loading commits…</span>
 			</div>`;
 		}
 		const files = this.filesForSelection(this.aheadCommits, this.aheadFiles);
 		return html`<gl-split-panel
-			class="wip-compare-split"
+			class="compare-split"
 			data-tab="ahead"
 			orientation="vertical"
 			primary="end"
 			position="25"
 			.snap=${this.splitSnap}
 		>
-			<div slot="start" class="wip-compare-split__start">${this.renderCommitList(this.aheadCommits)}</div>
-			<div slot="end" class="wip-compare-split__end">
+			<div slot="start" class="compare-split__start">${this.renderCommitList(this.aheadCommits)}</div>
+			<div slot="end" class="compare-split__end">
 				${this.renderAutolinksRow()}${this.renderEmbeddedAIActions()}${this.renderRightPane(files)}
 			</div>
 		</gl-split-panel>`;
@@ -319,22 +319,22 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 	private renderBehindTab() {
 		if (!this.behindLoaded) {
-			return html`<div class="wip-compare-side-loading" data-tab="behind" aria-busy="true">
+			return html`<div class="compare-side-loading" data-tab="behind" aria-busy="true">
 				<code-icon icon="loading" modifier="spin"></code-icon>
 				<span>Loading commits…</span>
 			</div>`;
 		}
 		const files = this.filesForSelection(this.behindCommits, this.behindFiles);
 		return html`<gl-split-panel
-			class="wip-compare-split"
+			class="compare-split"
 			data-tab="behind"
 			orientation="vertical"
 			primary="end"
 			position="25"
 			.snap=${this.splitSnap}
 		>
-			<div slot="start" class="wip-compare-split__start">${this.renderCommitList(this.behindCommits)}</div>
-			<div slot="end" class="wip-compare-split__end">
+			<div slot="start" class="compare-split__start">${this.renderCommitList(this.behindCommits)}</div>
+			<div slot="end" class="compare-split__end">
 				${this.renderAutolinksRow()}${this.renderEmbeddedAIActions()}${this.renderRightPane(files)}
 			</div>
 		</gl-split-panel>`;
@@ -383,11 +383,11 @@ export class GlDetailsCompareModePanel extends LitElement {
 		const leftTooltip = leftRef;
 		const rightTooltip = rightRef || 'Choose a Reference';
 
-		return html`<div class="wip-compare-bar">
-			<div class="wip-compare-bar__group">
+		return html`<div class="compare-bar">
+			<div class="compare-bar__group">
 				<gl-tooltip placement="bottom">
 					<gl-branch-name
-						class="wip-compare-ref wip-compare-ref--ahead"
+						class="compare-ref compare-ref--ahead"
 						appearance="button"
 						chevron
 						.name=${leftRef}
@@ -399,8 +399,8 @@ export class GlDetailsCompareModePanel extends LitElement {
 				${showWorkingTreeToggle
 					? html`<gl-action-chip
 							class=${this.includeWorkingTree
-								? 'wip-compare-wt-toggle wip-compare-wt-toggle--active'
-								: 'wip-compare-wt-toggle'}
+								? 'compare-wt-toggle compare-wt-toggle--active'
+								: 'compare-wt-toggle'}
 							icon="folder-opened"
 							label="${this.includeWorkingTree ? 'Exclude' : 'Include'} Working Tree Changes"
 							overlay="tooltip"
@@ -409,16 +409,16 @@ export class GlDetailsCompareModePanel extends LitElement {
 					: nothing}
 			</div>
 			<gl-action-chip
-				class="wip-compare-swap"
+				class="compare-swap"
 				icon="arrow-swap"
 				label="Swap Direction"
 				overlay="tooltip"
 				@click=${this.dispatchSwapRefs}
 			></gl-action-chip>
-			<div class="wip-compare-bar__group">
+			<div class="compare-bar__group">
 				<gl-tooltip placement="bottom">
 					<gl-branch-name
-						class="wip-compare-ref wip-compare-ref--behind"
+						class="compare-ref compare-ref--behind"
 						appearance="button"
 						chevron
 						.name=${rightRef || 'Choose…'}
@@ -428,14 +428,14 @@ export class GlDetailsCompareModePanel extends LitElement {
 					<span slot="content">${rightTooltip}</span>
 				</gl-tooltip>
 				<gl-action-chip
-					class="wip-compare-refresh"
+					class="compare-refresh"
 					icon="refresh"
 					label="Refresh Comparison"
 					overlay="tooltip"
 					@click=${this.dispatchRefreshCompare}
 				></gl-action-chip>
 				<gl-action-chip
-					class="wip-compare-open-in-sac"
+					class="compare-open-in-sac"
 					icon="link-external"
 					label="Open in Search &amp; Compare"
 					overlay="tooltip"
@@ -446,7 +446,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 	}
 
 	private renderTabs() {
-		return html`<div class="wip-compare-tabs" role="tablist" @keydown=${this.handleTabKeydown}>
+		return html`<div class="compare-tabs" role="tablist" @keydown=${this.handleTabKeydown}>
 			${this.renderTab('all', undefined, 'All', this.allFilesCount)}
 			${this.renderTab('ahead', 'arrow-up', 'Ahead', this.aheadCount)}
 			${this.renderTab('behind', 'arrow-down', 'Behind', this.behindCount)}
@@ -464,28 +464,28 @@ export class GlDetailsCompareModePanel extends LitElement {
 		const isActive = this.activeTab === tab;
 		const isEmpty = count === 0 && !(tab === 'ahead' && this.aheadHasWip);
 		const classes = [
-			'wip-compare-tab',
-			`wip-compare-tab--${tab}`,
-			isActive ? `wip-compare-tab--active-${tab}` : '',
-			isEmpty ? 'wip-compare-tab--empty' : '',
+			'compare-tab',
+			`compare-tab--${tab}`,
+			isActive ? `compare-tab--active-${tab}` : '',
+			isEmpty ? 'compare-tab--empty' : '',
 		]
 			.filter(Boolean)
 			.join(' ');
 
 		return html`<button
-			id="wip-compare-tab-${tab}"
+			id="compare-tab-${tab}"
 			class=${classes}
 			role="tab"
 			aria-selected=${isActive}
-			aria-controls="wip-compare-tabpanel-${tab}"
+			aria-controls="compare-tabpanel-${tab}"
 			tabindex=${isActive ? 0 : -1}
 			@click=${() => this.dispatchSwitchTab(tab)}
 		>
-			${icon ? html`<code-icon icon=${icon} class="wip-compare-tab__icon"></code-icon>` : nothing}
-			<span class="wip-compare-tab__label">${label}</span>
-			<span class="wip-compare-tab__count">
+			${icon ? html`<code-icon icon=${icon} class="compare-tab__icon"></code-icon>` : nothing}
+			<span class="compare-tab__label">${label}</span>
+			<span class="compare-tab__count">
 				${this._comparisonChanging
-					? html`<code-icon icon="sync" class="wip-compare-tab__count-spinner"></code-icon>`
+					? html`<code-icon icon="sync" class="compare-tab__count-spinner"></code-icon>`
 					: count}
 			</span>
 		</button>`;
@@ -501,9 +501,9 @@ export class GlDetailsCompareModePanel extends LitElement {
 			// "Up to date" claim from another comparison.
 			if (this._comparisonChanging) {
 				return html`<div
-					id="wip-compare-tabpanel-${this.activeTab}"
+					id="compare-tabpanel-${this.activeTab}"
 					role="tabpanel"
-					aria-labelledby="wip-compare-tab-${this.activeTab}"
+					aria-labelledby="compare-tab-${this.activeTab}"
 					aria-busy="true"
 				></div>`;
 			}
@@ -512,30 +512,30 @@ export class GlDetailsCompareModePanel extends LitElement {
 			const rightRef = this.rightRef ?? '';
 			if (isUpToDate) {
 				return html`<div
-					id="wip-compare-tabpanel-${this.activeTab}"
-					class="wip-compare-empty"
+					id="compare-tabpanel-${this.activeTab}"
+					class="compare-empty"
 					role="tabpanel"
-					aria-labelledby="wip-compare-tab-${this.activeTab}"
+					aria-labelledby="compare-tab-${this.activeTab}"
 				>
 					<code-icon icon="check"></code-icon>
 					<span>Up to date with ${rightRef}</span>
 				</div>`;
 			}
 			return html`<div
-				id="wip-compare-tabpanel-${this.activeTab}"
-				class="wip-compare-empty wip-compare-empty--no-commits"
+				id="compare-tabpanel-${this.activeTab}"
+				class="compare-empty compare-empty--no-commits"
 				role="tabpanel"
-				aria-labelledby="wip-compare-tab-${this.activeTab}"
+				aria-labelledby="compare-tab-${this.activeTab}"
 			>
 				<span>No commits ${this.activeTab} ${rightRef}</span>
 			</div>`;
 		}
 
 		return html`<div
-			id="wip-compare-tabpanel-${this.activeTab}"
-			class="wip-compare-commits scrollable"
+			id="compare-tabpanel-${this.activeTab}"
+			class="compare-commits scrollable"
 			role="tabpanel"
-			aria-labelledby="wip-compare-tab-${this.activeTab}"
+			aria-labelledby="compare-tab-${this.activeTab}"
 		>
 			<gl-tree>
 				${repeat(
@@ -556,7 +556,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		return html`<gl-tree-item
 			rich
 			.showIcon=${false}
-			class="wip-compare-commit ${isSelected ? 'wip-compare-commit--selected' : ''}"
+			class="compare-commit ${isSelected ? 'compare-commit--selected' : ''}"
 			?selected=${isSelected}
 			@gl-tree-item-selected=${() => this.dispatchSelectCommit(commit.sha)}
 		>
@@ -602,7 +602,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 	private renderFileSection(files: BranchComparisonFile[]) {
 		const isScoped = this.selectedCommitSha != null;
-		const containerClass = `wip-compare-files${isScoped ? ' wip-compare-files--scoped' : ''}`;
+		const containerClass = `compare-files${isScoped ? ' compare-files--scoped' : ''}`;
 		const stats = this.computeFileStats(files);
 		// Show the loading state when the comparison itself is changing (initial load,
 		// ref/worktree change) OR when a per-commit file fetch is in flight for the selected sha.
@@ -642,7 +642,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 				>
 					<span slot="title-content">${this.renderViewSelector()}</span>
 					${isLoadingEmpty
-						? html`<div slot="before-tree" class="wip-compare-files--loading" aria-busy="true">
+						? html`<div slot="before-tree" class="compare-files--loading" aria-busy="true">
 								<code-icon icon="loading" modifier="spin"></code-icon>
 								<span>Loading changes…</span>
 							</div>`
@@ -657,12 +657,12 @@ export class GlDetailsCompareModePanel extends LitElement {
 									? 'Showing Only Working Changes'
 									: 'Showing Only Commit Changes';
 								return html`<gl-tooltip slot="header-badge" placement="top">
-									<span class="wip-compare-scope-tag">
+									<span class="compare-scope-tag">
 										<code-icon icon=${icon}></code-icon>
 										${label}
 										<gl-tooltip placement="bottom">
 											<button
-												class="wip-compare-scope-tag__close"
+												class="compare-scope-tag__close"
 												aria-label=${clearLabel}
 												@click=${(e: MouseEvent) => {
 													e.stopPropagation();
@@ -679,9 +679,9 @@ export class GlDetailsCompareModePanel extends LitElement {
 							})()
 						: nothing}
 					${stats != null && (stats.additions > 0 || stats.deletions > 0)
-						? html`<span slot="header-badge" class="wip-compare-stats">
-								<span class="wip-compare-stats__additions">+${stats.additions.toLocaleString()}</span>
-								<span class="wip-compare-stats__deletions">−${stats.deletions.toLocaleString()}</span>
+						? html`<span slot="header-badge" class="compare-stats">
+								<span class="compare-stats__additions">+${stats.additions.toLocaleString()}</span>
+								<span class="compare-stats__deletions">−${stats.deletions.toLocaleString()}</span>
 							</span>`
 						: nothing}
 				</gl-file-tree-pane>
@@ -744,12 +744,12 @@ export class GlDetailsCompareModePanel extends LitElement {
 		// found" flash is preferable to a spinner that flips back to a stale answer.
 		const isLoadingEmpty = this._comparisonChanging && !hasChips;
 
-		return html`<div class="wip-compare-enrichment">
+		return html`<div class="compare-enrichment">
 			<gl-chip-overflow max-rows=${hasChips ? 99 : 1}>
 				${hasChips
 					? nothing
 					: isLoadingEmpty
-						? html`<span slot="prefix" class="wip-compare-enrichment__loading" aria-busy="true">
+						? html`<span slot="prefix" class="compare-enrichment__loading" aria-busy="true">
 								<code-icon icon="loading" modifier="spin"></code-icon>
 								<span>Loading autolinks…</span>
 							</span>`
@@ -873,18 +873,18 @@ export class GlDetailsCompareModePanel extends LitElement {
 	private renderViewSelector() {
 		const label = this.activeView === 'files' ? 'Files Changed' : 'Contributors';
 		return html`<gl-popover
-			class="wip-compare-view-selector"
+			class="compare-view-selector"
 			trigger="click"
 			placement="bottom-start"
 			appearance="menu"
 			?arrow=${false}
 			hoist
 		>
-			<button slot="anchor" class="wip-compare-view-trigger" type="button">
-				<span class="wip-compare-view-trigger__label">${label}</span>
+			<button slot="anchor" class="compare-view-trigger" type="button">
+				<span class="compare-view-trigger__label">${label}</span>
 				<code-icon icon="chevron-down"></code-icon>
 			</button>
-			<menu-list slot="content" class="wip-compare-view-menu">
+			<menu-list slot="content" class="compare-view-menu">
 				<menu-item @click=${() => this.dispatchSwitchView('files')} ?disabled=${this.activeView === 'files'}>
 					<code-icon icon="files"></code-icon><span>Files Changed</span>
 				</menu-item>
@@ -904,15 +904,15 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 		const body =
 			this.contributorsLoading && contributors.length === 0
-				? html`<div class="wip-compare-contributors wip-compare-contributors--loading">
+				? html`<div class="compare-contributors compare-contributors--loading">
 						<code-icon icon="loading" modifier="spin"></code-icon>
 						<span>Loading contributors…</span>
 					</div>`
 				: !contributors.length
-					? html`<div class="wip-compare-contributors wip-compare-contributors--empty">
+					? html`<div class="compare-contributors compare-contributors--empty">
 							<span>No contributors in scope</span>
 						</div>`
-					: html`<div class="wip-compare-contributors scrollable">
+					: html`<div class="compare-contributors scrollable">
 							${repeat(
 								contributors,
 								c => `${c.email ?? ''}|${c.name}`,
@@ -920,10 +920,10 @@ export class GlDetailsCompareModePanel extends LitElement {
 							)}
 						</div>`;
 
-		return html`<div class="wip-compare-files">
+		return html`<div class="compare-files">
 			<webview-pane-group flexible>
 				<webview-pane expanded flexible .collapsable=${false}>
-					<span slot="title" class="wip-compare-contributors-title">
+					<span slot="title" class="compare-contributors-title">
 						${this.renderViewSelector()}
 						${showCount !== nothing ? html`<gl-badge appearance="filled">${showCount}</gl-badge>` : nothing}
 					</span>
@@ -935,23 +935,21 @@ export class GlDetailsCompareModePanel extends LitElement {
 
 	private renderContributorRow(contributor: BranchComparisonContributor) {
 		const { name, email, avatarUrl, commits, additions, deletions, files } = contributor;
-		return html`<div class="wip-compare-contributor">
+		return html`<div class="compare-contributor">
 			<gl-avatar src=${avatarUrl ?? nothing} name=${email ?? name}></gl-avatar>
-			<div class="wip-compare-contributor__info">
-				<div class="wip-compare-contributor__name">
-					${name}${contributor.current
-						? html` <span class="wip-compare-contributor__you">you</span>`
-						: nothing}
+			<div class="compare-contributor__info">
+				<div class="compare-contributor__name">
+					${name}${contributor.current ? html` <span class="compare-contributor__you">you</span>` : nothing}
 				</div>
-				<div class="wip-compare-contributor__stats">
+				<div class="compare-contributor__stats">
 					<span>${commits.toLocaleString()} ${commits === 1 ? 'commit' : 'commits'}</span>
 					${files > 0
 						? html`<span>${files.toLocaleString()} ${files === 1 ? 'file' : 'files'}</span>`
 						: nothing}
 					${additions > 0 || deletions > 0
-						? html`<span class="wip-compare-contributor__diffstat">
-								<span class="wip-compare-contributor__additions">+${additions.toLocaleString()}</span>
-								<span class="wip-compare-contributor__deletions">−${deletions.toLocaleString()}</span>
+						? html`<span class="compare-contributor__diffstat">
+								<span class="compare-contributor__additions">+${additions.toLocaleString()}</span>
+								<span class="compare-contributor__deletions">−${deletions.toLocaleString()}</span>
 							</span>`
 						: nothing}
 				</div>
@@ -1034,7 +1032,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		const newTab = order[(currentIndex + delta + order.length) % order.length];
 
 		this.dispatchSwitchTab(newTab);
-		const tabEl = this.renderRoot.querySelector<HTMLElement>(`#wip-compare-tab-${newTab}`);
+		const tabEl = this.renderRoot.querySelector<HTMLElement>(`#compare-tab-${newTab}`);
 		tabEl?.focus();
 	}
 
@@ -1089,7 +1087,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 	}
 
 	private dispatchSwitchView(view: 'files' | 'contributors') {
-		const popover = this.shadowRoot?.querySelector<HTMLElement & { hide(): void }>('.wip-compare-view-selector');
+		const popover = this.shadowRoot?.querySelector<HTMLElement & { hide(): void }>('.compare-view-selector');
 		if (popover != null) {
 			popover.hide();
 		}

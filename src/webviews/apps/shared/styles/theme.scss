@@ -95,7 +95,7 @@
 	--gl-tracking-missing: var(--vscode-gitlens-decorations\.branchMissingUpstreamForegroundColor);
 	--gl-overlay-color: var(--vscode-widget-shadow);
 
-	/* Unified stat colors — used by commit-stats, gl-commit-row, wip-stats-pill, wip-compare-stats, etc. */
+	/* Unified stat colors — used by commit-stats, gl-commit-row, wip-stats-pill, compare-stats, etc. */
 	--gl-stat-added: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green, #2da44e));
 	--gl-stat-modified: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-charts-yellow, #bf8700));
 	--gl-stat-removed: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red, #cf222e));

@@ -683,7 +683,7 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 
 	private handleSwap() {
 		// Swaps the multi-commit compare selection order (from/to). Distinct from
-		// `swap-refs` in the wip-compare panel, which swaps ahead/behind refs.
+		// `swap-refs` in the compare panel, which swaps ahead/behind refs.
 		this.dispatchEvent(new CustomEvent('swap-selection', { bubbles: true, composed: true }));
 	}
 }
