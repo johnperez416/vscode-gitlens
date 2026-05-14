@@ -1279,7 +1279,11 @@ export class GlTimelineChart extends GlElement {
 			'--axis-scrollbar-thumb': theme.scrollThumbHover,
 		};
 		const glassStyle = { left: `${lo.chartLeft}px`, width: `${lo.chartRight - lo.chartLeft}px` };
-		const baselineStyle = { left: '0', top: `${axisHeight - 1}px`, width: '100%' };
+		const baselineStyle = {
+			left: `${lo.chartLeft}px`,
+			top: `${axisHeight - 1}px`,
+			width: `${lo.chartRight - lo.chartLeft}px`,
+		};
 
 		return html`<div
 			class="axis-overlay"
