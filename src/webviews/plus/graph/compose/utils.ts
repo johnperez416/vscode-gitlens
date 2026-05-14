@@ -41,6 +41,20 @@ export function libraryPlanToProposedCommits(
 
 	const hunkAnchor: ProposedCommitFile['anchor'] = kind === 'wip-only' ? 'unstaged' : 'committed';
 
+	// The introducing hunk (rename / add / delete) for any given file lives in the earliest
+	// commit touching that path — matching the apply path's `stripRenameFromHeader` invariant.
+	// Follow-up commits' rows for the same file render as `M` with no rename arrow.
+	const earliestCommitByFile = new Map<string, number>();
+	for (let ci = 0; ci < plan.allOrderedCommits.length; ci++) {
+		for (const idx of plan.allOrderedCommits[ci].hunkIndices) {
+			const lh = hunkByIndex.get(idx);
+			if (lh == null) continue;
+			if (!earliestCommitByFile.has(lh.fileName)) {
+				earliestCommitByFile.set(lh.fileName, ci);
+			}
+		}
+	}
+
 	const commitHunksByIndex: ComposerHunk[][] = [];
 	const commits: ProposedCommit[] = plan.allOrderedCommits.map((c, ci): ProposedCommit => {
 		const commitHunks: ComposerHunk[] = [];
@@ -58,11 +72,19 @@ export function libraryPlanToProposedCommits(
 				existing == null || anchorRank[hunkAnchor] > anchorRank[existing.anchor] ? hunkAnchor : existing.anchor;
 
 			const wip = wipByPath.get(lh.fileName);
+			const ownsIntroduction = earliestCommitByFile.get(lh.fileName) === ci;
+			const { status, originalPath } = resolveProposedFileStatus(
+				lh,
+				c.hunkIndices,
+				hunkByIndex,
+				wip,
+				ownsIntroduction,
+			);
 			filesByPath.set(lh.fileName, {
 				repoPath: repoPath,
 				path: lh.fileName,
-				status: wip?.status ?? 'M',
-				originalPath: wip?.originalPath ?? lh.originalFileName,
+				status: status,
+				originalPath: originalPath,
 				staged: anchor === 'staged',
 				anchor: anchor,
 				anchorSha: anchor === 'committed' ? headSha : undefined,
@@ -84,6 +106,53 @@ export function libraryPlanToProposedCommits(
 	});
 
 	return { commits: commits, commitHunksByIndex: commitHunksByIndex };
+}
+
+/**
+ * Per-commit per-file status + originalPath for a proposed-commit row.
+ *
+ * Introducing commit: WIP status when known, else `R` (any hunk carries `originalFileName` —
+ * covers pure renames and rename-with-edits), `A` / `D` from `/dev/null` markers in the diff
+ * header, else `M`. Follow-up commits in the chain always render as `M`.
+ */
+function resolveProposedFileStatus(
+	hunk: ComposeHunk,
+	commitHunkIndices: readonly number[],
+	hunkByIndex: ReadonlyMap<number, ComposeHunk>,
+	wip: { status: GitFileStatus; originalPath?: string } | undefined,
+	ownsIntroduction: boolean,
+): { status: GitFileStatus; originalPath?: string } {
+	if (!ownsIntroduction) {
+		return { status: 'M', originalPath: undefined };
+	}
+
+	if (wip != null) {
+		return { status: wip.status, originalPath: wip.originalPath };
+	}
+
+	// Rename-with-edits emits `originalFileName` on every hunk of the file with `isRename: false`;
+	// pure renames emit one hunk with `isRename: true`. Scan all siblings to cover both shapes.
+	let originalFileName: string | undefined = hunk.originalFileName ?? undefined;
+	let diffHeader = hunk.diffHeader;
+	let foundIsRename = hunk.isRename === true;
+	for (const idx of commitHunkIndices) {
+		const sibling = hunkByIndex.get(idx);
+		if (sibling?.fileName !== hunk.fileName) continue;
+		originalFileName ??= sibling.originalFileName;
+		if (sibling.isRename === true) {
+			foundIsRename = true;
+		}
+		diffHeader ||= sibling.diffHeader;
+	}
+
+	if (foundIsRename || (originalFileName != null && originalFileName !== hunk.fileName)) {
+		return { status: 'R', originalPath: originalFileName };
+	}
+
+	if (/^--- \/dev\/null$/m.test(diffHeader)) return { status: 'A', originalPath: undefined };
+	if (/^\+\+\+ \/dev\/null$/m.test(diffHeader)) return { status: 'D', originalPath: undefined };
+
+	return { status: 'M', originalPath: undefined };
 }
 
 /** Recognize the library's CANCELLED error so the RPC handler can surface a clean cancel sentinel. */

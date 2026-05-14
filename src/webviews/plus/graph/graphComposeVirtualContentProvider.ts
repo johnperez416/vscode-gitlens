@@ -162,35 +162,31 @@ export class GraphComposeVirtualContentProvider implements VirtualContentProvide
 		const commitIdx = session.commits.findIndex(c => c.id === commitId);
 		if (commitIdx < 0) throw new Error(`virtual commit not found: ${sessionId}/${commitId}`);
 
-		// Start with the base file content for this path; undefined if the file is new in the plan.
-		let content = await this.getBaseContent(session, path);
+		// `nameAtCommit[i]` is the file's name AFTER commit i (the destination-path the diff
+		// output uses); `nameAtCommit[0]` is the name at base. Walking backward from `path` lets
+		// a multi-hop chain (`original → renamed → wip-renamed` split across commits) resolve to
+		// the actual base file. `fromPath !== toPath` catches rename-with-edits too — those carry
+		// `originalFileName` on every hunk with `isRename: false`.
+		const nameAtCommit: string[] = new Array(commitIdx + 2);
+		nameAtCommit[commitIdx + 1] = path;
+		for (let i = commitIdx; i >= 0; i--) {
+			const nameAfter = nameAtCommit[i + 1];
+			const hunks = collectHunksForPath(session.commits[i].hunks, nameAfter);
+			const renameSource = hunks.find(h => h.fromPath !== h.toPath)?.fromPath;
+			nameAtCommit[i] = renameSource ?? nameAfter;
+		}
 
-		// Walk every commit up to and including `commitIdx`; apply any hunks that touch `path`.
-		// Track renames so a file that arrived at its final path via an earlier commit's rename still
-		// resolves to the correct base content.
-		let currentPath = path;
+		let content = await this.getBaseContent(session, nameAtCommit[0]);
 		for (let i = 0; i <= commitIdx; i++) {
-			const commit = session.commits[i];
-			const hunks = collectHunksForPath(commit.hunks, currentPath);
+			const nameAfter = nameAtCommit[i + 1];
+			const hunks = collectHunksForPath(session.commits[i].hunks, nameAfter);
 			if (hunks.length === 0) continue;
-
-			// If any hunk in this commit renames to `currentPath` from an older name, re-root from
-			// that old name's content - otherwise we'd stack hunks onto the wrong base.
-			const pathAtThisStep = currentPath;
-			const renameFrom = hunks.find(h => h.isRename && h.toPath === pathAtThisStep)?.fromPath;
-			if (renameFrom != null && renameFrom !== currentPath) {
-				content = await this.getBaseContent(session, renameFrom);
-				currentPath = renameFrom;
-			}
-
 			content = applyHunks(
 				content,
 				hunks.map(h => h.hunk),
 			);
 		}
 
-		// Coerce to empty bytes for the "file doesn't exist at base and no hunks matched" case so
-		// the FS provider returns a consistent result instead of surfacing undefined.
 		const result = content ?? new Uint8Array(0);
 		session.contentCache.set(cacheKey, result);
 		return result;
