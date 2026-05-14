@@ -180,9 +180,9 @@ export const composeModePanelStyles = css`
 		border-left-color: var(--vscode-charts-purple, #7c3aed);
 	}
 
-	.compose-commit--committed {
-		opacity: 0.4;
-		pointer-events: none;
+	.compose-commit--excluded .compose-commit__num,
+	.compose-commit--excluded .compose-commit__info {
+		opacity: 0.45;
 	}
 
 	.compose-commit__num {
@@ -230,7 +230,7 @@ export const composeModePanelStyles = css`
 		justify-content: center;
 		width: 22px;
 		height: 22px;
-		border: 1px solid var(--vscode-sideBarSectionHeader-border);
+		border: 1px solid var(--vscode-charts-green, #4ec9b0);
 		border-radius: 3px;
 		background: transparent;
 		color: var(--vscode-charts-green, #4ec9b0);
@@ -238,9 +238,48 @@ export const composeModePanelStyles = css`
 		--code-icon-size: 14px;
 	}
 
+	.compose-commit__action--excluded {
+		border-color: var(--vscode-sideBarSectionHeader-border);
+		color: var(--vscode-descriptionForeground);
+	}
+
+	/* Hover previews the post-click state: included → gray-filled circle, excluded → green-filled check. */
 	.compose-commit__action:hover {
+		background: var(--vscode-descriptionForeground);
+		border-color: var(--vscode-descriptionForeground);
+		color: var(--vscode-editor-background);
+	}
+
+	.compose-commit__action--excluded:hover {
 		background: var(--vscode-charts-green, #4ec9b0);
+		border-color: var(--vscode-charts-green, #4ec9b0);
 		color: #fff;
+	}
+
+	/* Show the icon matching the current state; swap on hover to show the post-click icon. */
+	.compose-commit__action .compose-commit__action-icon-excluded,
+	.compose-commit__action--excluded .compose-commit__action-icon-included {
+		display: none;
+	}
+
+	.compose-commit__action--excluded .compose-commit__action-icon-excluded {
+		display: inline-flex;
+	}
+
+	.compose-commit__action:not(.compose-commit__action--excluded):hover .compose-commit__action-icon-included {
+		display: none;
+	}
+
+	.compose-commit__action:not(.compose-commit__action--excluded):hover .compose-commit__action-icon-excluded {
+		display: inline-flex;
+	}
+
+	.compose-commit__action--excluded:hover .compose-commit__action-icon-excluded {
+		display: none;
+	}
+
+	.compose-commit__action--excluded:hover .compose-commit__action-icon-included {
+		display: inline-flex;
 	}
 
 	.compose-base {

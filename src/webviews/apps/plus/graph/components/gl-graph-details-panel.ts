@@ -702,14 +702,12 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			@compose-forward=${() => this._workflow.compose.forward()}
 			@compose-forward-invalidate=${() => this._workflow.compose.invalidateSnapshot()}
 			@compose-cancel=${this.handleCancelMode}
-			@compose-commit-all=${() =>
-				void this._actions.composeCommitAll(this.effectiveRepoPath, this.sha, this.graphReachability)}
-			@compose-commit-to=${(e: CustomEvent<{ upToIndex: number }>) =>
-				void this._actions.composeCommitTo(
+			@compose-commit-all=${(e: CustomEvent<{ includedCommitIds?: readonly string[] }>) =>
+				void this._actions.composeCommitAll(
 					this.effectiveRepoPath,
-					e.detail.upToIndex,
 					this.sha,
 					this.graphReachability,
+					e.detail?.includedCommitIds,
 				)}
 			@compose-open-composer=${() => this._actions.openComposer(this.effectiveRepoPath)}
 			@compose-open-multi-diff=${this.handleComposeOpenMultiDiff}

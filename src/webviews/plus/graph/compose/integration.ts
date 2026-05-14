@@ -44,8 +44,8 @@ export interface GeneratePlanForGraphDetailsResult {
 export interface ApplyPlanForGraphDetailsInput {
 	svc: GitRepositoryService;
 	cacheKey: string;
-	mode: 'all' | 'up-to';
-	upToIndex?: number;
+	/** When provided, only commits whose `id` is in this list are applied. `undefined` means all. */
+	includedCommitIds?: readonly string[];
 	signing?: SigningConfig;
 	telemetrySource: Source;
 	onProgress?: (event: ComposeProgressEvent) => void;
@@ -159,10 +159,7 @@ export class GraphComposeIntegration extends ComposeToolsIntegration {
 			snapshot: cached.snapshot,
 		};
 
-		const applyCommitIds =
-			input.mode === 'all'
-				? undefined
-				: cached.plan.allOrderedCommits.slice(0, (input.upToIndex ?? -1) + 1).map(c => c.id);
+		const applyCommitIds = input.includedCommitIds != null ? [...input.includedCommitIds] : undefined;
 
 		const stashLabel = `${graphComposeStashPrefix}${new Date().toISOString().replace(/[:.]/g, '-')}`;
 

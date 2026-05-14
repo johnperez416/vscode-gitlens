@@ -88,8 +88,8 @@ export type ComposeResult =
 export type ComposeCommitPlan = {
 	commits: ProposedCommit[];
 	base: ComposeBaseCommit;
-	mode: 'all' | 'up-to';
-	upToIndex?: number;
+	/** When provided, only commits whose `id` is in this list are applied. `undefined` means all. */
+	includedCommitIds?: readonly string[];
 };
 
 export type CommitResult = { success: true } | { success: true; warning: string } | { error: { message: string } };

@@ -1920,6 +1920,7 @@ export class DetailsActions {
 		repoPath: string | undefined,
 		sha: string | undefined,
 		graphReachability?: GitCommitReachability,
+		includedCommitIds?: readonly string[],
 	): Promise<void> {
 		const composeValue = this.resources.compose.value.get();
 		if (!repoPath || !composeValue || !('result' in composeValue)) return;
@@ -1929,7 +1930,7 @@ export class DetailsActions {
 			const result = await this.services.graphInspect.commitCompose(repoPath, {
 				commits: composeValue.result.commits,
 				base: composeValue.result.baseCommit,
-				mode: 'all',
+				includedCommitIds: includedCommitIds,
 			});
 			if ('error' in result && result.error) {
 				this.resources.compose.mutate({ error: { message: result.error.message } });
@@ -1944,41 +1945,6 @@ export class DetailsActions {
 			}
 		} catch {
 			this.resources.compose.mutate({ error: { message: 'Failed to commit plan.' } });
-		} finally {
-			this.state.composeApplying.set(false);
-		}
-	}
-
-	async composeCommitTo(
-		repoPath: string | undefined,
-		upToIndex: number,
-		sha?: string,
-		graphReachability?: GitCommitReachability,
-	): Promise<void> {
-		const composeValue = this.resources.compose.value.get();
-		if (!repoPath || !composeValue || !('result' in composeValue)) return;
-
-		this.state.composeApplying.set(true);
-		try {
-			const result = await this.services.graphInspect.commitCompose(repoPath, {
-				commits: composeValue.result.commits,
-				base: composeValue.result.baseCommit,
-				mode: 'up-to',
-				upToIndex: upToIndex,
-			});
-			if ('error' in result && result.error) {
-				this.resources.compose.mutate({ error: { message: result.error.message } });
-			} else {
-				this.state.activeMode.set(null);
-				this.state.activeModeContext.set(null);
-				this.resources.compose.reset();
-				this.state.composeForwardAvailable.set(false);
-				this.state.composeBackPreview.set(undefined);
-				this.refreshWip();
-				void this.fetchDetails(sha, repoPath, graphReachability);
-			}
-		} catch {
-			this.resources.compose.mutate({ error: { message: 'Failed to commit.' } });
 		} finally {
 			this.state.composeApplying.set(false);
 		}

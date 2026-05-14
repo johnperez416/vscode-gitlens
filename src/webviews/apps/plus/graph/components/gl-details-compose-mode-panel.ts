@@ -39,8 +39,8 @@ import '../../../shared/components/tree/gl-file-tree-pane.js';
 import './gl-commits-scope-pane.js';
 import './gl-categorizing-loading-animation.js';
 
-export interface ComposeCommitDetail {
-	upToIndex: number;
+export interface ComposeCommitAllDetail {
+	includedCommitIds?: readonly string[];
 }
 
 @customElement('gl-details-compose-mode-panel')
@@ -112,10 +112,10 @@ export class GlDetailsComposeModePanel extends LitElement {
 	aiModel?: AiModelInfo;
 
 	@state() private _selectedCommitId?: string;
-	@state() private _committedUpTo = -1;
 	@state() private _fileLayout: ViewFilesLayout = 'auto';
 	@state() private _excludedFiles = new Set<string>();
 	@state() private _aiExcludedSet: ReadonlySet<string> | undefined;
+	@state() private _excludedCommitIds = new Set<string>();
 
 	/** Pushed by the orchestrator from `state.composeForwardAvailable`. See review panel for the
 	 * full restore-vs-rerun rationale — bar click emits `compose-forward` for the orchestrator
@@ -154,6 +154,22 @@ export class GlDetailsComposeModePanel extends LitElement {
 			const pruned = pruneExcludedToFiles(this._excludedFiles, this.files);
 			if (pruned != null) {
 				this._excludedFiles = pruned;
+			}
+		}
+
+		if (changedProperties.has('commits') && this._excludedCommitIds.size > 0) {
+			const validIds = new Set(this.commits?.map(c => c.id));
+			let changed = false;
+			const next = new Set<string>();
+			for (const id of this._excludedCommitIds) {
+				if (validIds.has(id)) {
+					next.add(id);
+				} else {
+					changed = true;
+				}
+			}
+			if (changed) {
+				this._excludedCommitIds = next;
 			}
 		}
 	}
@@ -468,8 +484,14 @@ export class GlDetailsComposeModePanel extends LitElement {
 		const isLoading = this.status === 'loading';
 		const totalFiles = this.commits.reduce((sum, c) => sum + c.files.length, 0);
 
+		const includedCount = this.commits.length - this._excludedCommitIds.size;
+		const allIncluded = this._excludedCommitIds.size === 0;
+		const commitButtonLabel = allIncluded ? 'Commit All' : `Commit ${pluralize('Commit', includedCount)}`;
+
 		const commitAllRow = html`<div class="compose-plan__commit-all">
-			<gl-button full @click=${this.handleCommitAll}>Commit All</gl-button>
+			<gl-button full ?disabled=${includedCount === 0} @click=${this.handleCommitAll}
+				>${commitButtonLabel}</gl-button
+			>
 		</div>`;
 
 		const listEl = html`<div class="compose-plan__list scrollable">
@@ -528,12 +550,12 @@ export class GlDetailsComposeModePanel extends LitElement {
 	private renderProposedCommit(commit: ProposedCommit, index: number) {
 		const num = this.commits!.length - index;
 		const isSelected = this._selectedCommitId === commit.id;
-		const isCommitted = index > this.commits!.length - 1 - this._committedUpTo;
-		const isNext = index === this.commits!.length - 1 - this._committedUpTo;
+		const isExcluded = this._excludedCommitIds.has(commit.id);
+		const toggleLabel = isExcluded ? 'Include this commit' : 'Exclude this commit';
 
 		return html`<div
-			class="compose-commit ${isSelected ? 'compose-commit--selected' : ''} ${isCommitted
-				? 'compose-commit--committed'
+			class="compose-commit ${isSelected ? 'compose-commit--selected' : ''} ${isExcluded
+				? 'compose-commit--excluded'
 				: ''}"
 			@click=${() => this.handleSelectCommit(commit.id)}
 		>
@@ -546,21 +568,21 @@ export class GlDetailsComposeModePanel extends LitElement {
 					<span class="compose-commit__deletions">&minus;${commit.deletions}</span>
 				</span>
 			</div>
-			${isCommitted
-				? nothing
-				: html`<gl-tooltip placement="left">
-						<button
-							class="compose-commit__action ${isNext ? 'compose-commit__action--next' : ''}"
-							aria-label="Commit Up To Here"
-							@click=${(e: Event) => {
-								e.stopPropagation();
-								this.handleCommitTo(index);
-							}}
-						>
-							<code-icon icon="check"></code-icon>
-						</button>
-						<span slot="content">Commit Up To Here</span>
-					</gl-tooltip>`}
+			<gl-tooltip placement="left">
+				<button
+					class="compose-commit__action ${isExcluded ? 'compose-commit__action--excluded' : ''}"
+					aria-label=${toggleLabel}
+					aria-pressed=${isExcluded ? 'false' : 'true'}
+					@click=${(e: Event) => {
+						e.stopPropagation();
+						this.handleToggleCommitIncluded(commit.id);
+					}}
+				>
+					<code-icon class="compose-commit__action-icon-included" icon="check"></code-icon>
+					<code-icon class="compose-commit__action-icon-excluded" icon="circle-large-outline"></code-icon>
+				</button>
+				<span slot="content">${toggleLabel}</span>
+			</gl-tooltip>
 		</div>`;
 	}
 
@@ -699,16 +721,27 @@ export class GlDetailsComposeModePanel extends LitElement {
 	}
 
 	private handleCommitAll(): void {
-		this.dispatchEvent(new CustomEvent('compose-commit-all', { bubbles: true, composed: true }));
-	}
+		const includedCommitIds =
+			this._excludedCommitIds.size === 0
+				? undefined
+				: this.commits?.filter(c => !this._excludedCommitIds.has(c.id)).map(c => c.id);
 
-	private handleCommitTo(index: number): void {
 		this.dispatchEvent(
-			new CustomEvent<ComposeCommitDetail>('compose-commit-to', {
-				detail: { upToIndex: index },
+			new CustomEvent<ComposeCommitAllDetail>('compose-commit-all', {
+				detail: { includedCommitIds: includedCommitIds },
 				bubbles: true,
 				composed: true,
 			}),
 		);
+	}
+
+	private handleToggleCommitIncluded(commitId: string): void {
+		const next = new Set(this._excludedCommitIds);
+		if (next.has(commitId)) {
+			next.delete(commitId);
+		} else {
+			next.add(commitId);
+		}
+		this._excludedCommitIds = next;
 	}
 }

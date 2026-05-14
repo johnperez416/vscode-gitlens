@@ -161,7 +161,7 @@ suite('scopeSelectionEqual', () => {
 });
 
 suite('DetailsActions', () => {
-	test('composeCommitTo clears stale compose plan after successful commit', async () => {
+	test('composeCommitAll without includedCommitIds clears stale compose plan after successful commit', async () => {
 		const state = createDetailsState();
 		state.activeMode.set('compose');
 		state.activeModeContext.set('wip');
@@ -184,13 +184,12 @@ suite('DetailsActions', () => {
 			fetchedDetails = { sha: sha, repoPath: repoPath };
 		};
 
-		await actions.composeCommitTo('/repo', 0, 'abc');
+		await actions.composeCommitAll('/repo', 'abc');
 
 		assert.deepStrictEqual(committedPlan, {
 			commits: composeResult.result.commits,
 			base: composeResult.result.baseCommit,
-			mode: 'up-to',
-			upToIndex: 0,
+			includedCommitIds: undefined,
 		});
 		assert.strictEqual(state.activeMode.get(), null);
 		assert.strictEqual(state.activeModeContext.get(), null);
@@ -198,6 +197,34 @@ suite('DetailsActions', () => {
 		assert.strictEqual(resources.compose.status.get(), 'idle');
 		assert.strictEqual(resources.compose.value.get(), undefined);
 		assert.deepStrictEqual(fetchedDetails, { sha: 'abc', repoPath: '/repo' });
+	});
+
+	test('composeCommitAll forwards includedCommitIds when a subset is selected', async () => {
+		const state = createDetailsState();
+		state.activeMode.set('compose');
+		state.activeModeContext.set('wip');
+
+		let committedPlan: unknown;
+		const resources = createResources();
+		resources.compose.mutate(composeResult);
+
+		const actions = new DetailsActions(
+			state,
+			createServices(async (_repoPath, plan) => {
+				committedPlan = plan;
+				return { success: true };
+			}),
+			resources,
+		);
+		actions.fetchDetails = async () => undefined;
+
+		await actions.composeCommitAll('/repo', 'abc', undefined, ['c1']);
+
+		assert.deepStrictEqual(committedPlan, {
+			commits: composeResult.result.commits,
+			base: composeResult.result.baseCommit,
+			includedCommitIds: ['c1'],
+		});
 	});
 
 	test('toggleCompareWorkingTree invalidates side data and refetches summary with the toggle enabled', async () => {

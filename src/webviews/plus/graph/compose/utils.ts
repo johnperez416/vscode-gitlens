@@ -126,8 +126,8 @@ export async function executeComposeCommit(
 ): Promise<CommitResult> {
 	const svc = container.git.getRepositoryService(repoPath);
 
-	const commits =
-		plan.mode === 'up-to' && plan.upToIndex != null ? plan.commits.slice(0, plan.upToIndex + 1) : plan.commits;
+	const includedIds = plan.includedCommitIds != null ? new Set(plan.includedCommitIds) : undefined;
+	const commits = includedIds != null ? plan.commits.filter(c => includedIds.has(c.id)) : plan.commits;
 	if (commits.length === 0) return { success: true as const };
 
 	const signingConfig = await svc.config.getSigningConfig?.();
@@ -144,8 +144,7 @@ export async function executeComposeCommit(
 		result = await composeTools.applyPlanForGraphDetails({
 			svc: svc,
 			cacheKey: cacheKey,
-			mode: plan.mode,
-			upToIndex: plan.upToIndex,
+			includedCommitIds: plan.includedCommitIds,
 			signing: signing,
 			telemetrySource: { source: 'graph' },
 		});
