@@ -742,6 +742,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.branchName=${branch?.name}
 			.repoPath=${repoPath}
 			.preferences=${this._state.preferences.get()}
+			.orgSettings=${this._state.orgSettings.get()}
+			.explainBusy=${this._state.compareExplainBusy.get()}
+			.generateChangelogBusy=${this._state.compareGenerateChangelogBusy.get()}
 			.leftRef=${leftRef}
 			.leftRefType=${this._state.branchCompareLeftRefType.get()}
 			.rightRef=${this._state.branchCompareRightRef.get()}
@@ -799,6 +802,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				this._actions.setBranchCompareActiveView(e.detail.view, repoPath)}
 			@request-enrichment=${() => this._actions.requestBranchCompareEnrichment(repoPath)}
 			@open-multiple-changes=${this.handleOpenMultipleChanges}
+			@gl-explain=${(e: CustomEvent<{ prompt?: string }>) =>
+				this._actions.branchCompareExplain(repoPath, e.detail?.prompt)}
+			@gl-generate-changelog=${() => this._actions.branchCompareGenerateChangelog(repoPath)}
 			@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
 		></gl-details-compare-mode-panel>`;
 	}
@@ -938,6 +944,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			.swapped=${swapped}
 			.betweenCount=${betweenCount}
 			.explainBusy=${this._state.compareExplainBusy.get()}
+			.generateChangelogBusy=${this._state.compareGenerateChangelogBusy.get()}
 			.filesCollapsable=${false}
 			.aiEnabled=${this._state.preferences.get()?.aiEnabled ?? false}
 			.experimentalFeaturesEnabled=${this._graphState?.config?.experimentalFeaturesEnabled === true}
@@ -960,6 +967,7 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 			@swap-selection=${() => this._actions.swap(shas)}
 			@gl-explain=${(e: CustomEvent<{ prompt?: string }>) =>
 				this._actions.compareExplain(shas, repoPath, e.detail?.prompt)}
+			@gl-generate-changelog=${() => this._actions.compareGenerateChangelog(shas, repoPath)}
 			@enrich-autolinks=${() => {
 				const fromSha = this._actions.fromSha(shas, swapped);
 				const toSha = this._actions.toSha(shas, swapped);

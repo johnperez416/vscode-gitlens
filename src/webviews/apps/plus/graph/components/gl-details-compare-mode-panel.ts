@@ -8,7 +8,7 @@ import { uncommitted } from '@gitlens/git/models/revision.js';
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import type { Autolink } from '../../../../../autolinks/models/autolinks.js';
 import { serializeWebviewItemContext } from '../../../../../system/webview.js';
-import type { DetailsItemTypedContext, Preferences } from '../../../../plus/graph/detailsProtocol.js';
+import type { DetailsItemTypedContext, Preferences, State } from '../../../../plus/graph/detailsProtocol.js';
 import { buildFolderContext } from '../../../../plus/graph/detailsProtocol.js';
 import type {
 	BranchComparisonCommit,
@@ -27,7 +27,9 @@ import {
 } from '../../../shared/components/styles/lit/base.css.js';
 import type { TreeItemAction } from '../../../shared/components/tree/base.js';
 import { compareModePanelStyles } from './gl-details-compare-mode-panel.css.js';
+import { panelActionInputStyles } from './shared-panel.css.js';
 import './gl-commit-row.js';
+import './gl-compare-ai-actions.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/badges/badge.js';
 import '../../../shared/components/branch-name.js';
@@ -60,6 +62,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		metadataBarVarsBase,
 		scrollableBase,
 		compareModePanelStyles,
+		panelActionInputStyles,
 		subPanelEnterStyles,
 	];
 
@@ -176,6 +179,15 @@ export class GlDetailsCompareModePanel extends LitElement {
 	@property({ type: Object })
 	preferences?: Preferences;
 
+	@property({ type: Object })
+	orgSettings?: State['orgSettings'];
+
+	@property({ type: Boolean })
+	explainBusy = false;
+
+	@property({ type: Boolean })
+	generateChangelogBusy = false;
+
 	/**
 	 * True when the user has just changed the comparison identity (refs / worktree / repo) and
 	 * the new fetch hasn't returned yet. We treat this differently than other "loading" events
@@ -266,9 +278,19 @@ export class GlDetailsCompareModePanel extends LitElement {
 		return this.activeView === 'contributors' ? this.renderContributorsSection() : this.renderFileSection(files);
 	}
 
+	private renderEmbeddedAIActions() {
+		if (this.orgSettings?.ai === false) return nothing;
+
+		return html`<gl-compare-ai-actions
+			.explainBusy=${this.explainBusy}
+			.generateChangelogBusy=${this.generateChangelogBusy}
+			.orgSettings=${this.orgSettings}
+		></gl-compare-ai-actions>`;
+	}
+
 	private renderAllFilesTab() {
 		return html`<div class="wip-compare-all" data-tab="all">
-			${this.renderAutolinksRow()}${this.renderRightPane(this.allFiles)}
+			${this.renderAutolinksRow()}${this.renderEmbeddedAIActions()}${this.renderRightPane(this.allFiles)}
 		</div>`;
 	}
 
@@ -290,7 +312,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		>
 			<div slot="start" class="wip-compare-split__start">${this.renderCommitList(this.aheadCommits)}</div>
 			<div slot="end" class="wip-compare-split__end">
-				${this.renderAutolinksRow()}${this.renderRightPane(files)}
+				${this.renderAutolinksRow()}${this.renderEmbeddedAIActions()}${this.renderRightPane(files)}
 			</div>
 		</gl-split-panel>`;
 	}
@@ -313,7 +335,7 @@ export class GlDetailsCompareModePanel extends LitElement {
 		>
 			<div slot="start" class="wip-compare-split__start">${this.renderCommitList(this.behindCommits)}</div>
 			<div slot="end" class="wip-compare-split__end">
-				${this.renderAutolinksRow()}${this.renderRightPane(files)}
+				${this.renderAutolinksRow()}${this.renderEmbeddedAIActions()}${this.renderRightPane(files)}
 			</div>
 		</gl-split-panel>`;
 	}
@@ -393,13 +415,6 @@ export class GlDetailsCompareModePanel extends LitElement {
 				overlay="tooltip"
 				@click=${this.dispatchSwapRefs}
 			></gl-action-chip>
-			<gl-action-chip
-				class="wip-compare-open-in-sac"
-				icon="git-compare"
-				label="Open in Search &amp; Compare"
-				overlay="tooltip"
-				@click=${this.dispatchOpenInSearchAndCompare}
-			></gl-action-chip>
 			<div class="wip-compare-bar__group">
 				<gl-tooltip placement="bottom">
 					<gl-branch-name
@@ -418,6 +433,13 @@ export class GlDetailsCompareModePanel extends LitElement {
 					label="Refresh Comparison"
 					overlay="tooltip"
 					@click=${this.dispatchRefreshCompare}
+				></gl-action-chip>
+				<gl-action-chip
+					class="wip-compare-open-in-sac"
+					icon="link-external"
+					label="Open in Search &amp; Compare"
+					overlay="tooltip"
+					@click=${this.dispatchOpenInSearchAndCompare}
 				></gl-action-chip>
 			</div>
 		</div>`;

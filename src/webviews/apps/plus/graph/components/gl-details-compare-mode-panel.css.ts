@@ -255,6 +255,15 @@ export const compareModePanelStyles = css`
 		overflow: hidden;
 	}
 
+	/* Breathing room between the AI actions row (Explain input + Generate Changelog) and the
+	   FILES CHANGED / Contributors section header that follows. The autolinks row above
+	   contributes 0.4rem padding-bottom on its own; this margin-bottom adds the rest of the
+	   gap below the action row so the FILES CHANGED border reads as a distinct band. */
+	.wip-compare-panel gl-compare-ai-actions {
+		display: block;
+		margin: 0 0.6rem 0.6rem 1.2rem;
+	}
+
 	/* Split panel — divides the commit list and the files tree vertically. */
 
 	.wip-compare-split {
@@ -445,7 +454,10 @@ export const compareModePanelStyles = css`
 	.wip-compare-files :is(gl-file-tree-pane, webview-pane)::part(header) {
 		padding-right: calc(1.2rem - 0.6rem);
 		background-color: inherit;
-		border-top: none;
+	}
+
+	.wip-compare-files gl-file-tree-pane {
+		--gl-file-tree-pane-header-border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
 	}
 
 	/* Match the inline-flex/gap treatment that gl-file-tree-pane applies to its title slot, so the

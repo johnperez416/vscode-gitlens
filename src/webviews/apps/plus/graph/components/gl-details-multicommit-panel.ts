@@ -30,8 +30,8 @@ import {
 import type { TreeItemAction } from '../../../shared/components/tree/base.js';
 import type { FileChangeListItemDetail } from '../../../shared/components/tree/gl-file-tree-pane.js';
 import { multiCommitPanelStyles, panelActionInputStyles, panelHostStyles } from './gl-details-multicommit-panel.css.js';
-import '../../../shared/components/ai-input.js';
 import '../../../shared/components/code-icon.js';
+import './gl-compare-ai-actions.js';
 import '../../../shared/components/commit-sha.js';
 import '../../../shared/components/progress.js';
 import '../../../shared/components/commit/commit-stats.js';
@@ -108,6 +108,9 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 
 	@property({ type: Boolean })
 	explainBusy = false;
+
+	@property({ type: Boolean })
+	generateChangelogBusy = false;
 
 	@property({ type: Boolean })
 	aiEnabled = false;
@@ -216,8 +219,7 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 							hasSubPanel
 								? html`<div class="sub-panel-enter">${this.subPanelContent}</div>`
 								: html`<div class="compare-section">
-											${this.renderPoles()} ${this.renderAutolinksRow()}
-											${this.renderExplainInput()}
+											${this.renderPoles()} ${this.renderAutolinksRow()} ${this.renderAIActions()}
 										</div>
 										<div class="compare-files">
 											<webview-pane-group flexible>
@@ -640,10 +642,14 @@ export class GlDetailsMultiCommitPanel extends LitElement {
 		this.dispatchEvent(new CustomEvent('enrich-autolinks', { bubbles: true, composed: true }));
 	}
 
-	private renderExplainInput() {
+	private renderAIActions() {
 		if (this.orgSettings?.ai === false) return nothing;
 
-		return html`<gl-ai-input multiline .busy=${this.explainBusy}></gl-ai-input>`;
+		return html`<gl-compare-ai-actions
+			.explainBusy=${this.explainBusy}
+			.generateChangelogBusy=${this.generateChangelogBusy}
+			.orgSettings=${this.orgSettings}
+		></gl-compare-ai-actions>`;
 	}
 
 	private renderCommitStats(stats?: GitCommitStats, appearance?: 'pill') {

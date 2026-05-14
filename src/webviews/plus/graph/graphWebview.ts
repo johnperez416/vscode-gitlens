@@ -40,11 +40,12 @@ import {
 	serializePullRequest,
 } from '@gitlens/git/utils/pullRequest.utils.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
-import { isSha, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
+import { createRevisionRange, isSha, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { getSearchQueryComparisonKey, parseSearchQuery } from '@gitlens/git/utils/search.utils.js';
 import { sortBranches, sortRemotes, sortTags, sortWorktrees } from '@gitlens/git/utils/sorting.js';
 import { filterMap } from '@gitlens/utils/array.js';
 import { CancellationError, isCancellationError } from '@gitlens/utils/cancellation.js';
+import { lazy } from '@gitlens/utils/lazy.js';
 import { getScopedCounter } from '@gitlens/utils/counter.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
@@ -74,6 +75,9 @@ import type { ExplainCommitCommandArgs } from '../../../commands/explainCommit.j
 import type { ExplainStashCommandArgs } from '../../../commands/explainStash.js';
 import type { ExplainWipCommandArgs } from '../../../commands/explainWip.js';
 import type { GenerateChangelogCommandArgs } from '../../../commands/generateChangelog.js';
+import { generateChangelogAndOpenMarkdownDocument } from '../../../commands/generateChangelog.js';
+import { getChangesForChangelog } from '../../../git/utils/-webview/log.utils.js';
+import type { AIGenerateChangelogChanges } from '../../../plus/ai/actions/generateChangelog.js';
 import type { GenerateCommitMessageCommandArgs } from '../../../commands/generateCommitMessage.js';
 import type { OpenIssueOnRemoteCommandArgs } from '../../../commands/openIssueOnRemote.js';
 import type { OpenOnRemoteCommandArgs } from '../../../commands/openOnRemote.js';
@@ -146,6 +150,7 @@ import {
 } from '../../../git/utils/-webview/commit.utils.js';
 import { stageConflictResolution } from '../../../git/utils/-webview/conflictResolution.utils.js';
 import { getRemoteIconUri } from '../../../git/utils/-webview/icons.js';
+import { getChangesForChangelog } from '../../../git/utils/-webview/log.utils.js';
 import { countConflictMarkers } from '../../../git/utils/-webview/mergeConflicts.utils.js';
 import { getReferenceFromBranch } from '../../../git/utils/-webview/reference.utils.js';
 import {
@@ -160,6 +165,7 @@ import {
 	getWorktreesByBranch,
 } from '../../../git/utils/-webview/worktree.utils.js';
 import type { OnboardingChangeEvent } from '../../../onboarding/onboardingService.js';
+import type { AIGenerateChangelogChanges } from '../../../plus/ai/actions/generateChangelog.js';
 import { shouldUseSinglePass } from '../../../plus/ai/actions/reviewChanges.js';
 import { prepareCompareDataForAIRequest } from '../../../plus/ai/utils/-webview/ai.utils.js';
 import type { ChangesContextCommit, ChangesContextInput } from '../../../plus/ai/utils/-webview/changesContext.js';
@@ -997,6 +1003,57 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 						return { error: { message: ex instanceof Error ? ex.message : String(ex) } };
 					}
 				},
+				generateChangelogCompare: async (
+					repoPath: string,
+					fromRef: string,
+					toRef: string,
+					signal?: AbortSignal,
+				): Promise<void> => {
+					// Call `generateChangelogAndOpenMarkdownDocument` directly rather than going
+					// through `executeCommand('gitlens.ai.generateChangelog', …)`. The command
+					// indirection breaks the await chain on the webview-side IPC — the proxy
+					// resolves before `execute()`'s inner awaits settle, clearing the webview's
+					// busy state in milliseconds even though the AI is still running. Calling the
+					// markdown-generator directly keeps the host method pinned through the full AI
+					// cycle, mirroring the `explainCompare` pattern below.
+					try {
+						signal?.throwIfAborted();
+						const svc = this.container.git.getRepositoryService(repoPath);
+						const baseRef = createReference(fromRef, repoPath, { refType: 'revision' });
+						const headRef = createReference(toRef, repoPath, { refType: 'revision' });
+						const mergeBase = await svc.refs.getMergeBase(headRef.ref, baseRef.ref);
+
+						await generateChangelogAndOpenMarkdownDocument(
+							this.container,
+							lazy(async () => {
+								const range: AIGenerateChangelogChanges['range'] = {
+									base: mergeBase
+										? {
+												ref: mergeBase,
+												label:
+													mergeBase === baseRef.ref
+														? `\`${shortenRevision(mergeBase)}\``
+														: `\`${baseRef.ref}@${shortenRevision(mergeBase)}\``,
+											}
+										: { ref: baseRef.ref, label: `\`${shortenRevision(baseRef.ref)}\`` },
+									head: {
+										ref: headRef.ref,
+										label: `\`${shortenRevision(headRef.ref)}\``,
+									},
+								};
+								const log = await svc.commits.getLog(
+									createRevisionRange(mergeBase ?? baseRef.ref, headRef.ref, '..'),
+								);
+								if (!log?.commits?.size) return { changes: [], range: range };
+								return getChangesForChangelog(this.container, range, log);
+							}),
+							{ source: 'graph', detail: 'compare' },
+							{ progress: { location: ProgressLocation.Notification } },
+						);
+					} catch (ex) {
+						Logger.error(ex, 'GraphWebviewProvider', 'generateChangelogCompare');
+					}
+				},
 				explainCompare: async (
 					repoPath: string,
 					fromSha: string,
@@ -1055,6 +1112,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 								},
 							},
 						);
+
+						// Keep the webview's busy state pinned for the full generation cycle —
+						// `openExplainDocument` fire-and-forgets `promise` to stream content into the
+						// already-opened placeholder doc, so without this await the busy signal would
+						// clear as soon as the placeholder doc opens (not when the AI actually
+						// finishes). Errors are already surfaced into the doc by openExplainDocument's
+						// own .then handler, so we just swallow rejections here.
+						await promise.catch(() => undefined);
 
 						return { result: { summary: '', body: '' } };
 					} catch (ex) {

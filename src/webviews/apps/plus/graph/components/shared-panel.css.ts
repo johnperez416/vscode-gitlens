@@ -24,7 +24,8 @@ export const panelHostStyles = [
 
 export const panelActionInputStyles = css`
 	.review-action-input,
-	gl-ai-input {
+	gl-ai-input,
+	gl-compare-ai-actions {
 		flex: none;
 		width: calc(100% - var(--gl-panel-padding-left, 1.2rem) - var(--gl-panel-padding-right, 1.2rem));
 		max-width: var(--gl-max-input);

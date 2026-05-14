@@ -98,6 +98,7 @@ function createDurableState() {
 	// AI explain result (mode-adjacent but fetched)
 	const explain = signal<ExplainState | undefined>(undefined);
 	const compareExplainBusy = signal(false);
+	const compareGenerateChangelogBusy = signal(false);
 
 	// Branch commits (scope-picker source of truth)
 	const branchCommits = signal<BranchCommitEntry[] | undefined>(undefined);
@@ -190,6 +191,7 @@ function createDurableState() {
 
 		explain: explain,
 		compareExplainBusy: compareExplainBusy,
+		compareGenerateChangelogBusy: compareGenerateChangelogBusy,
 
 		branchCommits: branchCommits,
 		branchMergeBase: branchMergeBase,

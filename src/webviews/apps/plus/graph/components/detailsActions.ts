@@ -352,6 +352,7 @@ export class DetailsActions {
 		s.reachabilityState.set('idle');
 		s.explain.set(undefined);
 		s.compareExplainBusy.set(false);
+		s.compareGenerateChangelogBusy.set(false);
 
 		// Branch-commits picker source (the gated leak that motivated this method)
 		s.branchCommits.set(undefined);
@@ -532,6 +533,7 @@ export class DetailsActions {
 		this.clearCompareCore();
 		this.clearCompareEnrichment();
 		this.state.compareExplainBusy.set(false);
+		this.state.compareGenerateChangelogBusy.set(false);
 
 		if (!sha || !repoPath) {
 			this._lastFetchedKey = undefined;
@@ -1158,6 +1160,40 @@ export class DetailsActions {
 		this.state.compareExplainBusy.set(true);
 		void this.services.graphInspect.explainCompare(repoPath, fromSha, toSha, prompt).finally(() => {
 			this.state.compareExplainBusy.set(false);
+		});
+	}
+
+	compareGenerateChangelog(shas: string[] | undefined, repoPath: string | undefined): void {
+		const swapped = this.state.swapped.get();
+		const fromSha = this.fromSha(shas, swapped);
+		const toSha = this.toSha(shas, swapped);
+		if (!fromSha || !toSha || !repoPath) return;
+
+		this.state.compareGenerateChangelogBusy.set(true);
+		void this.services.graphInspect.generateChangelogCompare(repoPath, fromSha, toSha).finally(() => {
+			this.state.compareGenerateChangelogBusy.set(false);
+		});
+	}
+
+	branchCompareExplain(repoPath: string | undefined, prompt?: string): void {
+		const leftRef = this.state.branchCompareLeftRef.get();
+		const rightRef = this.state.branchCompareRightRef.get();
+		if (!repoPath || !leftRef || !rightRef) return;
+
+		this.state.compareExplainBusy.set(true);
+		void this.services.graphInspect.explainCompare(repoPath, leftRef, rightRef, prompt).finally(() => {
+			this.state.compareExplainBusy.set(false);
+		});
+	}
+
+	branchCompareGenerateChangelog(repoPath: string | undefined): void {
+		const leftRef = this.state.branchCompareLeftRef.get();
+		const rightRef = this.state.branchCompareRightRef.get();
+		if (!repoPath || !leftRef || !rightRef) return;
+
+		this.state.compareGenerateChangelogBusy.set(true);
+		void this.services.graphInspect.generateChangelogCompare(repoPath, leftRef, rightRef).finally(() => {
+			this.state.compareGenerateChangelogBusy.set(false);
 		});
 	}
 

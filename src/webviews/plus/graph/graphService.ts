@@ -199,6 +199,7 @@ export interface GraphInspectService {
 		prompt?: string,
 		signal?: AbortSignal,
 	): Promise<ExplainResult>;
+	generateChangelogCompare(repoPath: string, fromRef: string, toRef: string, signal?: AbortSignal): Promise<void>;
 	getScopeFiles(repoPath: string, scope: ScopeSelection, signal?: AbortSignal): Promise<GitFileChangeShape[]>;
 	reviewChanges(
 		repoPath: string,

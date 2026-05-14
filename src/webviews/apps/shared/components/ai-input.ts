@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { cspStyleMap } from './csp-style-map.directive.js';
 import './code-icon.js';
+import './overlays/tooltip.js';
 
 try {
 	CSS.registerProperty({
@@ -66,7 +67,8 @@ export class GlAiInput extends LitElement {
 			display: flex;
 		}
 
-		/* Focus / Active: gradient border glow */
+		/* Hover / Focus / Active: gradient border glow */
+		:host(:hover) .ai-input__row,
 		:host([focused]) .ai-input__row,
 		:host([active]) .ai-input__row {
 			border-color: transparent;
@@ -213,12 +215,16 @@ export class GlAiInput extends LitElement {
 			z-index: 1;
 		}
 
-		.action-btn:hover:not(:disabled) {
+		/* Hovering anywhere in the row lights up the button too, so the pill responds as
+		   one cohesive surface (the row's conic border already reacts to :host(:hover)). */
+		.action-btn:hover:not(:disabled),
+		:host(:hover) .action-btn:not(:disabled) {
 			background: var(--vscode-button-background);
 			color: var(--vscode-button-foreground);
 		}
 
-		.action-btn:hover:not(:disabled) .icon-sparkle {
+		.action-btn:hover:not(:disabled) .icon-sparkle,
+		:host(:hover) .action-btn:not(:disabled) .icon-sparkle {
 			color: var(--vscode-button-foreground);
 		}
 
@@ -316,6 +322,9 @@ export class GlAiInput extends LitElement {
 	@property({ attribute: 'button-label' })
 	buttonLabel = 'Explain';
 
+	@property({ attribute: 'button-tooltip' })
+	buttonTooltip?: string;
+
 	@property({ attribute: 'busy-label' })
 	busyLabel = 'Explaining changes\u2026';
 
@@ -362,22 +371,24 @@ export class GlAiInput extends LitElement {
 				/>`;
 
 		return html`<div class="ai-input__row">
-				${inputPart}<button
-					class="action-btn"
-					part="button"
-					title=${this.buttonLabel}
-					aria-busy=${this.busy ? 'true' : nothing}
-					?disabled=${this.disabled || this.busy}
-					@click=${this.onSubmit}
+				${inputPart}<gl-tooltip content=${this.buttonTooltip ?? this.buttonLabel} placement="bottom"
+					><button
+						class="action-btn"
+						part="button"
+						aria-label=${this.buttonLabel}
+						aria-busy=${this.busy ? 'true' : nothing}
+						?disabled=${this.disabled || this.busy}
+						@click=${this.onSubmit}
+					>
+						${this.busy
+							? html`<code-icon icon="loading" modifier="spin"></code-icon>`
+							: html`<span class="icon-slider"
+									><code-icon class="icon-sparkle" icon="sparkle"></code-icon
+									><code-icon class="icon-send" icon="send"></code-icon
+								></span>`}
+						<span class="action-label">${this.buttonLabel}</span>
+					</button></gl-tooltip
 				>
-					${this.busy
-						? html`<code-icon icon="loading" modifier="spin"></code-icon>`
-						: html`<span class="icon-slider"
-								><code-icon class="icon-sparkle" icon="sparkle"></code-icon
-								><code-icon class="icon-send" icon="send"></code-icon
-							></span>`}
-					<span class="action-label">${this.buttonLabel}</span>
-				</button>
 			</div>
 			<div class="ai-input__footer" part="footer">
 				<slot name="footer" @slotchange=${this.onFooterSlotChange}></slot>
