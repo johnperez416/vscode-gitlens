@@ -683,12 +683,12 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			});
 		} else if (b.checkedOut) {
 			actions.push({
-				icon: 'window',
-				label: 'Open Worktree...',
-				action: 'gitlens.openWorktree:graph',
-				altIcon: 'empty-window',
-				altLabel: 'Open Worktree in New Window...',
-				altAction: 'gitlens.openWorktreeInNewWindow:graph',
+				icon: 'empty-window',
+				label: 'Open Worktree in New Window...',
+				action: 'gitlens.openWorktreeInNewWindow:graph',
+				altIcon: 'window',
+				altLabel: 'Open Worktree...',
+				altAction: 'gitlens.openWorktree:graph',
 			});
 		} else {
 			actions.unshift({
@@ -760,12 +760,12 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 
 		if (!w.opened) {
 			actions.push({
-				icon: 'window',
-				label: 'Open Worktree...',
-				action: 'gitlens.openWorktree:graph',
-				altIcon: 'empty-window',
-				altLabel: 'Open Worktree in New Window...',
-				altAction: 'gitlens.openWorktreeInNewWindow:graph',
+				icon: 'empty-window',
+				label: 'Open Worktree in New Window...',
+				action: 'gitlens.openWorktreeInNewWindow:graph',
+				altIcon: 'window',
+				altLabel: 'Open Worktree...',
+				altAction: 'gitlens.openWorktree:graph',
 			});
 		}
 
