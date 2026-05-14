@@ -1168,13 +1168,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 									instructions: prompt || undefined,
 								},
 								{ source: 'graph', context: { type: reviewType, mode: 'single-pass' } },
-								{
-									cancellation: cancellation,
-									progress: {
-										location: ProgressLocation.Notification,
-										title: 'Reviewing changes...',
-									},
-								},
+								{ cancellation: cancellation },
 							);
 
 							if (result === 'cancelled' || result == null) {
@@ -1209,13 +1203,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 								instructions: prompt || undefined,
 							},
 							{ source: 'graph', context: { type: reviewType, mode: 'two-pass' } },
-							{
-								cancellation: cancellation,
-								progress: {
-									location: ProgressLocation.Notification,
-									title: 'Analyzing changes...',
-								},
-							},
+							{ cancellation: cancellation },
 						);
 
 						if (overviewResult === 'cancelled' || overviewResult == null) {
@@ -1283,12 +1271,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 							},
 							focusAreaId,
 							{ source: 'graph', context: { type: reviewType, mode: 'two-pass' } },
-							{
-								progress: {
-									location: ProgressLocation.Notification,
-									title: 'Reviewing focus area...',
-								},
-							},
 						);
 
 						if (result === 'cancelled' || result == null) {
