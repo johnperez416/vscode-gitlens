@@ -287,10 +287,15 @@ export class WebviewController<
 				isInEditor
 					? parent.onDidChangeViewState(({ webviewPanel }) => {
 							const { visible, active, viewColumn } = webviewPanel;
+							// Only treat a viewColumn change as a forceReload-worthy "move" if the webview was
+							// already alive (`_ready`). During panel restoration the first view-state event is
+							// the panel settling into its restored column — not a user move — and forcing a
+							// reload there tears down the just-created iframe mid-bootstrap, cancelling the
+							// deferred-rows delivery and leaving the Graph stuck on its loading spinner.
 							this.onParentVisibilityChanged(
 								visible,
 								active,
-								this.viewColumn != null && this.viewColumn !== viewColumn,
+								this._ready && this.viewColumn != null && this.viewColumn !== viewColumn,
 							);
 							this._viewColumn = viewColumn;
 						})
