@@ -1023,10 +1023,17 @@ export class GlTimelineChart extends GlElement {
 				this._scrollY = 0;
 
 				// Auto-select the most recent commit visually so the chart highlights the working
-				// tree on first paint, but DON'T emit `gl-commit-select` — the host would
-				// interpret an emit as the user picking a commit and open a diff editor unprompted.
-				// The user only opts into the diff by interacting with a bubble or the slider thumb.
+				// tree on first paint. Emit `gl-commit-select` with `auto: true` ONLY on the
+				// genuine first paint (no prior selection) so consumers can reflect the initial
+				// selection — the standalone host skips its diff-editor RPC for `auto` events, the
+				// embedded graph timeline forwards them to its details panel. Subsequent fresh
+				// datasets (period / scope change) keep the prior `_selectedSha`-set state out of
+				// the emit so we don't yank a commit the user picked.
+				const hadSelection = this._selectedSha != null;
 				this._selectedSha = data[0]?.sha;
+				if (!hadSelection && this._selectedSha != null) {
+					this.emit('gl-commit-select', { id: this._selectedSha, shift: false, auto: true });
+				}
 
 				// Seed `_zoomRange` to the configured timeframe anchored at the newest commit
 				// when `windowSpanMs` is set. That's the "unzoomed" canonical default — the
@@ -2734,6 +2741,10 @@ export interface CommitEventDetail {
 	 * not committed — `actions.selectDataPoint` skips the host RPC for interim events so the
 	 * editor doesn't churn through a diff per slider tick. */
 	interim?: boolean;
+	/** True when the chart auto-selected the newest commit on a fresh dataset's first paint
+	 * (not a user action). The standalone host skips the diff-editor RPC for these; the embedded
+	 * graph timeline forwards them so its details panel reflects the initial selection. */
+	auto?: boolean;
 }
 
 /** Emitted in `windowed` mode when the user scrolls within 25% of the loaded dataset's left edge.

@@ -75,6 +75,21 @@ const detailsMaxPct = 50;
 const minimapDefaultPx = 40;
 const minimapMaxPct = 40;
 
+type GraphSelectedCommit = {
+	sha: string;
+	repoPath: string;
+	reachability?: GitCommitReachability;
+	/** Eagerly-built commit shell (no files/stats) so the details panel can paint synchronously. */
+	commitLite?: CommitDetails;
+};
+
+type GraphSelectedCommits = {
+	shas: string[];
+	repoPath: string;
+	/** Per-sha commit shells for the multi-commit endpoints — skips the from/to getCommit IPCs. */
+	commitLites?: Record<string, CommitDetails>;
+};
+
 @customElement('gl-graph-app')
 export class GraphApp extends SignalWatcher(LitElement) {
 	private _hoverTrackingCounter = getScopedCounter();
@@ -83,6 +98,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	private _wasDetailsVisible = false;
 	private _wasSidebarVisible = false;
 	private _wasSidebarActivePanel: string | null | undefined;
+	private _wasDisplayMode: GraphDisplayMode | undefined;
 
 	private _sidebarSnap = ({ pos }: { pos: number }) => {
 		if (pos < sidebarMinPct / 2) return 0;
@@ -117,22 +133,33 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		return pos;
 	};
 
+	/** Graph-mode single selection. Don't read directly for what the details panel shows — go
+	 *  through {@link activeSelection}, which picks the slot matching the active `displayMode`. */
 	@state()
-	private _selectedCommit?: {
-		sha: string;
-		repoPath: string;
-		reachability?: GitCommitReachability;
-		/** Eagerly-built commit shell (no files/stats) so the details panel can paint synchronously. */
-		commitLite?: CommitDetails;
-	};
+	private _selectedCommit?: GraphSelectedCommit;
 
+	/** Graph-mode multi (compare) selection. Don't read directly — see {@link activeSelection}. */
 	@state()
-	private _selectedCommits?: {
-		shas: string[];
-		repoPath: string;
-		/** Per-sha commit shells for the multi-commit endpoints — skips the from/to getCommit IPCs. */
-		commitLites?: Record<string, CommitDetails>;
-	};
+	private _selectedCommits?: GraphSelectedCommits;
+
+	/** Timeline-mode (Visual History) selection. Separate slot so graph selection changes — which
+	 *  keep arriving because the graph subtree stays mounted in timeline mode — don't clobber what
+	 *  the details panel shows while the timeline is the visible pane. Timeline is single-select
+	 *  only. Don't read directly — see {@link activeSelection}. */
+	@state()
+	private _timelineSelectedCommit?: GraphSelectedCommit;
+
+	/** The selection that drives the details panel, picked by the active `displayMode`. In
+	 *  timeline mode only the timeline slot is honored; otherwise the graph slots. */
+	private get activeSelection(): {
+		single: GraphSelectedCommit | undefined;
+		multi: GraphSelectedCommits | undefined;
+	} {
+		if ((this.graphState.displayMode ?? 'graph') === 'timeline') {
+			return { single: this._timelineSelectedCommit, multi: undefined };
+		}
+		return { single: this._selectedCommit, multi: this._selectedCommits };
+	}
 
 	private get fallbackRepoPath(): string | undefined {
 		const repoId = this.graphState.selectedRepository;
@@ -296,6 +323,19 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			}
 		}
 
+		// Drop the timeline selection whenever we leave timeline mode, so a stale (possibly
+		// cross-repo) selection doesn't flash in the details panel on the next entry — the chart
+		// re-emits its first-paint auto-select on remount. Tracked here rather than in
+		// `handleDisplayModeChange` so it covers every `displayMode` writer (sidebar toggle,
+		// `openTimelineScope`, the search-request path that forces `'graph'`).
+		const displayMode = this.graphState.displayMode ?? 'graph';
+		if (displayMode !== this._wasDisplayMode) {
+			if (this._wasDisplayMode === 'timeline') {
+				this._timelineSelectedCommit = undefined;
+			}
+			this._wasDisplayMode = displayMode;
+		}
+
 		// First-render auto-restore telemetry: panel was visible from persisted state, no explicit
 		// setDetailsVisible call. Fire once after first paint so `currentMode` is queryable.
 		if (this._detailsTelemetryFirstRender && detailsVisible) {
@@ -354,6 +394,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	override render() {
 		const detailsVisible = this.graphState.detailsVisible ?? false;
 		const minimapVisible = this.graphState.minimapVisible ?? true;
+		const { single, multi } = this.activeSelection;
 		return html`
 			<div class="graph">
 				<gl-graph-header
@@ -362,7 +403,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 					.getCommits=${this.getCommits}
 					.detailsVisible=${detailsVisible}
 					.minimapVisible=${minimapVisible}
-					.hasSelectedCommit=${this._selectedCommit != null || this._selectedCommits != null}
+					.hasSelectedCommit=${single != null || multi != null}
 					@toggle-sidebar=${this.handleToggleSidebar}
 					@toggle-details=${this.handleToggleDetails}
 					@toggle-minimap=${this.handleToggleMinimap}
@@ -381,11 +422,12 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		// Always render the split panel to avoid DOM re-parenting (which causes layout jumps).
 		// graphState.detailsVisible controls the split position; effective content controls divider state.
 		// When no commit/compare is selected, default to the current branch's WIP.
-		const hasSelection = this._selectedCommit != null || this._selectedCommits != null;
+		const { single, multi } = this.activeSelection;
+		const hasSelection = single != null || multi != null;
 		const fallbackPath = !hasSelection ? this.fallbackRepoPath : undefined;
-		const effectiveSha = this._selectedCommit?.sha ?? (fallbackPath != null ? uncommitted : undefined);
-		const effectiveRepoPath = (this._selectedCommit ?? this._selectedCommits)?.repoPath ?? fallbackPath;
-		const hasContent = effectiveSha != null || this._selectedCommits != null;
+		const effectiveSha = single?.sha ?? (fallbackPath != null ? uncommitted : undefined);
+		const effectiveRepoPath = (single ?? multi)?.repoPath ?? fallbackPath;
+		const hasContent = effectiveSha != null || multi != null;
 		const detailsVisible = this.graphState.detailsVisible ?? false;
 		const isBottom = this.graphState.config?.detailsLocation === 'bottom';
 		const persisted = isBottom ? this.graphState.detailsBottomPosition : this.graphState.detailsPosition;
@@ -406,10 +448,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				<gl-graph-details-panel
 					sha=${effectiveSha ?? nothing}
 					repo-path=${effectiveRepoPath ?? nothing}
-					.shas=${this._selectedCommits?.shas}
-					.graphReachability=${this._selectedCommit?.reachability}
-					.commitLite=${this._selectedCommit?.commitLite}
-					.commitLites=${this._selectedCommits?.commitLites}
+					.shas=${multi?.shas}
+					.graphReachability=${single?.reachability}
+					.commitLite=${single?.commitLite}
+					.commitLites=${multi?.commitLites}
 					@select-commit=${this.handleSelectCommit}
 					@gl-graph-details-mode-changed=${this.handleDetailsModeChanged}
 				></gl-graph-details-panel>
@@ -418,6 +460,14 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	}
 
 	private handleSelectCommit(e: CustomEvent<{ sha: string }>) {
+		// In timeline mode the graph is hidden and its selection isn't what the details panel
+		// renders — drive the timeline slot directly so details-panel-internal navigations
+		// (parent SHA, autolinks) actually update the panel.
+		if ((this.graphState.displayMode ?? 'graph') === 'timeline') {
+			const repoPath = this._timelineSelectedCommit?.repoPath ?? this.fallbackRepoPath ?? '';
+			this._timelineSelectedCommit = { sha: e.detail.sha, repoPath: repoPath };
+			return;
+		}
 		this.graph?.selectCommits([e.detail.sha], { ensureVisible: true });
 	}
 
@@ -693,13 +743,9 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	): void {
 		if (visible) {
 			this._detailsShownAt = performance.now();
-			const selectionCount =
-				this._selectedCommits != null
-					? this._selectedCommits.shas.length
-					: this._selectedCommit != null
-						? 1
-						: 0;
-			const selectedSha = this._selectedCommit?.sha;
+			const { single, multi } = this.activeSelection;
+			const selectionCount = multi != null ? multi.shas.length : single != null ? 1 : 0;
+			const selectedSha = single?.sha;
 			const selectionUncommitted =
 				selectedSha === uncommitted || (selectedSha?.startsWith('worktree-wip::') ?? false);
 			const host = this.graphState.webviewId === 'gitlens.graph' ? 'editor' : 'panel';
@@ -816,6 +862,10 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	};
 
 	private handleTimelineCommitSelect = (e: CustomEvent<GlGraphTimelineCommitSelectDetail>): void => {
+		// Defensive — the timeline element only exists in timeline mode, but a queued event could
+		// in theory land just after a mode flip; don't let it write the timeline slot then.
+		if ((this.graphState.displayMode ?? 'graph') !== 'timeline') return;
+
 		const { sha, repoPath, datum } = e.detail;
 		const fallbackRepoPath = repoPath || this.fallbackRepoPath || '';
 
@@ -824,8 +874,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		const commitLite = datum != null ? toCommitLiteFromTimelineDatum(datum, fallbackRepoPath) : undefined;
 
 		const effectiveSha = sha === '' ? uncommitted : sha;
-		this._selectedCommit = { sha: effectiveSha, repoPath: fallbackRepoPath, commitLite: commitLite };
-		this._selectedCommits = undefined;
+		this._timelineSelectedCommit = { sha: effectiveSha, repoPath: fallbackRepoPath, commitLite: commitLite };
 
 		// Show the details panel on first selection, the same way graph-row double-click does.
 		if (!this.graphState.detailsVisible) {

@@ -677,7 +677,8 @@ export class TimelineActions {
 		// Interim selections come from mid-drag slider scrub — useful for visual feedback in the
 		// chart but the editor diff would churn through every tick. Skip the host RPC for those;
 		// the slider's release event re-fires with `interim: false` and that's what opens the diff.
-		if (detail.interim) return;
+		// Auto selections are the chart's first-paint highlight — never open a diff editor unprompted.
+		if (detail.interim || detail.auto) return;
 
 		this._fireSelectDataPointDebounced ??= debounce(
 			(e: CommitEventDetail) => {
