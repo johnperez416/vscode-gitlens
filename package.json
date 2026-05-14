@@ -28463,7 +28463,7 @@
 		"@eamodio/supertalk": "0.0.7",
 		"@eamodio/supertalk-core": "0.0.6",
 		"@eamodio/supertalk-signals": "0.0.6",
-		"@gitkraken/compose-tools": "0.3.0",
+		"@gitkraken/compose-tools": "0.3.1",
 		"@gitkraken/gitkraken-components": "13.0.0-vnext.33",
 		"@gitkraken/provider-apis": "0.40.0",
 		"@gitkraken/shared-tools": "0.2.0",

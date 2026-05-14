@@ -57,8 +57,8 @@ importers:
         specifier: 0.0.6
         version: 0.0.6(signal-polyfill@0.2.2)
       '@gitkraken/compose-tools':
-        specifier: 0.3.0
-        version: 0.3.0
+        specifier: 0.3.1
+        version: 0.3.1
       '@gitkraken/gitkraken-components':
         specifier: 13.0.0-vnext.33
         version: 13.0.0-vnext.33(dragula@3.7.3)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -1012,8 +1012,8 @@ packages:
   '@github/catalyst@1.8.1':
     resolution: {integrity: sha512-dnN4WWpbeuQvA17LvsGdlXEueJdBk9y+I+WO5pdNpoHNOXPsFcz3hJrq1iRmdsNgQOf4S8e83axtwIxvG62eWA==}
 
-  '@gitkraken/compose-tools@0.3.0':
-    resolution: {integrity: sha512-AIFcTMoBUKUCSjWC7koOYff4Vypv3mpMv5YINYdcwtHR9sBvWpktTZxrjlwHP2yleD7BdKWAVoUVjLlDIyEpDA==}
+  '@gitkraken/compose-tools@0.3.1':
+    resolution: {integrity: sha512-AbvXfFlyXZNaADWOz1aNvCzANj9PajnZy/m0dpaESjfFrMFWs4vsnZ87tC6C2AlCVIPrL5TFpTvxCYCPPo2pHw==}
     engines: {node: '>= 22'}
 
   '@gitkraken/gitkraken-components@13.0.0-vnext.33':
@@ -7414,7 +7414,7 @@ snapshots:
 
   '@github/catalyst@1.8.1': {}
 
-  '@gitkraken/compose-tools@0.3.0':
+  '@gitkraken/compose-tools@0.3.1':
     dependencies:
       '@gitkraken/shared-tools': 0.2.0
       zod: 4.4.3
