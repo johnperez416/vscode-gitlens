@@ -15,7 +15,6 @@ export const detailsWipEmptyPaneStyles = css`
 	.hub--idle {
 		align-items: center;
 		text-align: center;
-		padding-top: 2rem;
 		gap: 1.2rem;
 	}
 

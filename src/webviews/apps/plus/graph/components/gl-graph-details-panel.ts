@@ -32,6 +32,7 @@ import '../../../shared/components/code-icon.js';
 import '../../../shared/components/commit-sha.js';
 import '../../../shared/components/overlays/tooltip.js';
 import '../../../shared/components/progress.js';
+import '../../../shared/components/split-panel/split-panel.js';
 import './gl-details-multicommit-panel.js';
 import './gl-details-compose-mode-panel.js';
 import './gl-details-review-mode-panel.js';
@@ -83,6 +84,32 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 
 	private _lastWorkingTreeStats?: unknown;
 	private _lastBranchState?: unknown;
+
+	@state()
+	private _agentStatusSplitAdjusted = false;
+	private _agentStatusSplitPosition?: number;
+
+	private readonly _agentStatusSplitSnap = ({ pos }: { pos: number }) => Math.max(10, Math.min(pos, 80));
+
+	private readonly _onAgentStatusSplitChange = (e: CustomEvent<{ position: number }>) => {
+		this._agentStatusSplitPosition = e.detail.position;
+	};
+
+	private readonly _onAgentStatusSplitDragEnd = () => {
+		this._agentStatusSplitAdjusted = true;
+	};
+
+	private readonly _onAgentStatusSplitDblClick = () => {
+		this._agentStatusSplitAdjusted = false;
+		this._agentStatusSplitPosition = undefined;
+		const splitEl = this.querySelector<
+			import('../../../shared/components/split-panel/split-panel.js').GlSplitPanel
+		>('gl-split-panel.agent-status-split');
+		if (splitEl) {
+			splitEl.position = 25;
+		}
+		this.requestUpdate();
+	};
 
 	@property({ attribute: 'sha' })
 	sha?: string;
@@ -530,39 +557,10 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 		const activeMode = this._state.activeMode.get();
 		const hasChanges = (wip.changes?.files?.length ?? 0) > 0;
 		const worktreeAgentSessions = this.getWorktreeAgentSessions(wip);
+		const showAgentStatus = worktreeAgentSessions != null && activeMode == null;
 
-		return html`
-			<gl-details-wip-header
-				.wip=${wip}
-				.activeMode=${activeMode}
-				.aiEnabled=${this._state.preferences.get()?.aiEnabled ?? false}
-				.experimentalFeaturesEnabled=${this._graphState?.config?.experimentalFeaturesEnabled === true}
-				.loading=${this.isLoading}
-				.autolinks=${this._state.wipAutolinks.get()}
-				.issues=${this._state.wipIssues.get()}
-				.mergeTargetStatus=${this._state.wipMergeTarget.get()}
-				.mergeTargetStatusLoading=${this._state.wipMergeTargetLoading.get()}
-				.pullRequest=${this._state.wipPullRequest.get()}
-				.pullRequestLoading=${this._state.wipPullRequestLoading.get()}
-				.dateFormat=${this._state.preferences.get()?.dateFormat}
-				.dateStyle=${this._state.preferences.get()?.dateStyle}
-				@toggle-mode=${this.handleToggleMode}
-				@refresh-wip=${this.handleRefreshWip}
-				@switch-branch=${this.handleSwitchBranch}
-				@create-branch=${this.handleCreateBranch}
-				@compare-with-merge-target=${this.handleCompareWithMergeTarget}
-				@publish-branch=${this.handlePublishBranch}
-				@pull=${this.handlePull}
-				@push=${this.handlePush}
-				@fetch=${this.handleFetch}
-				@share-as-cloud-patch=${this.handleShareWipAsCloudPatch}
-				@remove-associated-issue=${this.handleRemoveAssociatedIssue}
-				@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
-			></gl-details-wip-header>
-			${worktreeAgentSessions != null && activeMode == null
-				? html`<gl-details-agent-status .sessions=${worktreeAgentSessions}></gl-details-agent-status>`
-				: nothing}
-			${activeMode === 'review'
+		const restContent =
+			activeMode === 'review'
 				? this.renderReviewMode()
 				: activeMode === 'compose'
 					? this.renderComposeMode()
@@ -631,7 +629,56 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 										@pull=${this.handlePull}
 										@push=${this.handlePush}
 									></gl-details-wip-empty-pane>
-								`}
+								`;
+
+		return html`
+			<gl-details-wip-header
+				.wip=${wip}
+				.activeMode=${activeMode}
+				.aiEnabled=${this._state.preferences.get()?.aiEnabled ?? false}
+				.experimentalFeaturesEnabled=${this._graphState?.config?.experimentalFeaturesEnabled === true}
+				.loading=${this.isLoading}
+				.autolinks=${this._state.wipAutolinks.get()}
+				.issues=${this._state.wipIssues.get()}
+				.mergeTargetStatus=${this._state.wipMergeTarget.get()}
+				.mergeTargetStatusLoading=${this._state.wipMergeTargetLoading.get()}
+				.pullRequest=${this._state.wipPullRequest.get()}
+				.pullRequestLoading=${this._state.wipPullRequestLoading.get()}
+				.dateFormat=${this._state.preferences.get()?.dateFormat}
+				.dateStyle=${this._state.preferences.get()?.dateStyle}
+				@toggle-mode=${this.handleToggleMode}
+				@refresh-wip=${this.handleRefreshWip}
+				@switch-branch=${this.handleSwitchBranch}
+				@create-branch=${this.handleCreateBranch}
+				@compare-with-merge-target=${this.handleCompareWithMergeTarget}
+				@publish-branch=${this.handlePublishBranch}
+				@pull=${this.handlePull}
+				@push=${this.handlePush}
+				@fetch=${this.handleFetch}
+				@share-as-cloud-patch=${this.handleShareWipAsCloudPatch}
+				@remove-associated-issue=${this.handleRemoveAssociatedIssue}
+				@gl-issue-pull-request-details=${this.handleOpenPullRequestDetails}
+			></gl-details-wip-header>
+			${showAgentStatus
+				? html`<gl-split-panel
+						class="agent-status-split ${this._agentStatusSplitAdjusted
+							? ''
+							: 'agent-status-split--auto-size'}"
+						orientation="vertical"
+						primary="start"
+						position="${this._agentStatusSplitPosition ?? 25}"
+						.snap=${this._agentStatusSplitSnap}
+						@gl-split-panel-change=${this._onAgentStatusSplitChange}
+						@gl-split-panel-drag-end=${this._onAgentStatusSplitDragEnd}
+						@gl-split-panel-dblclick=${this._onAgentStatusSplitDblClick}
+					>
+						<div slot="start" class="agent-status-split__top scrollable">
+							<gl-details-agent-status .sessions=${worktreeAgentSessions}></gl-details-agent-status>
+						</div>
+						<div slot="divider" class="agent-status-split__handle"></div>
+						<div slot="end" class="agent-status-split__bottom scrollable">${restContent}</div>
+					</gl-split-panel>`
+				: restContent}
 		`;
 	}
 
