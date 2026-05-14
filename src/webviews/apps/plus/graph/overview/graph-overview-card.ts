@@ -813,7 +813,7 @@ export class GlGraphOverviewCard extends LitElement {
 		if (!this.hasWip) return nothing;
 
 		return html`<gl-tooltip class="wip__pill" placement="bottom"
-			><span class="branch-item__wip"><code-icon icon="git-commit"></code-icon></span>
+			><span class="branch-item__wip"><code-icon icon="pencil"></code-icon></span>
 			<span class="wip__tooltip" slot="content">
 				<p>Working tree has changes</p>
 			</span></gl-tooltip
