@@ -45,7 +45,6 @@ import { getSearchQueryComparisonKey, parseSearchQuery } from '@gitlens/git/util
 import { sortBranches, sortRemotes, sortTags, sortWorktrees } from '@gitlens/git/utils/sorting.js';
 import { filterMap } from '@gitlens/utils/array.js';
 import { CancellationError, isCancellationError } from '@gitlens/utils/cancellation.js';
-import { lazy } from '@gitlens/utils/lazy.js';
 import { getScopedCounter } from '@gitlens/utils/counter.js';
 import type { Deferrable } from '@gitlens/utils/debounce.js';
 import { debounce } from '@gitlens/utils/debounce.js';
@@ -53,6 +52,7 @@ import { debug, trace } from '@gitlens/utils/decorators/log.js';
 import { annotateDiffWithNewLineNumbers } from '@gitlens/utils/diff.js';
 import { createDisposable, disposableInterval } from '@gitlens/utils/disposable.js';
 import { count, find, join, last } from '@gitlens/utils/iterable.js';
+import { lazy } from '@gitlens/utils/lazy.js';
 import { Logger } from '@gitlens/utils/logger.js';
 import { LruMap } from '@gitlens/utils/lruMap.js';
 import { areEqual, filterMap as filterMapObject, flatten, hasKeys, updateRecordValue } from '@gitlens/utils/object.js';
@@ -76,8 +76,6 @@ import type { ExplainStashCommandArgs } from '../../../commands/explainStash.js'
 import type { ExplainWipCommandArgs } from '../../../commands/explainWip.js';
 import type { GenerateChangelogCommandArgs } from '../../../commands/generateChangelog.js';
 import { generateChangelogAndOpenMarkdownDocument } from '../../../commands/generateChangelog.js';
-import { getChangesForChangelog } from '../../../git/utils/-webview/log.utils.js';
-import type { AIGenerateChangelogChanges } from '../../../plus/ai/actions/generateChangelog.js';
 import type { GenerateCommitMessageCommandArgs } from '../../../commands/generateCommitMessage.js';
 import type { OpenIssueOnRemoteCommandArgs } from '../../../commands/openIssueOnRemote.js';
 import type { OpenOnRemoteCommandArgs } from '../../../commands/openOnRemote.js';
