@@ -775,7 +775,8 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 				const wt = worktreesByBranch.get(branch.id);
 				const branchWorktreePath = wt != null && !wt.isDefault ? wt.path : '';
 				if (sessionWorktreePaths.has(branchWorktreePath)) {
-					agentBranches.push(toOverviewBranch(branch, worktreesByBranch, true));
+					const opened = branch.current || wt?.opened === true;
+					agentBranches.push(toOverviewBranch(branch, worktreesByBranch, opened));
 				}
 			}
 
