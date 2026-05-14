@@ -1,7 +1,5 @@
-import type { PropertyValues } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
 import type { AgentSessionPhase } from '../../../../../agents/provider.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { AgentSessionState } from '../../../../home/protocol.js';
@@ -13,6 +11,7 @@ import '../../../shared/components/overlays/popover.js';
 import '../../../shared/components/overlays/tooltip.js';
 
 type Category = 'working' | 'needs-input' | 'idle';
+type ExpandState = 'closed' | 'partial' | 'expanded';
 
 const phaseToCategory: Record<AgentSessionPhase, Category> = {
 	working: 'working',
@@ -20,13 +19,29 @@ const phaseToCategory: Record<AgentSessionPhase, Category> = {
 	idle: 'idle',
 };
 
-/** Idle sessions older than this fold behind a "Show N idle (24h+)" disclosure. Inside-a-workday
- *  idle sessions surface inline; older ones become noise unless the user opts in. */
-const staleIdleThresholdMs = 24 * 60 * 60 * 1000;
-
 /** Cap on cluster dots in the section heading. Beyond this, an `+N` overflow chip takes the slot
  *  so the heading width stays bounded. */
 const maxClusterDots = 5;
+
+/** Tri-state cycle for the heading collapse toggle: closed (needs-input only) → partial
+ *  (needs-input + working) → expanded (all) → closed. */
+const expandNext: Record<ExpandState, ExpandState> = {
+	closed: 'partial',
+	partial: 'expanded',
+	expanded: 'closed',
+};
+
+const expandIcon: Record<ExpandState, string> = {
+	closed: 'chevron-right',
+	partial: 'unfold',
+	expanded: 'chevron-down',
+};
+
+const expandVisibleCategories: Record<ExpandState, ReadonlySet<Category>> = {
+	closed: new Set<Category>(['needs-input']),
+	partial: new Set<Category>(['needs-input', 'working']),
+	expanded: new Set<Category>(['needs-input', 'working', 'idle']),
+};
 
 function formatElapsed(timestamp: number | undefined): string | undefined {
 	if (timestamp == null) return undefined;
@@ -85,10 +100,11 @@ declare global {
 }
 
 /**
- * Branch-scoped agent status display for the graph details panel. Renders a conditional banner
- * (when any session is non-idle) above a section with a clickable heading-cluster (chevron +
- * label + dot cluster + counts, with a hover popover for per-session detail) and a collapsible
- * cards list. Stale idle sessions (>24h) fold behind a separate disclosure inside the list.
+ * Branch-scoped agent status display for the graph details panel. Renders a heading
+ * (chevron + label + dot cluster + counts, with a hover popover for per-session detail) above
+ * a cards list. The heading button cycles a tri-state filter: closed (needs-input only),
+ * partial (needs-input + working), expanded (all). Needs-input and working cards adopt a
+ * gradient + icon-circle treatment so each surfaces as actionable at a glance.
  */
 @customElement('gl-details-agent-status')
 export class GlDetailsAgentStatus extends LitElement {
@@ -107,105 +123,6 @@ export class GlDetailsAgentStatus extends LitElement {
 				display: none;
 			}
 
-			/* ---------- Banner ---------- */
-
-			/* Stacks one banner per needs-input session vertically with a small gap. */
-			.banners {
-				display: flex;
-				flex-direction: column;
-				gap: 0.4rem;
-			}
-
-			/* Banner sits inside the section but stays visible when the section is collapsed —
-			   the actionable subset escapes the collapse while idle rows tuck away. */
-			.banner {
-				display: flex;
-				align-items: center;
-				gap: 0.8rem;
-				padding: 0.6rem 0.8rem;
-				border-radius: 0.4rem;
-				background: linear-gradient(
-					to right,
-					color-mix(in srgb, var(--banner-accent, var(--gl-agent-idle)) 14%, transparent),
-					color-mix(in srgb, var(--banner-accent, var(--gl-agent-idle)) 4%, transparent)
-				);
-				border-left: 3px solid var(--banner-accent, var(--gl-agent-idle));
-				/* max-height bounds the layout-triggering exit collapse to this single element. */
-				max-height: 8rem;
-				overflow: hidden;
-				transform-origin: top;
-				transition:
-					opacity 200ms ease,
-					max-height 200ms ease,
-					transform 200ms ease,
-					background 250ms ease,
-					border-left-color 250ms ease,
-					display 200ms allow-discrete;
-			}
-
-			@starting-style {
-				.banner {
-					opacity: 0;
-					max-height: 0;
-					transform: translateY(-4px);
-				}
-			}
-
-			.banner[hidden] {
-				display: none;
-				opacity: 0;
-				max-height: 0;
-				transform: translateY(-4px);
-			}
-
-			.banner--needs-input {
-				--banner-accent: var(--gl-agent-attention);
-			}
-			.banner--working {
-				--banner-accent: var(--gl-agent-working);
-			}
-			.banner--idle {
-				--banner-accent: var(--gl-agent-idle);
-			}
-
-			.banner__icon {
-				position: relative;
-				flex: none;
-				color: var(--banner-accent);
-				font-size: 1.6em;
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				width: 2.4rem;
-				height: 2.4rem;
-				border-radius: 50%;
-				background-color: color-mix(in srgb, var(--banner-accent) 18%, transparent);
-				transition:
-					color 250ms ease,
-					background-color 250ms ease;
-			}
-
-			/* Stacked icon slots cross-fade on category swap. Inactive slot is scaled-down +
-			   transparent; the spinning code-icon's own transform animation runs unimpeded
-			   because the slot wrapper carries the swap transform, not the icon itself. */
-			.banner__icon-slot {
-				position: absolute;
-				inset: 0;
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				opacity: 0;
-				transform: scale(0.7);
-				transition:
-					opacity 200ms ease,
-					transform 200ms ease;
-			}
-
-			.banner__icon-slot--active {
-				opacity: 1;
-				transform: scale(1);
-			}
-
 			@keyframes gl-agent-pulse {
 				0%,
 				100% {
@@ -217,91 +134,17 @@ export class GlDetailsAgentStatus extends LitElement {
 			}
 
 			@media (prefers-reduced-motion: reduce) {
-				.banner,
-				.banner__icon,
-				.banner__icon-slot {
-					transition: none;
-				}
-
-				.banner__icon-slot:not(.banner__icon-slot--active) {
-					/* Avoid a pop on swap — keep the inactive slot fully hidden rather than
-					   scaling under reduced motion. */
-					transform: none;
-				}
-
-				/* Outer-tree rule wins over code-icon's own :host([modifier='spin']) animation. */
-				.banner__icon code-icon[modifier='spin'] {
-					animation: none;
-				}
-
 				.card--working .card__dot {
 					animation: none;
 				}
+
+				/* Outer-tree rule wins over code-icon's own :host([modifier='spin']) animation. */
+				.card__icon code-icon[modifier='spin'] {
+					animation: none;
+				}
 			}
 
-			.banner__text {
-				flex: 1;
-				min-width: 0;
-				display: flex;
-				flex-direction: column;
-				gap: 0.1rem;
-			}
-
-			.banner__title {
-				font-weight: 600;
-				font-size: var(--gl-font-base);
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
-
-			.banner__subtitle {
-				font-size: 0.9em;
-				color: var(--vscode-descriptionForeground);
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-			}
-
-			.banner__actions {
-				flex: none;
-				display: flex;
-				align-items: center;
-				gap: 0.3rem;
-			}
-
-			/* Shared overflow-menu styling — used by both the banner and the cards' ⋯ button. */
-			.more-menu {
-				display: flex;
-				flex-direction: column;
-				min-width: 14rem;
-				padding: 0.2rem;
-			}
-
-			.more-menu__item {
-				display: flex;
-				align-items: center;
-				gap: 0.6rem;
-				padding: 0.4rem 0.6rem;
-				border-radius: 0.3rem;
-				color: var(--vscode-foreground);
-				text-decoration: none;
-				cursor: pointer;
-				font-size: 0.95em;
-			}
-
-			.more-menu__item:hover {
-				background-color: var(--vscode-list-hoverBackground);
-				color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
-				text-decoration: none;
-			}
-
-			.more-menu__item code-icon {
-				color: var(--vscode-descriptionForeground);
-				flex: none;
-			}
-
-			/* ---------- Section (heading + collapsible cards list) ---------- */
+			/* ---------- Section (heading + cards list) ---------- */
 
 			.section {
 				display: flex;
@@ -312,10 +155,10 @@ export class GlDetailsAgentStatus extends LitElement {
 				border-bottom: 1px solid var(--gl-metadata-bar-border);
 			}
 
-			/* Heading doubles as the collapse toggle AND the at-a-glance phase summary —
-			   chevron + label on the left, dot cluster + counts on the right. The dots and
-			   counts remain visible when the list is collapsed so the summary still informs
-			   at a glance. */
+			/* Heading doubles as the tri-state collapse toggle AND the at-a-glance phase summary —
+			   chevron + label on the left, dot cluster + counts on the right. The dots and counts
+			   remain visible in every state so the summary still informs at a glance even when
+			   most cards are filtered out. */
 			.section__heading {
 				appearance: none;
 				display: flex;
@@ -417,7 +260,9 @@ export class GlDetailsAgentStatus extends LitElement {
 			}
 
 			.section__list {
-				display: contents;
+				display: flex;
+				flex-direction: column;
+				gap: 0.4rem;
 			}
 
 			.section__hover {
@@ -493,8 +338,11 @@ export class GlDetailsAgentStatus extends LitElement {
 				text-overflow: ellipsis;
 			}
 
-			/* Two-row grid: rail + body on top, action row spans the full body column on bottom.
-			   The actions always sit at the bottom of the card regardless of panel width. */
+			/* ---------- Card ----------
+			   Two-row grid: rail + body on top, action row spans the full body column on bottom.
+			   The actions always sit at the bottom of the card regardless of panel width.
+			   needs-input and working cards adopt the prior banner treatment (gradient bg +
+			   icon-circle in the rail) so each surfaces as actionable on its own. */
 			.card {
 				display: grid;
 				grid-template-columns: auto 1fr;
@@ -506,16 +354,30 @@ export class GlDetailsAgentStatus extends LitElement {
 				border-radius: 0.4rem;
 				background-color: var(--vscode-editor-background);
 				border: 1px solid var(--gl-metadata-bar-border, var(--vscode-widget-border));
+				border-left: 3px solid var(--card-accent, var(--gl-agent-idle));
+				transition:
+					background 250ms ease,
+					border-left-color 250ms ease;
 			}
 
 			.card--needs-input {
-				border-left: 3px solid var(--gl-agent-attention);
+				--card-accent: var(--gl-agent-attention);
+				background: linear-gradient(
+					to right,
+					color-mix(in srgb, var(--card-accent) 14%, var(--vscode-editor-background)),
+					color-mix(in srgb, var(--card-accent) 4%, var(--vscode-editor-background))
+				);
 			}
 			.card--working {
-				border-left: 3px solid var(--gl-agent-working);
+				--card-accent: var(--gl-agent-working);
+				background: linear-gradient(
+					to right,
+					color-mix(in srgb, var(--card-accent) 14%, var(--vscode-editor-background)),
+					color-mix(in srgb, var(--card-accent) 4%, var(--vscode-editor-background))
+				);
 			}
 			.card--idle {
-				border-left: 3px solid var(--gl-agent-idle);
+				--card-accent: var(--gl-agent-idle);
 				opacity: 0.85;
 			}
 
@@ -525,30 +387,37 @@ export class GlDetailsAgentStatus extends LitElement {
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				/* Align the rail's dot to the title row's vertical midpoint without forcing a
-				   width on the column — the dot sets the column's intrinsic size. */
+				/* Fixed rail width so the body column lines up across cards regardless of which
+				   indicator (icon-circle vs small dot) sits inside. */
+				width: 2.4rem;
 				min-height: 1.6em;
 			}
 
-			/* Lock dimensions and prevent flex/grid from stretching the dot into an oval. */
+			/* Idle cards keep a small dot — the icon-circle treatment is reserved for actionable phases. */
 			.card__dot {
 				width: 0.8rem;
 				height: 0.8rem;
 				border-radius: 50%;
 				flex: none;
 				aspect-ratio: 1;
+				background-color: var(--card-accent);
 			}
 
-			.card--needs-input .card__dot {
-				background-color: var(--gl-agent-attention);
-				box-shadow: 0 0 0 0.3rem color-mix(in srgb, var(--gl-agent-attention) 28%, transparent);
-			}
-			.card--working .card__dot {
-				background-color: var(--gl-agent-working);
-				animation: gl-agent-pulse 1.5s ease-in-out infinite;
-			}
-			.card--idle .card__dot {
-				background-color: var(--gl-agent-idle);
+			/* Icon-circle for needs-input/working cards. Carries the banner's prior visual weight. */
+			.card__icon {
+				flex: none;
+				color: var(--card-accent);
+				font-size: 1.6em;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 2.4rem;
+				height: 2.4rem;
+				border-radius: 50%;
+				background-color: color-mix(in srgb, var(--card-accent) 18%, transparent);
+				transition:
+					color 250ms ease,
+					background-color 250ms ease;
 			}
 
 			.card__body {
@@ -618,90 +487,13 @@ export class GlDetailsAgentStatus extends LitElement {
 				gap: 0.3rem;
 				flex: none;
 			}
-
-			.cards__more-toggle {
-				appearance: none;
-				display: inline-flex;
-				align-items: center;
-				gap: 0.3rem;
-				align-self: flex-start;
-				padding: 0.3rem 0.6rem;
-				border-radius: 0.4rem;
-				border: 1px dashed color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
-				background: transparent;
-				color: var(--vscode-descriptionForeground);
-				font: inherit;
-				font-size: 0.85em;
-				line-height: 1;
-				cursor: pointer;
-				margin-top: 0.2rem;
-			}
-
-			.cards__more-toggle code-icon {
-				font-size: 1em;
-				line-height: 1;
-			}
-
-			.cards__more-toggle:hover {
-				border-color: var(--vscode-descriptionForeground);
-				color: var(--vscode-foreground);
-			}
-
-			.cards__more-toggle:focus-visible {
-				outline: 1px solid var(--vscode-focusBorder);
-				outline-offset: 2px;
-			}
 		`,
 	];
 
 	@property({ type: Array })
 	sessions?: AgentSessionState[];
 
-	@state() private _showStale = false;
-	@state() private _collapsed = true;
-	/** Persisted last-actionable banner sessions so the banners can animate out using their prior
-	 *  content after the underlying sessions go idle. Holds one entry per needs-input session, or
-	 *  a single entry for the top working session when no needs-input sessions exist. Updated only
-	 *  when actionable; never cleared, so the exit animation has stable content to render while the
-	 *  [hidden] transition completes. */
-	@state() private _bannerSessionsSnapshot?: AgentSessionState[];
-
-	/** Splits idle sessions older than {@link staleIdleThresholdMs} out into a `stale`
-	 *  bucket. Non-idle sessions (working, needs-input) are always considered fresh regardless
-	 *  of timestamp — they're inherently active. */
-	private partitionStaleIdle(sessions: AgentSessionState[]): {
-		fresh: AgentSessionState[];
-		stale: AgentSessionState[];
-	} {
-		const now = Date.now();
-		const fresh: AgentSessionState[] = [];
-		const stale: AgentSessionState[] = [];
-		for (const s of sessions) {
-			const ts = s.lastActivityTimestamp ?? s.phaseSinceTimestamp ?? now;
-			if (phaseToCategory[s.phase] === 'idle' && now - ts > staleIdleThresholdMs) {
-				stale.push(s);
-			} else {
-				fresh.push(s);
-			}
-		}
-		return { fresh: fresh, stale: stale };
-	}
-
-	protected override willUpdate(_changed: PropertyValues): void {
-		const sessions = this.sessions;
-		if (sessions == null || sessions.length === 0) return;
-
-		const needsInput = sessions.filter(s => phaseToCategory[s.phase] === 'needs-input');
-		if (needsInput.length > 0) {
-			this._bannerSessionsSnapshot = needsInput;
-			return;
-		}
-		const firstWorking = sessions.find(s => phaseToCategory[s.phase] === 'working');
-		if (firstWorking != null) {
-			this._bannerSessionsSnapshot = [firstWorking];
-		}
-		// Otherwise leave _bannerSessionsSnapshot in place so the exit transition has content to render.
-	}
+	@state() private _expand: ExpandState = 'closed';
 
 	override render(): unknown {
 		const sessions = this.sessions;
@@ -710,217 +502,75 @@ export class GlDetailsAgentStatus extends LitElement {
 		return this.renderSection(sessions, this.tally(sessions));
 	}
 
-	/* ---------- Banner ---------- */
-
-	/** Per-session banner. Needs-input sessions get one banner each so each agent's action surface
-	 *  is independently resolvable. Working sessions consolidate to a single banner (the first
-	 *  working session in priority order) since there's nothing to act on. */
-	private renderBanner(session: AgentSessionState, visible: boolean): unknown {
-		const category = phaseToCategory[session.phase];
-		const elapsed = formatElapsed(session.phaseSinceTimestamp);
-		const detailLine = describeSession(session, category, elapsed, {
-			awaitingPrefix: 'short',
-			idleFallback: 'lastPrompt',
-		});
-
-		const subtitleParts: string[] = [categoryLabel(category)];
-		if (elapsed) {
-			subtitleParts.push(elapsed);
-		}
-		const subtitle = detailLine ? `${subtitleParts.join(' · ')} — ${detailLine}` : subtitleParts.join(' · ');
-
-		return html`
-			<div class="banner banner--${category}" role="status" ?hidden=${!visible}>
-				<span class="banner__icon">
-					<span class=${`banner__icon-slot ${category === 'needs-input' ? 'banner__icon-slot--active' : ''}`}>
-						<code-icon icon="warning"></code-icon>
-					</span>
-					<span class=${`banner__icon-slot ${category === 'working' ? 'banner__icon-slot--active' : ''}`}>
-						<code-icon icon="sync" modifier="spin"></code-icon>
-					</span>
-				</span>
-				<div class="banner__text">
-					<span class="banner__title" title=${session.name || 'Agent'}>${session.name || 'Agent'}</span>
-					<span class="banner__subtitle" title=${subtitle}>${subtitle}</span>
-				</div>
-				<div class="banner__actions">${this.renderBannerActions(session)}</div>
-			</div>
-		`;
-	}
-
-	private renderBannerActions(top: AgentSessionState): unknown {
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(top.id));
-		const detail = top.pendingPermissionDetail;
-		const canResolve = phaseToCategory[top.phase] === 'needs-input' && top.isInWorkspace && detail != null;
-
-		if (!canResolve) {
-			return html`
-				<gl-tooltip content="Open Session" placement="bottom">
-					<gl-button appearance="secondary" density="compact" href=${openHref} aria-label="Open Session">
-						<code-icon icon="link-external"></code-icon>
-					</gl-button>
-				</gl-tooltip>
-			`;
-		}
-
-		const allowHref = createCommandLink('gitlens.agents.resolvePermission', {
-			sessionId: top.id,
-			decision: 'allow' as const,
-		});
-		const denyHref = createCommandLink('gitlens.agents.resolvePermission', {
-			sessionId: top.id,
-			decision: 'deny' as const,
-		});
-
-		return html`
-			<gl-tooltip content="Allow" placement="bottom">
-				<gl-button density="compact" href=${allowHref} aria-label="Allow">
-					<code-icon icon="check"></code-icon>
-				</gl-button>
-			</gl-tooltip>
-			<gl-tooltip content="Deny" placement="bottom">
-				<gl-button appearance="secondary" density="compact" href=${denyHref} aria-label="Deny">
-					<code-icon icon="x"></code-icon>
-				</gl-button>
-			</gl-tooltip>
-			${this.renderMoreActionsAnchor(top)}
-		`;
-	}
-
-	/** Shared ⋯ overflow menu for banner + cards. Always Allow only renders when the agent
-	 *  exposed `hasSuggestions` (matches the existing pill popover's gate); Open Session is
-	 *  always available regardless of phase. */
-	private renderMoreActionsAnchor(session: AgentSessionState): unknown {
-		const detail = session.pendingPermissionDetail;
-		const canResolve = phaseToCategory[session.phase] === 'needs-input' && session.isInWorkspace && detail != null;
-		const showAlwaysAllow = canResolve && detail.hasSuggestions === true;
-		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
-		const alwaysAllowHref = showAlwaysAllow
-			? createCommandLink('gitlens.agents.resolvePermission', {
-					sessionId: session.id,
-					decision: 'allow' as const,
-					alwaysAllow: true,
-				})
-			: undefined;
-
-		return html`
-			<gl-popover placement="bottom-end" trigger="click" hoist>
-				<gl-tooltip slot="anchor" content="More actions" placement="bottom">
-					<gl-button appearance="secondary" density="compact" aria-label="More actions">
-						<code-icon icon="ellipsis"></code-icon>
-					</gl-button>
-				</gl-tooltip>
-				<div slot="content" class="more-menu" role="menu" @mousedown=${this.stopMouseDown}>
-					${showAlwaysAllow && alwaysAllowHref != null
-						? html`<a class="more-menu__item" role="menuitem" href=${alwaysAllowHref}>
-								<code-icon icon="check-all"></code-icon>
-								<span>Always Allow</span>
-							</a>`
-						: nothing}
-					<a class="more-menu__item" role="menuitem" href=${openHref}>
-						<code-icon icon="link-external"></code-icon>
-						<span>Open Session</span>
-					</a>
-				</div>
-			</gl-popover>
-		`;
-	}
-
-	/** Stops popover-internal mousedown from closing the popover before the click on the
-	 *  command-link `<a>` fires. Mirrors the pattern used in `gl-agent-status-pill`. */
-	private stopMouseDown = (e: MouseEvent): void => {
-		e.stopPropagation();
-	};
-
-	/* ---------- Section (combined heading + cards list) ---------- */
+	/* ---------- Section (heading + cards list) ---------- */
 
 	private renderSection(sessions: AgentSessionState[], counts: Record<Category, number>): unknown {
-		const { fresh, stale } = this.partitionStaleIdle(sessions);
-		const visible = this._showStale ? sessions : fresh;
-		const hasActionable = counts['needs-input'] > 0 || counts.working > 0;
-		const bannerSessions = this._bannerSessionsSnapshot ?? [];
+		const visibleCats = expandVisibleCategories[this._expand];
+		const visible = sessions.filter(s => visibleCats.has(phaseToCategory[s.phase]));
 
 		return html`
 			<div class="section">
-				<gl-popover placement="bottom" hoist ?disabled=${!this._collapsed}>
-					${this.renderSectionHeading(sessions, counts)}
-					<div slot="content" class="section__hover">${sessions.map(s => this.renderHoverRow(s))}</div>
-				</gl-popover>
-				${bannerSessions.length > 0
-					? html`<div class="banners">
-							${repeat(
-								bannerSessions,
-								s => s.id,
-								s => this.renderBanner(s, hasActionable),
-							)}
-						</div>`
+				${this.renderSectionHeading(sessions, counts)}
+				${visible.length > 0
+					? html`<div id="section__list" class="section__list">${visible.map(s => this.renderCard(s))}</div>`
 					: nothing}
-				${this._collapsed
-					? nothing
-					: html`<div id="section__list" class="section__list">
-							${visible.map(s => this.renderCard(s))}
-							${stale.length > 0 ? this.renderStaleToggle(stale.length) : nothing}
-						</div>`}
 			</div>
 		`;
 	}
 
 	private renderSectionHeading(sessions: AgentSessionState[], counts: Record<Category, number>): unknown {
-		const collapsed = this._collapsed;
+		const state = this._expand;
 		const visibleDots = sessions.slice(0, maxClusterDots);
 		const overflow = sessions.length - visibleDots.length;
 
 		return html`
 			<button
-				slot="anchor"
 				type="button"
 				class="section__heading"
-				aria-expanded=${collapsed ? 'false' : 'true'}
 				aria-controls="section__list"
-				@click=${() => (this._collapsed = !collapsed)}
+				aria-label=${this.expandAriaLabel(state)}
+				@click=${this.cycleExpand}
 			>
-				<code-icon
-					class="section__heading-chevron"
-					icon=${collapsed ? 'chevron-right' : 'chevron-down'}
-				></code-icon>
+				<code-icon class="section__heading-chevron" icon=${expandIcon[state]}></code-icon>
 				<span class="section__heading-label">Agents</span>
-				<span class="section__cluster">
-					<span class="section__cluster-dots">
-						${visibleDots.map(
-							s =>
-								html`<span
-									class=${`section__cluster-dot section__cluster-dot--${phaseToCategory[s.phase]}`}
-								></span>`,
-						)}
-						${overflow > 0
-							? html`<span
-									class="section__cluster-dot section__cluster-dot--idle section__cluster-dot--overflow"
-								>
-									+${overflow}
-								</span>`
-							: nothing}
+				<gl-popover placement="bottom" hoist ?disabled=${state === 'expanded'}>
+					<span slot="anchor" class="section__cluster">
+						<span class="section__cluster-dots">
+							${visibleDots.map(
+								s =>
+									html`<span
+										class=${`section__cluster-dot section__cluster-dot--${phaseToCategory[s.phase]}`}
+									></span>`,
+							)}
+							${overflow > 0
+								? html`<span
+										class="section__cluster-dot section__cluster-dot--idle section__cluster-dot--overflow"
+									>
+										+${overflow}
+									</span>`
+								: nothing}
+						</span>
+						<span class="section__cluster-summary">${this.renderCountsSummary(counts)}</span>
 					</span>
-					<span class="section__cluster-summary">${this.renderCountsSummary(counts)}</span>
-				</span>
+					<div slot="content" class="section__hover">${sessions.map(s => this.renderHoverRow(s))}</div>
+				</gl-popover>
 			</button>
 		`;
 	}
 
-	private renderStaleToggle(staleCount: number): unknown {
-		const showStale = this._showStale;
-		return html`
-			<button
-				type="button"
-				class="cards__more-toggle"
-				aria-expanded=${showStale ? 'true' : 'false'}
-				@click=${() => (this._showStale = !showStale)}
-			>
-				${showStale
-					? html`<code-icon icon="chevron-up"></code-icon> Show fewer`
-					: html`<code-icon icon="chevron-down"></code-icon> Show ${staleCount} idle
-							${staleCount === 1 ? 'session' : 'sessions'} (24h+)`}
-			</button>
-		`;
+	private cycleExpand = (): void => {
+		this._expand = expandNext[this._expand];
+	};
+
+	private expandAriaLabel(state: ExpandState): string {
+		switch (state) {
+			case 'closed':
+				return 'Show working sessions';
+			case 'partial':
+				return 'Show all sessions';
+			case 'expanded':
+				return 'Collapse to needs-input only';
+		}
 	}
 
 	private renderCountsSummary(counts: Record<Category, number>): unknown {
@@ -980,13 +630,11 @@ export class GlDetailsAgentStatus extends LitElement {
 		const phaseTooltip = elapsed != null ? `Last active ${elapsed} ago` : undefined;
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 		const canResolve =
-			phaseToCategory[session.phase] === 'needs-input' &&
-			session.isInWorkspace &&
-			session.pendingPermissionDetail != null;
+			category === 'needs-input' && session.isInWorkspace && session.pendingPermissionDetail != null;
 
 		return html`
 			<div class=${`card card--${category}`}>
-				<div class="card__rail"><span class="card__dot"></span></div>
+				<div class="card__rail">${this.renderCardRail(category)}</div>
 				<div class="card__body">
 					<div class="card__title-row">
 						<span class="card__name" title=${session.name}>${session.name}</span>
@@ -1013,10 +661,22 @@ export class GlDetailsAgentStatus extends LitElement {
 		`;
 	}
 
-	/** Renders the needs-input action row. Open is no longer rendered here — it's hoisted into the
-	 *  card title row as an action chip — and Always Allow is promoted out of the overflow menu so
-	 *  all three permission resolutions are visible inline. Only called when `canResolve` is true,
-	 *  so the no-detail branch is unreachable. */
+	/** Rail content for the card. needs-input gets a warning glyph; working gets a spinning sync —
+	 *  matches the prior banner icon-circle treatment. Idle keeps the small dot. */
+	private renderCardRail(category: Category): unknown {
+		if (category === 'needs-input') {
+			return html`<span class="card__icon"><code-icon icon="warning"></code-icon></span>`;
+		}
+		if (category === 'working') {
+			return html`<span class="card__icon"><code-icon icon="sync" modifier="spin"></code-icon></span>`;
+		}
+		return html`<span class="card__dot"></span>`;
+	}
+
+	/** Renders the needs-input action row. Open is hoisted into the card title row as an action
+	 *  chip; Always Allow is promoted out of any overflow menu so all three permission resolutions
+	 *  are visible inline. Only called when `canResolve` is true, so the no-detail branch is
+	 *  unreachable. */
 	private renderCardActions(session: AgentSessionState): unknown {
 		const detail = session.pendingPermissionDetail;
 		if (detail == null) return nothing;
