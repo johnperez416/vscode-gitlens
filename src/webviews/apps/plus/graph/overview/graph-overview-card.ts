@@ -309,7 +309,13 @@ export class GlGraphOverviewCard extends LitElement {
 		.branch-item__wip {
 			display: inline-flex;
 			align-items: center;
+			padding: 0.2rem 0.4rem;
+			border: 1px solid color-mix(in srgb, transparent 80%, var(--color-foreground));
+			border-radius: 0.5rem;
+			font-size: 1rem;
+			line-height: 1;
 			color: var(--vscode-descriptionForeground);
+			--code-icon-size: 1rem;
 		}
 
 		.branch-item__count {
