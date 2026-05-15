@@ -317,7 +317,6 @@ export interface GraphComponentConfig {
 	detailsLocation?: 'right' | 'bottom';
 	dimMergeCommits?: boolean;
 	enabledRefMetadataTypes?: GraphRefMetadataType[];
-	experimentalFeaturesEnabled?: boolean;
 	highlightRowsOnRefHover?: boolean;
 	idLength?: number;
 	minimap?: boolean;

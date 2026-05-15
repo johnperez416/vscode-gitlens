@@ -5607,7 +5607,6 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			detailsLocation: configuration.get('graph.details.location') ?? 'right',
 			enabledRefMetadataTypes: this.getEnabledRefMetadataTypes(),
 			dimMergeCommits: configuration.get('graph.dimMergeCommits'),
-			experimentalFeaturesEnabled: configuration.get('graph.experimentalFeatures.enabled'),
 			highlightRowsOnRefHover: configuration.get('graph.highlightRowsOnRefHover'),
 			idLength: configuration.get('advanced.abbreviatedShaLength'),
 			minimap: configuration.get('graph.minimap.enabled'),

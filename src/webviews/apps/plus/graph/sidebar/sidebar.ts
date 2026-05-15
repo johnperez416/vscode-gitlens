@@ -177,9 +177,6 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 			? (['overview', 'agents', 'branches', 'remotes', 'tags'] as const)
 			: (['overview', 'agents', 'branches', 'remotes', 'tags', 'stashes', 'worktrees'] as const);
 
-		if (this._state.config?.experimentalFeaturesEnabled !== true) {
-			return base.filter(t => t !== 'overview');
-		}
 		return [...base];
 	}
 

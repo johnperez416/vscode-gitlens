@@ -46,18 +46,14 @@ export class GlCommitBox extends LitElement {
 	@property({ type: Boolean })
 	aiEnabled = false;
 
-	@property({ type: Boolean })
-	experimentalFeaturesEnabled = false;
-
 	@property()
 	commitError?: string;
 
 	override render() {
-		const showCompose = this.experimentalFeaturesEnabled && this.aiEnabled;
 		return html`
 			<div class="options">
 				${this.renderAmendToggle()}
-				${showCompose
+				${this.aiEnabled
 					? html`<gl-button appearance="secondary" @click=${this.onCompose}>
 							<code-icon class="compose-icon" icon="wand" slot="prefix"></code-icon>
 							Compose

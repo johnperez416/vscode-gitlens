@@ -28,6 +28,7 @@ import {
 	getCLIExecutable,
 	getCLIVersions,
 	getDevCLILocalPath,
+	isInsidersCLIEnabled,
 	isLockedBinaryError,
 	resolveCLIExecutable,
 	runCLICommand,
@@ -126,7 +127,7 @@ export class GkCliIntegrationProvider implements Disposable {
 			if (cliInstall?.status === 'completed') {
 				// Force reinstall to switch between production and insiders
 				Logger.info(
-					`${formatLoggableScopeBlock('CLI')} Forcing CLI reinstall on settings change (insiders = ${configuration.get('gitkraken.cli.insiders.enabled')})`,
+					`${formatLoggableScopeBlock('CLI')} Forcing CLI reinstall on settings change (insiders = ${isInsidersCLIEnabled()})`,
 				);
 				void this.setupMCPCore('settings', true, true).catch(() => {});
 			}
@@ -510,7 +511,7 @@ export class GkCliIntegrationProvider implements Disposable {
 			}
 		}
 
-		const insidersEnabled = configuration.get('gitkraken.cli.insiders.enabled');
+		const insidersEnabled = isInsidersCLIEnabled();
 
 		try {
 			if (isWeb) {

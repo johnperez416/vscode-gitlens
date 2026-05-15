@@ -404,7 +404,7 @@ interface GitKrakenConfig {
 interface GitKrakenCliConfig {
 	readonly localPath: string | null;
 	readonly insiders: {
-		readonly enabled: boolean;
+		readonly enabled: boolean | null;
 	};
 }
 
@@ -435,9 +435,6 @@ export interface GraphConfig {
 		readonly renderer: {
 			readonly enabled: boolean;
 		};
-	};
-	readonly experimentalFeatures: {
-		readonly enabled: boolean;
 	};
 	readonly highlightRowsOnRefHover: boolean;
 	readonly initialRowSelection: 'head' | 'wip';

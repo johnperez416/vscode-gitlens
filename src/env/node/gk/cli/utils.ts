@@ -113,11 +113,19 @@ export function toMcpInstallProvider<T extends string | undefined>(appHostName: 
 	}
 }
 
+/**
+ * Resolves the effective "insiders CLI" enabled state. When the setting is unset (`null`), it is
+ * auto-enabled in pre-release and debugging builds; an explicit `true`/`false` always wins.
+ */
+export function isInsidersCLIEnabled(): boolean {
+	return configuration.get('gitkraken.cli.insiders.enabled') ?? Container.instance.prereleaseOrDebugging;
+}
+
 export async function runCLICommand(args: string[], options?: { cwd?: string }): Promise<string> {
 	const cwd = options?.cwd ?? Container.instance.context.globalStorageUri.fsPath;
 
-	// Centrally inject --insiders for all CLI commands when the setting is enabled
-	if (configuration.get('gitkraken.cli.insiders.enabled')) {
+	// Centrally inject --insiders for all CLI commands when insiders is enabled
+	if (isInsidersCLIEnabled()) {
 		args = [...args, '--insiders'];
 	}
 

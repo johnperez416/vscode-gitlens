@@ -110,9 +110,6 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 	@property({ type: Boolean })
 	aiEnabled = false;
 
-	@property({ type: Boolean })
-	experimentalFeaturesEnabled = true;
-
 	/** Host advertises that it supports compare mode (graph orchestrator does, standalone doesn't). */
 	@property({ type: Boolean, attribute: 'compare-enabled' })
 	compareEnabled = false;
@@ -367,7 +364,7 @@ export class GlDetailsCommitPanel extends GlDetailsBase {
 
 	private computeCommitModes(): ('review' | 'compose' | 'compare')[] {
 		const modes: ('review' | 'compose' | 'compare')[] = [];
-		if (this.aiEnabled && this.experimentalFeaturesEnabled) {
+		if (this.aiEnabled) {
 			modes.push('review');
 		}
 		// Compare mode requires the host (graph orchestrator) to wire in a compare-refs panel
