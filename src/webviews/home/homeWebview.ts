@@ -168,8 +168,11 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 			getOverviewBranches: (type?: 'active' | 'inactive', signal?: AbortSignal) =>
 				this.getOverviewBranches(type, signal),
 			getOverviewWip: (branchIds: string[], signal?: AbortSignal) => this.getOverviewWip(branchIds, signal),
-			getOverviewEnrichment: (branchIds: string[], signal?: AbortSignal) =>
-				this.getOverviewEnrichment(branchIds, signal),
+			getOverviewEnrichment: (
+				branchIds: string[],
+				options?: { skipMergeTarget?: boolean },
+				signal?: AbortSignal,
+			) => this.getOverviewEnrichment(branchIds, options, signal),
 			getOverviewFilterState: () => Promise.resolve(this._overviewBranchFilter),
 			setOverviewFilter: filter => {
 				this._overviewBranchFilter = filter;
@@ -855,6 +858,7 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 
 	private async getOverviewEnrichment(
 		branchIds: string[],
+		options?: { skipMergeTarget?: boolean },
 		signal?: AbortSignal,
 	): Promise<GetOverviewEnrichmentResponse> {
 		if (branchIds.length === 0) return {};
@@ -876,10 +880,14 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 		// straight to `branches.getBranchContributionsOverview`, whose `branchOverviews` cache
 		// keyed on `${ref}|${mergeTarget}` dedupes concurrent in-flight callers natively, so
 		// no per-webview cache is needed.
+		// `skipMergeTarget` is passed through so callers (gl-overview's inactive/agent paths) can
+		// defer the ~4 git/integration ops per branch to a lazy fetch on card expand. The active
+		// path leaves it off so the always-expanded active card resolves merge-target eagerly.
 		return getOverviewEnrichment(this.container, branches, branchIds, {
 			isPro: isPro,
 			signal: signal,
 			priority: 'background',
+			skipMergeTarget: options?.skipMergeTarget,
 		});
 	}
 
