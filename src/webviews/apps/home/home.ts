@@ -128,6 +128,9 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 		void this._activeResource?.fetch();
 		void this._inactiveResource?.fetch();
 	}, 500);
+	private readonly _refreshInactiveDebounced = debounce(() => {
+		void this._inactiveResource?.fetch();
+	}, 100);
 
 	/**
 	 * Unsubscribe function for RPC event subscriptions.
@@ -208,6 +211,7 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 
 		// Dispose and clear resource references
 		this._refreshOverviewDebounced.cancel();
+		this._refreshInactiveDebounced.cancel();
 		this._activeResource?.dispose();
 		this._inactiveResource?.dispose();
 		this._agentResource?.dispose();
@@ -509,6 +513,7 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 		};
 		const replaceOverview = (): void => {
 			this._refreshOverviewDebounced.cancel();
+			this._refreshInactiveDebounced.cancel();
 			this._activeResource?.cancel();
 			this._inactiveResource?.cancel();
 			this._agentResource?.cancel();
@@ -518,15 +523,17 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 			// Re-subscribe FS watcher for the (possibly new) overview repo
 			watchWipForRepo(this._homeState.overviewRepositoryPath.get());
 		};
+		const replaceOverviewDebounced = debounce(replaceOverview, 100);
+		this.disposables.push({ dispose: () => replaceOverviewDebounced.cancel() });
 		const actions: SubscriptionActions = {
 			refreshOverview: () => {
 				this._refreshOverviewDebounced();
 			},
 			refreshInactiveOverview: () => {
-				void this._inactiveResource?.fetch();
+				this._refreshInactiveDebounced();
 			},
 			replaceOverview: () => {
-				replaceOverview();
+				replaceOverviewDebounced();
 			},
 			updateOverviewFilter: (filter: OverviewFilters) => {
 				this._homeState.overviewFilter.set(filter);
@@ -567,14 +574,16 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 		// Start FS-level WIP watcher for the initial overview repo
 		watchWipForRepo(this._homeState.overviewRepositoryPath.get());
 
-		// Cancel pending overview fetches on hide (responses would be silently
-		// dropped by VS Code); re-fetch on visibility restore
+		// Cancel pending debounced fetches on hide so they don't fire against a hidden
+		// view; intentionally do NOT cancel in-flight resource fetches here. VS Code
+		// delivers responses across visibility transitions, and a standalone cancel can
+		// strand a resource in idle/no-error state ("skeleton forever") if no follow-up
+		// fetch arrives. Re-fetch on visibility restore.
 		const onVisibilityChange = (): void => {
 			if (document.visibilityState !== 'visible') {
 				this._refreshOverviewDebounced.cancel();
-				this._activeResource?.cancel();
-				this._inactiveResource?.cancel();
-				this._agentResource?.cancel();
+				this._refreshInactiveDebounced.cancel();
+				replaceOverviewDebounced.cancel();
 				return;
 			}
 
