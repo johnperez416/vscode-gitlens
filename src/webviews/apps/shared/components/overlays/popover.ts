@@ -180,7 +180,7 @@ export class GlPopover extends GlElement {
 		scrollableBase,
 		css`
 			:host {
-				--hide-delay: 0ms;
+				--hide-delay: 100ms;
 				--show-delay: 500ms;
 
 				display: contents;
@@ -218,6 +218,7 @@ export class GlPopover extends GlElement {
 			.popover__body {
 				display: block;
 				width: fit-content;
+				min-width: 0;
 				border: 1px solid var(--gl-tooltip-border-color);
 				border-radius: var(--wa-tooltip-border-radius);
 				box-shadow: 0 2px 8px var(--gl-tooltip-shadow);
@@ -233,6 +234,7 @@ export class GlPopover extends GlElement {
 				user-select: none;
 				-webkit-user-select: none;
 				max-width: min(var(--auto-size-available-width), var(--max-width, 70vw));
+				overflow: hidden;
 				pointer-events: all;
 			}
 

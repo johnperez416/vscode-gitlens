@@ -205,7 +205,7 @@ const mergeTargetStyles = css`
 	}
 
 	gl-popover {
-		--max-width: 80vw;
+		--max-width: 60rem;
 	}
 
 	.target-edit * {
