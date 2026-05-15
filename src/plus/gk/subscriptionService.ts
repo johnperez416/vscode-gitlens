@@ -330,6 +330,15 @@ export class SubscriptionService implements Disposable {
 					onDidCheckIn: this._onDidCheckIn,
 					changeSubscription: this.changeSubscription.bind(this),
 					getStoredSubscription: this.getStoredSubscription.bind(this),
+					refireSubscriptionChange: () => {
+						if (this._subscription == null) return;
+						this._etag = Date.now();
+						this._onDidChange.fire({
+							current: this._subscription,
+							previous: this._subscription,
+							etag: this._etag,
+						});
+					},
 				});
 			});
 		}

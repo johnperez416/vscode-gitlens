@@ -364,6 +364,17 @@ export class GitProviderService implements UnifiedDisposable {
 			...this.registerCommands(),
 		);
 
+		if (DEBUG) {
+			void import(/* webpackChunkName: "__debug__" */ './__debug__visibilityDebug.js').then(m => {
+				m.registerVisibilityDebug(this, {
+					clearAccessCache: () => this.clearAccessCache(),
+					invalidateReposVisibilityCache: () => this._reposVisibilityCache.invalidate('visibility'),
+					fireRepositoriesChanged: () =>
+						this._onDidChangeRepositories.fire({ added: [], removed: [], etag: this._etag }),
+				});
+			});
+		}
+
 		this.container.BranchDateFormatting.reset();
 		this.container.CommitDateFormatting.reset();
 		this.container.CommitShaFormatting.reset();

@@ -174,12 +174,23 @@ export async function revealInFileExplorer(uri: Uri): Promise<void> {
 	void (await executeCoreCommand('revealFileInOS', uri));
 }
 
-export function supportedInVSCodeVersion(feature: 'language-models' | 'quickpick-resourceuri'): boolean {
+export function supportedInVSCodeVersion(
+	feature:
+		| 'language-models'
+		| 'quickpick-resourceuri'
+		| 'quickpick-prompt'
+		| 'quickpick-button-location'
+		| 'quickpick-button-toggle',
+): boolean {
 	switch (feature) {
 		case 'language-models':
 			return satisfies(codeVersion, '>= 1.90-insider');
 		case 'quickpick-resourceuri':
+		case 'quickpick-prompt':
 			return satisfies(codeVersion, '>= 1.108');
+		case 'quickpick-button-location':
+		case 'quickpick-button-toggle':
+			return satisfies(codeVersion, '>= 1.109');
 		default:
 			return false;
 	}
