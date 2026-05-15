@@ -1,3 +1,4 @@
+import type { PropertyValueMap } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { AgentSessionPhase } from '../../../../../agents/provider.js';
@@ -96,6 +97,10 @@ function describeSession(
 declare global {
 	interface HTMLElementTagNameMap {
 		'gl-details-agent-status': GlDetailsAgentStatus;
+	}
+
+	interface GlobalEventHandlersEventMap {
+		'gl-agent-status-cards-visibility-change': CustomEvent<{ hasCards: boolean }>;
 	}
 }
 
@@ -495,11 +500,41 @@ export class GlDetailsAgentStatus extends LitElement {
 
 	@state() private _expand: ExpandState = 'closed';
 
+	private _lastHasVisibleCards: boolean | undefined;
+
 	override render(): unknown {
 		const sessions = this.sessions;
 		if (sessions == null || sessions.length === 0) return nothing;
 
 		return this.renderSection(sessions, this.tally(sessions));
+	}
+
+	protected override updated(changedProperties: PropertyValueMap<unknown> | Map<PropertyKey, unknown>): void {
+		super.updated(changedProperties);
+
+		const hasCards = this.computeVisibleCardCount() > 0;
+		if (hasCards === this._lastHasVisibleCards) return;
+		this._lastHasVisibleCards = hasCards;
+		this.dispatchEvent(
+			new CustomEvent('gl-agent-status-cards-visibility-change', {
+				detail: { hasCards: hasCards },
+				bubbles: true,
+				composed: true,
+			}),
+		);
+	}
+
+	private computeVisibleCardCount(): number {
+		const sessions = this.sessions;
+		if (sessions == null || sessions.length === 0) return 0;
+		const visibleCats = expandVisibleCategories[this._expand];
+		let count = 0;
+		for (const s of sessions) {
+			if (visibleCats.has(phaseToCategory[s.phase])) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	/* ---------- Section (heading + cards list) ---------- */

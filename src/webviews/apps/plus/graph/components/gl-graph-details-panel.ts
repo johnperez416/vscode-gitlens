@@ -94,7 +94,14 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 	private _agentStatusSplitAdjusted = false;
 	private _agentStatusSplitPosition?: number;
 
+	@state()
+	private _agentStatusHasVisibleCards = false;
+
 	private readonly _agentStatusSplitSnap = ({ pos }: { pos: number }) => Math.max(10, Math.min(pos, 80));
+
+	private readonly _onAgentStatusCardsVisibilityChange = (e: CustomEvent<{ hasCards: boolean }>) => {
+		this._agentStatusHasVisibleCards = e.detail.hasCards;
+	};
 
 	private readonly _onAgentStatusSplitChange = (e: CustomEvent<{ position: number }>) => {
 		this._agentStatusSplitPosition = e.detail.position;
@@ -665,7 +672,9 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 				? html`<gl-split-panel
 						class="agent-status-split ${this._agentStatusSplitAdjusted
 							? ''
-							: 'agent-status-split--auto-size'}"
+							: 'agent-status-split--auto-size'} ${this._agentStatusHasVisibleCards
+							? ''
+							: 'agent-status-split--no-cards'}"
 						orientation="vertical"
 						primary="start"
 						position="${this._agentStatusSplitPosition ?? 25}"
@@ -675,9 +684,11 @@ export class GlGraphDetailsPanel extends SignalWatcher(LitElement) {
 						@gl-split-panel-dblclick=${this._onAgentStatusSplitDblClick}
 					>
 						<div slot="start" class="agent-status-split__top scrollable">
-							<gl-details-agent-status .sessions=${worktreeAgentSessions}></gl-details-agent-status>
+							<gl-details-agent-status
+								.sessions=${worktreeAgentSessions}
+								@gl-agent-status-cards-visibility-change=${this._onAgentStatusCardsVisibilityChange}
+							></gl-details-agent-status>
 						</div>
-						<div slot="divider" class="agent-status-split__handle"></div>
 						<div slot="end" class="agent-status-split__bottom scrollable">${restContent}</div>
 					</gl-split-panel>`
 				: restContent}

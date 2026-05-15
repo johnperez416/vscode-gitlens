@@ -1530,18 +1530,32 @@ web-graph {
 		.agent-status-split {
 			flex: 1;
 			min-height: 0;
-			// --gl-split-panel-divider-width: 12px;
-
-			&::part(divider) {
-				background-color: transparent !important;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				padding: 0.4rem 0;
-			}
 
 			&--auto-size:not([dragging]) {
 				--gl-split-panel-start-size: fit-content(var(--_start-size, 25%));
+			}
+
+			// When the agent-status section is showing no cards (e.g. collapsed to needs-input
+			// only, with no needs-input sessions), drop the divider entirely so the heading
+			// floats above the rest content with no draggable affordance. The top row keeps
+			// its existing auto-size/dragged sizing — fit-content shrinks naturally when only
+			// the heading is present, and the dragged position is preserved when cards return.
+			//
+			// `visibility: hidden` (not `display: none`) is load-bearing — removing the divider
+			// from the grid item flow causes auto-placement to shove the bottom slot into the
+			// 0px middle track instead of the 1fr end track, collapsing the WIP panel.
+			&--no-cards:not([dragging]) {
+				--gl-split-panel-divider-width: 0px;
+				// Force the heading row to its content height regardless of any previously-dragged
+				// position. Without this, dragging the splitter while cards are visible and then
+				// collapsing back to no-cards leaves the heading floating in a large empty area
+				// the size of the user's drag. The split-panel still preserves `position`
+				// internally so the dragged height is restored when cards reappear.
+				--gl-split-panel-start-size: max-content;
+			}
+
+			&--no-cards:not([dragging])::part(divider) {
+				visibility: hidden;
 			}
 
 			&__top {
@@ -1554,33 +1568,6 @@ web-graph {
 				display: flex;
 				flex-direction: column;
 				overflow-y: auto;
-			}
-
-			&__handle {
-				position: relative;
-				z-index: 1;
-				width: 100%;
-				height: 100%;
-				display: flex;
-				align-items: center;
-				justify-content: center;
-				border-top: 1px solid color-mix(in srgb, var(--vscode-sideBarSectionHeader-border) 60%, transparent);
-
-				&::after {
-					content: '';
-					position: relative;
-					top: -0.2rem;
-					width: 5rem;
-					height: 0.5rem;
-					border-radius: 0.25rem;
-					background-color: color-mix(in srgb, var(--color-foreground) 55%, var(--color-background));
-					transition: background-color 0.15s ease;
-				}
-			}
-
-			&__handle:hover::after,
-			&[dragging] &__handle::after {
-				background-color: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder));
 			}
 		}
 	}
