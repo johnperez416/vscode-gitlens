@@ -305,6 +305,7 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 			ai,
 			commands,
 			onboarding,
+			branches,
 		] = await Promise.all([
 			services.home,
 			services.launchpad,
@@ -316,6 +317,7 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 			services.ai,
 			services.commands,
 			services.onboarding,
+			services.branches,
 		]);
 
 		// Supertalk remote proxy properties are thenable at runtime (ProxyProperty with .then()),
@@ -374,8 +376,10 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 			const activeIds = branches.active.map(b => b.id);
 			// Fire WIP + enrichment without awaiting — branch cards fill in progressively
 			// as each Promise resolves. Resource exits loading state after just the skeleton.
+			// Active branch is always-expanded, so merge-target stays eager here — deferring
+			// would only add a loading flash with no win.
 			const wipPromise = home.getOverviewWip(activeIds, signal);
-			const enrichmentPromise = home.getOverviewEnrichment(activeIds, signal);
+			const enrichmentPromise = home.getOverviewEnrichment(activeIds, undefined, signal);
 
 			return {
 				repository: branches.repository,
@@ -392,9 +396,11 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 			const wipIds = allInactive.filter(b => b.worktree != null).map(b => b.id);
 
 			// Fire WIP + enrichment without awaiting — same progressive pattern as active.
+			// Defer merge-target — `gl-branch-card` lazy-fetches via `branches.getBranchEnrichment`
+			// on first expand, so the initial enrichment skips ~4 git/integration ops per branch.
 			const emptyWip = Promise.resolve<GetOverviewWipResponse>({});
 			const wipPromise = wipIds.length > 0 ? home.getOverviewWip(wipIds, signal) : emptyWip;
-			const enrichmentPromise = home.getOverviewEnrichment(allIds, signal);
+			const enrichmentPromise = home.getOverviewEnrichment(allIds, { skipMergeTarget: true }, signal);
 
 			return {
 				repository: branches.repository,
@@ -412,9 +418,10 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 			const allIds = branches.recent.map(b => b.id);
 			const wipIds = branches.recent.filter(b => b.worktree != null).map(b => b.id);
 
+			// Same lazy-merge-target rationale as the inactive path.
 			const emptyWip = Promise.resolve<GetOverviewWipResponse>({});
 			const wipPromise = wipIds.length > 0 ? home.getOverviewWip(wipIds, signal) : emptyWip;
-			const enrichmentPromise = home.getOverviewEnrichment(allIds, signal);
+			const enrichmentPromise = home.getOverviewEnrichment(allIds, { skipMergeTarget: true }, signal);
 
 			return {
 				repository: branches.repository,
@@ -459,6 +466,7 @@ export class GlHomeApp extends SignalWatcherWebviewApp {
 
 		// Wire service handles to domain states
 		root.home.homeService = home;
+		root.home.branchesService = branches;
 		root.commands.service = commands;
 		root.launchpad.service = launchpad;
 

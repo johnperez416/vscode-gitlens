@@ -1,12 +1,13 @@
 import { consume } from '@lit/context';
 import { SignalWatcher } from '@lit-labs/signals';
-import type { TemplateResult } from 'lit';
+import type { PropertyValues, TemplateResult } from 'lit';
 import { css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { when } from 'lit/directives/when.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
 import { interpolate, pluralize } from '@gitlens/utils/string.js';
 import type { GlWebviewCommandsOrCommandsWithSuffix } from '../../../../../constants.commands.js';
+import { isSubscriptionTrialOrPaidFromState } from '../../../../../plus/gk/utils/subscription.utils.js';
 import type { LaunchpadCommandArgs } from '../../../../../plus/launchpad/launchpad.js';
 import {
 	actionGroupMap,
@@ -279,7 +280,7 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 	protected _webview!: WebviewContext;
 
 	@consume({ context: homeStateContext })
-	private _homeState!: HomeState;
+	protected _homeState!: HomeState;
 
 	@property()
 	repo!: string;
@@ -1015,6 +1016,37 @@ export abstract class GlBranchCardBase extends SignalWatcherGlElement {
 
 @customElement('gl-branch-card')
 export class GlBranchCard extends GlBranchCardBase {
+	// Subclass-owned lazy merge-target state. The base's eager `_mergeTarget` stays undefined
+	// here because the home overview's enrichment IPC opts out (`skipMergeTarget: true`) — this
+	// mirrors the graph-overview-card hover pattern by fetching on first card expand instead.
+	@state()
+	private _lazyMergeTarget?: Awaited<GetOverviewBranch['mergeTarget']>;
+
+	// True while the lazy fetch is in flight. Drives `<gl-merge-target-status loading>` so the
+	// chip's `aria-busy="true"` "Checking merge target status…" affordance covers the latency
+	// instead of rendering nothing until resolution.
+	@state()
+	private _lazyMergeTargetLoading = false;
+
+	// In-flight/resolved promise. Handed to the chip's `targetPromise` so the loading state
+	// reuses across collapse/re-expand cycles without re-firing.
+	private _lazyMergeTargetPromise?: Promise<Awaited<GetOverviewBranch['mergeTarget']>>;
+
+	// Lit's `repeat` reuses card instances when the branch list reorders, so a `branch` prop
+	// transition can swap us onto a different branch entirely. Track the id we last fetched
+	// for so `willUpdate` can drop stale state on transition.
+	private _lazyMergeTargetFetchedFor?: string;
+
+	/**
+	 * Surface the lazy-fetched merge-target through the base's `mergeTarget` getter so the
+	 * base's `branchCardIndicator` automatically returns `'branch-merged'` after resolve — no
+	 * separate indicator override needed. Lit re-renders on `_lazyMergeTarget` (`@state`) so
+	 * the swap-in is reactive.
+	 */
+	override get mergeTarget(): Awaited<GetOverviewBranch['mergeTarget']> {
+		return this._lazyMergeTarget;
+	}
+
 	override render(): unknown {
 		return html`
 			<gl-card class="branch-item" focusable .indicator=${this.cardIndicator}>
@@ -1024,6 +1056,88 @@ export class GlBranchCard extends GlBranchCardBase {
 				${this.renderCollapsedActions()}
 			</gl-card>
 		`;
+	}
+
+	override willUpdate(changed: PropertyValues<this>): void {
+		super.willUpdate?.(changed);
+
+		// Drop stale lazy state when Lit `repeat` reuses this card instance for a different branch.
+		if (changed.has('branch') && this.branch?.id !== this._lazyMergeTargetFetchedFor) {
+			this._lazyMergeTarget = undefined;
+			this._lazyMergeTargetPromise = undefined;
+			this._lazyMergeTargetFetchedFor = undefined;
+			this._lazyMergeTargetLoading = false;
+		}
+
+		// First expand for this branch kicks off the fetch; subsequent ticks short-circuit via
+		// the `_lazyMergeTargetFetchedFor` dedupe check inside `ensureMergeTargetFetched`.
+		if (this.expanded) {
+			void this.ensureMergeTargetFetched();
+		}
+	}
+
+	/**
+	 * Render the chip with the subclass's lazy promise + loading flag, replacing the base's
+	 * direct read of `this.branch.mergeTarget` (which is `Promise<undefined>` under skip).
+	 * Renders nothing until the first expand fires the fetch — matches graph-overview-card.
+	 */
+	protected override renderMergeTargetStatus(): TemplateResult | NothingType {
+		if (this.showUpgrade) {
+			return super.renderMergeTargetStatus();
+		}
+		const promise = this._lazyMergeTargetPromise;
+		if (promise == null) return nothing;
+		return html`<gl-merge-target-status
+			class="branch-item__merge-target"
+			.branch=${this.branch}
+			.targetPromise=${promise}
+			?loading=${this._lazyMergeTargetLoading}
+		></gl-merge-target-status>`;
+	}
+
+	private async ensureMergeTargetFetched(): Promise<void> {
+		const branch = this.branch;
+		if (branch == null) return;
+
+		// Already fetched (or in flight) for this branch — nothing to do. The promise is reused
+		// across expand cycles; the chip handles loading state internally.
+		if (this._lazyMergeTargetFetchedFor === branch.id && this._lazyMergeTargetPromise != null) {
+			return;
+		}
+
+		// Pro gate — mirror the eager path's server-side `isPro` filter. Without this, non-pro
+		// accounts would spin the `aria-busy="true"` loading chip forever because the server
+		// fast-bails and the resolved promise never produces a status. `<gl-merge-target-upgrade>`
+		// is rendered separately via `showUpgrade` so non-pro still sees the upgrade prompt.
+		const subState = this._subscription.subscription.get()?.state;
+		if (subState != null && !isSubscriptionTrialOrPaidFromState(subState)) return;
+
+		const branches = this._homeState?.branchesService;
+		if (branches == null) return;
+
+		this._lazyMergeTargetFetchedFor = branch.id;
+		this._lazyMergeTargetLoading = true;
+		const branchId = branch.id;
+		const repoPath = this.repo;
+		const branchName = branch.name;
+
+		const promise = (async (): Promise<Awaited<GetOverviewBranch['mergeTarget']>> => {
+			try {
+				const enrichment = await branches.getBranchEnrichment(repoPath, branchName);
+				return await enrichment?.mergeTargetStatus;
+			} catch {
+				return undefined;
+			}
+		})();
+		this._lazyMergeTargetPromise = promise;
+
+		const result = await promise;
+		// Bail if a `branch` prop transition reassigned us mid-await — `willUpdate` already
+		// cleared the state for the new branch and `_lazyMergeTargetFetchedFor` no longer matches.
+		if (this._lazyMergeTargetFetchedFor !== branchId) return;
+
+		this._lazyMergeTarget = result;
+		this._lazyMergeTargetLoading = false;
 	}
 
 	protected getCollapsedActions(): TemplateResult[] {
