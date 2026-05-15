@@ -9,7 +9,8 @@ import { cache } from 'lit/directives/cache.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { when } from 'lit/directives/when.js';
 import { getAltKeySymbol } from '@env/platform.js';
-import type { SearchQuery } from '@gitlens/git/models/search.js';
+import type { SearchOperatorsLongForm, SearchQuery } from '@gitlens/git/models/search.js';
+import { parseSearchQuery } from '@gitlens/git/utils/search.utils.js';
 import { debounce } from '@gitlens/utils/decorators/debounce.js';
 import { hasTruthyKeys } from '@gitlens/utils/object.js';
 import { wait } from '@gitlens/utils/promise.js';
@@ -21,6 +22,7 @@ import type { LaunchpadCommandArgs } from '../../../../plus/launchpad/launchpad.
 import { createCommandLink } from '../../../../system/commands.js';
 import type {
 	DidChooseRefParams,
+	GraphColumnName,
 	GraphExcludedRef,
 	GraphExcludeRefs,
 	GraphSearchResults,
@@ -104,6 +106,19 @@ function getSearchResultIdByIndex(results: GraphSearchResults, index: number): s
 	}
 	return undefined;
 }
+
+// Search operator → graph column. Operators not listed (`type:`, `change:`) have no
+// corresponding column and don't flip any header filter state. `since:`/`until:` are
+// normalized by the parser to `after:`/`before:`, so they're already covered here.
+const operatorToColumn: Partial<Record<SearchOperatorsLongForm, GraphColumnName>> = {
+	'ref:': 'ref',
+	'message:': 'message',
+	'author:': 'author',
+	'file:': 'changes',
+	'after:': 'datetime',
+	'before:': 'datetime',
+	'commit:': 'sha',
+};
 
 @customElement('gl-graph-header')
 export class GlGraphHeader extends SignalWatcher(LitElement) {
@@ -226,9 +241,50 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 	setExternalSearchQuery(query: SearchQuery) {
 		this._searchQuery = query;
 		this.searchEl?.setExternalSearchQuery(query);
+		this.updateActiveFilterColumns();
 
 		// Trigger the search
 		void this.startSearch();
+	}
+
+	async pickAuthors(): Promise<void> {
+		await this.searchEl?.pickAuthors();
+	}
+
+	async pickRefs(): Promise<void> {
+		await this.searchEl?.pickRefs();
+	}
+
+	async pickFiles(): Promise<void> {
+		await this.searchEl?.pickFiles();
+	}
+
+	insertSearchOperator(operator: string): void {
+		this.searchEl?.insertSearchOperator(operator);
+	}
+
+	/**
+	 * Parses the current search query and writes the set of columns whose operator is
+	 * currently present into graph state. Consumed by gl-graph.react.tsx to flip each
+	 * column's `isFilterActive` flag before passing settings to GraphContainer.
+	 *
+	 * Long-form normalization (per searchOperatorsToLongFormMap): `since:`→`after:`,
+	 * `until:`→`before:`. Both map to the datetime column.
+	 */
+	private updateActiveFilterColumns(): void {
+		const active = new Set<GraphColumnName>();
+		const query = this._searchQuery?.query;
+		if (query) {
+			const { operations } = parseSearchQuery(this._searchQuery);
+			for (const [op, values] of operations) {
+				if (values.size === 0) continue;
+				const column = operatorToColumn[op];
+				if (column != null) {
+					active.add(column);
+				}
+			}
+		}
+		this.graphState.activeFilterColumns = active;
 	}
 
 	private async onJumpToRefPromise(alt: boolean): Promise<DidChooseRefParams | undefined> {
@@ -499,6 +555,7 @@ export class GlGraphHeader extends SignalWatcher(LitElement) {
 		}
 
 		this._searchQuery = e.detail;
+		this.updateActiveFilterColumns();
 		this.ensuredIds.clear();
 		void this.startSearch();
 	}

@@ -825,8 +825,6 @@ button:not([disabled]),
 		&::before {
 			font-family: codicon;
 			@include iconUtils.codicon('git-branch');
-			top: 0px;
-			margin: 0 0 0 0;
 		}
 	}
 
@@ -841,8 +839,6 @@ button:not([disabled]),
 		&::before {
 			font-family: codicon;
 			@include iconUtils.codicon('git-commit');
-			top: 0px;
-			margin: 0 0 0 0;
 		}
 	}
 
@@ -940,13 +936,103 @@ button:not([disabled]),
 		}
 	}
 
-	&--filter,
+	&--filter {
+		&::before {
+			font-family: codicon;
+			@include iconUtils.codicon('filter');
+		}
+	}
+
 	&--undefined-icon {
 		&::before {
 			font-family: codicon;
 			@include iconUtils.codicon('blank');
 		}
 	}
+}
+
+// Header icons render at the library's expected metrics, not the global `.graph-icon`
+// `14px / line-height: 2rem` which would stretch the header row.
+.gk-graph .graph-header .graph-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.6rem;
+	height: 1.6rem;
+	font-size: 1.4rem;
+	line-height: 1;
+}
+
+// Vertically center every header item (zone icon, filter button, label) in the row.
+// `:has()` covers both `.resizable > .contents > div > .columns-btn` and `.is-last-header
+// > div > .columns-btn`. `.columns-filter-icon` uses `!important` to beat the library's
+// inline `height: 22px; margin-bottom: 2px` (which overflows the padded filter button).
+.gk-graph .graph-header div:has(> .columns-btn) {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+.gk-graph .graph-header .header-columns-icons {
+	top: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+}
+.gk-graph .graph-header .columns-filter-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: auto !important;
+	margin-bottom: 0 !important;
+}
+.gk-graph .graph-header .columns-btn {
+	align-items: center;
+	margin-top: 0;
+}
+
+// In narrow columns (compact mode shrinks zone buttons to a few px) the GitLens override
+// at L1290 `justify-content: center` would center a 16px icon inside a 5px box, overflowing
+// left and getting clipped by `.contents { overflow: hidden }`. Pin to icon width.
+.gk-graph .graph-header .columns-btn.small-btn.justify-start {
+	min-width: 1.6rem;
+}
+
+// Filter button: hidden until header hover/focus or `.filtering` (active filter). Active
+// state is signalled by the filled glyph alone — `.button.active`'s background and the
+// library's `--text-selected` recolor are both overridden away.
+// `.columns-btn.columns-filter` matches the library's `.columns-btn.small-btn` specificity
+// so our padding wins on every variant (incl. the ref column's non-small-btn filter).
+.gk-graph .graph-header .columns-btn.columns-filter {
+	margin-right: 0.3rem;
+	padding: 0.2rem;
+	cursor: pointer;
+
+	&:not(.filtering) {
+		opacity: 0;
+		transition: opacity 120ms ease;
+
+		&:hover {
+			background-color: var(--vscode-toolbar-hoverBackground);
+		}
+	}
+
+	&.filtering,
+	&.filtering:hover {
+		background-color: transparent;
+
+		.columns-filter-icon {
+			color: inherit;
+
+			.icon--filter::before {
+				@include iconUtils.codicon('filter-filled');
+			}
+		}
+	}
+}
+.gk-graph .graph-header:hover .columns-filter:not(.filtering),
+.gk-graph .graph-header .columns-filter:not(.filtering):focus-visible,
+.gk-graph .graph-header .columns-filter:not(.filtering):focus-within {
+	opacity: 1;
 }
 
 // header - move to graph.css.ts

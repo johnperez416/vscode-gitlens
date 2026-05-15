@@ -184,6 +184,9 @@ export class GraphStateProvider extends StateProviderBase<State['webviewId'], Ap
 	@signalState()
 	accessor searchResults: AppState['searchResults'];
 
+	@signalState<AppState['activeFilterColumns']>(new Set())
+	accessor activeFilterColumns: AppState['activeFilterColumns'] = new Set();
+
 	@signalState()
 	accessor searchResultsError: AppState['searchResultsError'];
 

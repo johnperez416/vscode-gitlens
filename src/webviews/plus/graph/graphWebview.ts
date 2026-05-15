@@ -411,23 +411,23 @@ function hasSearchQuery(arg: any): arg is { repository: GlRepository; search: Se
 }
 
 const defaultGraphColumnsSettings: GraphColumnsSettings = {
-	ref: { width: 130, isHidden: false, order: 0 },
+	ref: { width: 130, isHidden: false, order: 0, isFilterable: true },
 	graph: { width: 150, mode: undefined, isHidden: false, order: 1 },
-	message: { width: 300, isHidden: false, order: 2 },
-	author: { width: 130, isHidden: false, order: 3 },
-	changes: { width: 200, isHidden: false, order: 4 },
-	datetime: { width: 130, isHidden: false, order: 5 },
-	sha: { width: 130, isHidden: false, order: 6 },
+	message: { width: 300, isHidden: false, order: 2, isFilterable: true },
+	author: { width: 130, isHidden: false, order: 3, isFilterable: true },
+	changes: { width: 200, isHidden: false, order: 4, isFilterable: true },
+	datetime: { width: 130, isHidden: false, order: 5, isFilterable: true },
+	sha: { width: 130, isHidden: false, order: 6, isFilterable: true },
 };
 
 const compactGraphColumnsSettings: GraphColumnsSettings = {
-	ref: { width: 32, isHidden: false },
+	ref: { width: 32, isHidden: false, isFilterable: true },
 	graph: { width: 150, mode: 'compact', isHidden: false },
-	author: { width: 32, isHidden: false, order: 2 },
-	message: { width: 500, isHidden: false, order: 3 },
-	changes: { width: 200, isHidden: false, order: 4 },
-	datetime: { width: 130, isHidden: true, order: 5 },
-	sha: { width: 130, isHidden: false, order: 6 },
+	author: { width: 32, isHidden: false, order: 2, isFilterable: true },
+	message: { width: 500, isHidden: false, order: 3, isFilterable: true },
+	changes: { width: 200, isHidden: false, order: 4, isFilterable: true },
+	datetime: { width: 130, isHidden: true, order: 5, isFilterable: true },
+	sha: { width: 130, isHidden: false, order: 6, isFilterable: true },
 };
 
 /**

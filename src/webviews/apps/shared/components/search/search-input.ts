@@ -887,6 +887,110 @@ export class GlSearchInput extends GlElement {
 	}
 
 	/**
+	 * Strip a trailing valueless operator (e.g. ` message:` at the end of the query) so
+	 * successive column-filter clicks don't pile up half-typed prefixes. Matches one short
+	 * alpha token followed by `:` and nothing else before end-of-string — long enough to
+	 * cover every defined operator, narrow enough not to chew into real values.
+	 * Returns the resulting string (without mutating internal state).
+	 */
+	private withoutTrailingEmptyOperator(value: string): string {
+		return value.replace(/\s*\b[a-z]+:\s*$/i, '');
+	}
+
+	/**
+	 * Append `<operator><value>` terms to the query, normalize/dedupe via parse+rebuild,
+	 * place the caret at the end, and fire `onSearchChanged()`. Shared by the column-header
+	 * picker entry points; bypasses the `cursorOperator` gate used by autocomplete-driven picks.
+	 */
+	private appendOperatorValues(operator: string, values: string[]): void {
+		if (values.length === 0) {
+			this.input.focus();
+			return;
+		}
+
+		const base = this.withoutTrailingEmptyOperator(this.value);
+		const separator = base.length === 0 || base.endsWith(' ') ? '' : ' ';
+		const insertText = separator + values.map(v => `${operator}${v}`).join(' ');
+
+		let newValue = base + insertText;
+		const parsed = parseSearchQuery({ query: newValue });
+		newValue = rebuildSearchQueryFromParsed(parsed);
+
+		this.input.value = newValue;
+		this._value = newValue;
+
+		const cursorPos = newValue.length;
+		this.input.focus();
+		this.input.selectionStart = cursorPos;
+		this.input.selectionEnd = cursorPos;
+		this.cursorPosition = [cursorPos, cursorPos];
+
+		this.onSearchChanged();
+	}
+
+	/** Opens the author picker and appends `author:<email>` terms to the query. */
+	async pickAuthors(): Promise<void> {
+		try {
+			const result = await this._ipc.sendRequest(ChooseAuthorRequest, {
+				title: 'Search by Author',
+				placeholder: 'Choose contributors to include commits from',
+			});
+			this.appendOperatorValues('author:', result.authors ?? []);
+		} catch {
+			this.input.focus();
+		}
+	}
+
+	/** Opens the ref picker and appends a `ref:<name>` term to the query. */
+	async pickRefs(): Promise<void> {
+		try {
+			const result = await this._ipc.sendRequest(ChooseRefRequest, {
+				title: 'Search by Branch or Tag',
+				placeholder: 'Choose a branch or tag to filter by',
+				allowedAdditionalInput: { range: false, rev: false },
+				include: ['branches', 'tags', 'HEAD'],
+			});
+			this.appendOperatorValues('ref:', result?.name ? [result.name] : []);
+		} catch {
+			this.input.focus();
+		}
+	}
+
+	/** Opens the file picker and appends `file:<path>` terms to the query. */
+	async pickFiles(): Promise<void> {
+		try {
+			const result = await this._ipc.sendRequest(ChooseFileRequest, {
+				title: 'Search by File',
+				type: 'file',
+				openLabel: 'Add to Search',
+			});
+			this.appendOperatorValues('file:', result.files ?? []);
+		} catch {
+			this.input.focus();
+		}
+	}
+
+	/**
+	 * Append a bare `<operator>` prefix (with a leading space if needed), place the caret
+	 * right after it, and focus the input. Does not fire a search — the user still needs to
+	 * type the value.
+	 */
+	insertSearchOperator(operator: string): void {
+		const base = this.withoutTrailingEmptyOperator(this.value);
+		const separator = base.length === 0 || base.endsWith(' ') ? '' : ' ';
+		const newValue = base + separator + operator;
+
+		this.input.value = newValue;
+		this._value = newValue;
+
+		const cursorPos = newValue.length;
+		this.input.focus();
+		this.input.selectionStart = cursorPos;
+		this.input.selectionEnd = cursorPos;
+		this.cursorPosition = [cursorPos, cursorPos];
+	}
+
+	/**
 	 * Accepts the currently selected autocomplete suggestion
 	 */
 	private async acceptAutocomplete(index: number) {

@@ -116,6 +116,7 @@ declare global {
 			commits?: Record<string, CommitDetails>;
 		}>;
 		'gl-graph-change-visible-days': CustomEvent<{ top: number; bottom: number }>;
+		'gl-graph-filter-column': CustomEvent<{ zone: GraphZoneType }>;
 		'gl-graph-mouse-leave': CustomEvent<void>;
 		'gl-graph-row-context-menu': CustomEvent<{ graphZoneType: GraphZoneType; graphRow: GraphRow }>;
 		'gl-graph-row-double-click': CustomEvent<{ graphRow: GraphRow; preserveFocus?: boolean }>;
@@ -316,6 +317,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 
 		return html`<gl-graph
 			.setRef=${this.onSetRef}
+			.activeFilterColumns=${graphState.activeFilterColumns}
 			.activeRow=${graphState.activeRow}
 			.avatars=${graphState.avatars}
 			.columns=${graphState.columns}
@@ -346,6 +348,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 			@changerefsvisibility=${this.onRefsVisibilityChanged}
 			@changeselection=${this.onSelectionChanged}
 			@changevisibledays=${this.onVisibleDaysChanged}
+			@filtercolumn=${this.onFilterColumn}
 			@missingavatars=${this.onMissingAvatars}
 			@missingrefsmetadata=${this.onMissingRefsMetadata}
 			@morerows=${this.onGetMoreRows}
@@ -415,6 +418,10 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 
 	private onRefDoubleClick({ detail: { ref, metadata } }: CustomEventType<'graph-doubleclickref'>) {
 		this._ipc.sendCommand(DoubleClickedCommand, { type: 'ref', ref: ref, metadata: metadata });
+	}
+
+	private onFilterColumn({ detail }: CustomEventType<'graph-filtercolumn'>) {
+		this.dispatchEvent(new CustomEvent('gl-graph-filter-column', { detail: detail }));
 	}
 
 	private onRefsVisibilityChanged({ detail }: CustomEventType<'graph-changerefsvisibility'>) {

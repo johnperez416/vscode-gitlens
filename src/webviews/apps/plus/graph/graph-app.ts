@@ -67,11 +67,11 @@ import './components/gl-graph-timeline.js';
 
 const sidebarDefaultPct = 20;
 const sidebarMinPct = 15;
-const sidebarMaxPct = 40;
+const sidebarMaxPct = 80;
 
 const detailsDefaultPct = 50;
 const detailsMinPct = 20;
-const detailsMaxPct = 50;
+const detailsMaxPct = 80;
 
 const minimapDefaultPx = 40;
 const minimapMaxPct = 40;
@@ -589,6 +589,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				<gl-graph-wrapper
 					@gl-graph-change-selection=${this.handleGraphSelectionChanged}
 					@gl-graph-change-visible-days=${this.handleGraphVisibleDaysChanged}
+					@gl-graph-filter-column=${this.handleGraphFilterColumn}
 					@gl-graph-mouse-leave=${this.handleGraphMouseLeave}
 					@gl-graph-row-context-menu=${this.handleGraphRowContextMenu}
 					@gl-graph-row-double-click=${this.handleGraphRowDoubleClick}
@@ -1293,6 +1294,31 @@ export class GraphApp extends SignalWatcher(LitElement) {
 		const stats = response[sha];
 		const next = { ...map, [sha]: { ...prev, workDirStats: stats, workDirStatsStale: false } };
 		this.graphState.wipMetadataBySha = next;
+	}
+
+	private handleGraphFilterColumn(e: CustomEventType<'gl-graph-filter-column'>) {
+		const header = this.graphHeader;
+		if (header == null) return;
+
+		switch (e.detail.zone) {
+			case 'author':
+				void header.pickAuthors();
+				return;
+			case 'ref':
+				void header.pickRefs();
+				return;
+			case 'changes':
+				void header.pickFiles();
+				return;
+			case 'message':
+				header.insertSearchOperator('message:');
+				return;
+			case 'datetime':
+				header.insertSearchOperator('since:');
+				return;
+			case 'sha':
+				header.insertSearchOperator('commit:');
+		}
 	}
 
 	private handleGraphRowContextMenu(_e: CustomEventType<'gl-graph-row-context-menu'>) {

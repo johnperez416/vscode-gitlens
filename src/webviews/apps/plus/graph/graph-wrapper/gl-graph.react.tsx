@@ -74,7 +74,10 @@ export type GraphWrapperProps = Pick<
 	| 'rowsStatsLoading'
 	| 'workingTreeStats'
 > &
-	Pick<GraphStateProvider, 'activeRow' | 'scope' | 'searchMode' | 'searchResults' | 'wipMetadataBySha'> & {
+	Pick<
+		GraphStateProvider,
+		'activeFilterColumns' | 'activeRow' | 'scope' | 'searchMode' | 'searchResults' | 'wipMetadataBySha'
+	> & {
 		theming?: GraphWrapperTheming;
 		wipShasSettleDelayMs?: number;
 	};
@@ -88,6 +91,7 @@ export interface GraphWrapperEvents {
 		state: GraphSelectionState,
 	) => void;
 	onChangeVisibleDays?: (detail: { top: number; bottom: number }) => void;
+	onFilterColumn?: (detail: { zone: GraphZoneType }) => void;
 	onMissingAvatars?: (emails: Record<string, string>) => void;
 	onMissingRefsMetadata?: (metadata: GraphMissingRefsMetadata) => void;
 	onMoreRows?: (id?: string) => void;
@@ -642,6 +646,23 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 	const emptyConfig = useMemo(() => ({}) as unknown as NonNullable<typeof props.config>, []);
 	const config = useMemo(() => props.config ?? emptyConfig, [props.config, emptyConfig]);
 
+	// Augment the host-supplied columns with client-side `isFilterActive` flags derived from
+	// the current search query. The host config stays unaware of search state.
+	const columnsSettings = useMemo<GraphColumnsSettings | undefined>(() => {
+		const columns = props.columns;
+		if (columns == null) return undefined;
+		const active = props.activeFilterColumns;
+		if (active == null || active.size === 0) return columns;
+
+		const result: GraphColumnsSettings = { ...columns };
+		for (const [name, setting] of Object.entries(columns) as [GraphColumnName, GraphColumnSetting][]) {
+			if (active.has(name)) {
+				result[name] = { ...setting, isFilterActive: true };
+			}
+		}
+		return result;
+	}, [props.columns, props.activeFilterColumns]);
+
 	// In filter mode, once the search result set is fully loaded there's nothing more for commit
 	// paging to surface — stop the GK component's `loadMoreCommitsIfNecessary` loop from paging
 	// through the entire history to "fill" the viewport. (For `type:wip` the synthetic result set
@@ -888,7 +909,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 			ref={graphRef}
 			rowAdornmentProvider={rowAdornmentProvider}
 			avatarUrlByEmail={props.avatars}
-			columnsSettings={props.columns}
+			columnsSettings={columnsSettings}
 			contexts={context}
 			formatCommitMessage={formatCommitMessage}
 			cssVariables={props.theming?.cssVariables}
@@ -939,6 +960,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 					graphZoneType: graphZoneType,
 				})
 			}
+			onFilterColumnClick={(_e, graphZoneType) => initProps.onFilterColumn?.({ zone: graphZoneType })}
 			onRowContextMenu={handleRowContextMenu}
 			onSettingsClick={handleToggleColumnSettings}
 			onSelectGraphRows={handleSelectGraphRows}
@@ -1018,6 +1040,7 @@ declare global {
 		}>;
 		'graph-doubleclickref': CustomEvent<{ ref: GraphRef; metadata?: GraphRefMetadataItem }>;
 		'graph-doubleclickrow': CustomEvent<{ row: GraphRow; preserveFocus?: boolean }>;
+		'graph-filtercolumn': CustomEvent<{ zone: GraphZoneType }>;
 		'graph-missingavatars': CustomEvent<GraphAvatars>;
 		'graph-missingrefsmetadata': CustomEvent<GraphMissingRefsMetadata>;
 		'graph-morerows': CustomEvent<string | undefined>;

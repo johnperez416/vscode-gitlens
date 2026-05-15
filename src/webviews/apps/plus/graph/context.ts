@@ -2,6 +2,7 @@ import { createContext } from '@lit/context';
 import type { AgentSessionState } from '../../../../agents/models/agentSessionState.js';
 import type {
 	GetOverviewWipResponse,
+	GraphColumnName,
 	GraphScope,
 	GraphSearchResults,
 	GraphSearchResultsError,
@@ -14,6 +15,12 @@ export interface AppState extends State {
 	state: State;
 	activeDay: number | undefined;
 	activeRow: string | undefined;
+	/**
+	 * Columns whose search operator is currently present in the search query, derived from
+	 * the parsed search query. Used by gl-graph.react.tsx to set `isFilterActive` on each
+	 * column before passing settings to GraphContainer.
+	 */
+	activeFilterColumns: ReadonlySet<GraphColumnName>;
 	agentSessions: AgentSessionState[];
 	isBusy: boolean;
 	loading: boolean;

@@ -44,6 +44,9 @@ export class GlGraph extends LitElement {
 	};
 
 	// Properties that match GraphWrapperProps
+	@property({ attribute: false })
+	activeFilterColumns?: GraphWrapperProps['activeFilterColumns'];
+
 	@property({ type: String })
 	activeRow?: GraphWrapperProps['activeRow'];
 
@@ -169,6 +172,7 @@ export class GlGraph extends LitElement {
 				setRef: this.setRef,
 				subscriber: this.setReactStateProvider,
 
+				activeFilterColumns: this.activeFilterColumns ?? new Set(),
 				activeRow: this.activeRow,
 				avatars: this.avatars,
 				columns: this.columns,
@@ -203,6 +207,7 @@ export class GlGraph extends LitElement {
 				onChangeRefsVisibility: this.handleChangeRefsVisibility,
 				onChangeSelection: this.handleChangeSelection,
 				onChangeVisibleDays: this.handleChangeVisibleDays,
+				onFilterColumn: this.handleFilterColumn,
 				onMissingAvatars: this.handleMissingAvatars,
 				onMissingRefsMetadata: this.handleMissingRefsMetadata,
 				onMoreRows: this.handleMoreRows,
@@ -242,6 +247,10 @@ export class GlGraph extends LitElement {
 
 	private handleChangeVisibleDays = (detail: { top: number; bottom: number }): void => {
 		this.dispatchEvent(new CustomEvent('changevisibledays', { detail: detail }));
+	};
+
+	private handleFilterColumn = (detail: { zone: GraphZoneType }): void => {
+		this.dispatchEvent(new CustomEvent('filtercolumn', { detail: detail }));
 	};
 
 	private handleMissingAvatars = (emails: GraphAvatars): void => {

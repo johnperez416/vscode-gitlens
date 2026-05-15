@@ -254,6 +254,22 @@ export class GlSearchBox extends GlElement {
 		this.searchInput?.setExternalSearchQuery(search);
 	}
 
+	async pickAuthors(): Promise<void> {
+		await this.searchInput?.pickAuthors();
+	}
+
+	async pickRefs(): Promise<void> {
+		await this.searchInput?.pickRefs();
+	}
+
+	async pickFiles(): Promise<void> {
+		await this.searchInput?.pickFiles();
+	}
+
+	insertSearchOperator(operator: string): void {
+		this.searchInput?.insertSearchOperator(operator);
+	}
+
 	private handleShortcutKeys(e: KeyboardEvent) {
 		if (e.altKey) return;
 
