@@ -41,7 +41,11 @@ import {
 } from '@gitlens/git/utils/pullRequest.utils.js';
 import { createReference } from '@gitlens/git/utils/reference.utils.js';
 import { createRevisionRange, isSha, shortenRevision } from '@gitlens/git/utils/revision.utils.js';
-import { getSearchQueryComparisonKey, parseSearchQuery } from '@gitlens/git/utils/search.utils.js';
+import {
+	getSearchQueryComparisonKey,
+	parseSearchQuery,
+	parseSearchQueryGitCommand,
+} from '@gitlens/git/utils/search.utils.js';
 import { sortBranches, sortRemotes, sortTags, sortWorktrees } from '@gitlens/git/utils/sorting.js';
 import { filterMap } from '@gitlens/utils/array.js';
 import { CancellationError, isCancellationError } from '@gitlens/utils/cancellation.js';
@@ -3746,6 +3750,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		e: IpcParams<typeof SearchRequest>,
 		progressive: boolean = true,
 	): Promise<IpcResponse<typeof SearchRequest>> {
+		// `type:wip` rows are synthetic webview-only rows that never appear in `git log`,
+		// so they're enumerated host-side instead of going through the regular search path.
+		const wipResponse = await this.tryHandleWipSearch(e);
+		if (wipResponse != null) return wipResponse;
+
 		let search = this._search;
 
 		const graph = this._graph!;
@@ -3914,6 +3923,106 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			selectedRows: firstResultSelected ? convertSelectedRows(this._selectedRows) : undefined,
 			partial: false, // Final results
 			searchId: this._searchIdCounter.current,
+		};
+	}
+
+	private async tryHandleWipSearch(
+		e: IpcParams<typeof SearchRequest>,
+	): Promise<IpcResponse<typeof SearchRequest> | undefined> {
+		if (!e.search?.query) return undefined;
+
+		const parsed = parseSearchQueryGitCommand(e.search, undefined);
+		if (parsed.filters.type !== 'wip') return undefined;
+
+		if (this.repository == null) {
+			return {
+				search: e.search,
+				results: { error: 'No repository' },
+				partial: false,
+				searchId: this._searchIdCounter.current,
+			};
+		}
+
+		const comparisonKey = getSearchQueryComparisonKey(e.search);
+
+		// Same wip query as the cached one (covers `e.more` too) — re-emit the cached results.
+		if (this._search?.comparisonKey === comparisonKey) {
+			const cached = this.getSearchResultsData(this._search) ?? {
+				count: 0,
+				hasMore: false,
+				commitsLoaded: { count: 0 },
+			};
+			return {
+				search: e.search,
+				results: cached,
+				partial: false,
+				searchId: this._searchIdCounter.current,
+			};
+		}
+
+		const searchId = this._searchIdCounter.next();
+		this._search = undefined;
+
+		void this.host.notify(DidSearchNotification, {
+			search: e.search,
+			results: undefined,
+			partial: false,
+			searchId: searchId,
+		});
+
+		// Use the same enumeration that feeds the rendered WIP rows so search and rendering agree.
+		const wipMetadataBySha = (await this.getWipMetadataBySha()) ?? {};
+
+		if (searchId !== this._searchIdCounter.current) {
+			return {
+				search: e.search,
+				results: undefined,
+				partial: false,
+				searchId: searchId,
+			};
+		}
+
+		const results: GitGraphSearchResults = new Map();
+		const now = Date.now();
+		let i = 0;
+		results.set('work-dir-changes' satisfies GitGraphRowType, { i: i++, date: now });
+		for (const sha of Object.keys(wipMetadataBySha)) {
+			results.set(sha, { i: i++, date: now });
+		}
+
+		const search: GitGraphSearch = {
+			repoPath: this.repository.path,
+			query: e.search,
+			queryFilters: parsed.filters,
+			comparisonKey: comparisonKey,
+			hasMore: false,
+			results: results,
+		};
+		this._search = updateSearchMode(this.container, search);
+
+		this.setSelectedRows('work-dir-changes' satisfies GitGraphRowType);
+		const selectedRows = convertSelectedRows(this._selectedRows);
+
+		const resultData = this.getSearchResultsData(this._search) ?? {
+			count: 0,
+			hasMore: false,
+			commitsLoaded: { count: 0 },
+		};
+
+		void this.host.notify(DidSearchNotification, {
+			search: e.search,
+			results: resultData,
+			selectedRows: selectedRows,
+			partial: false,
+			searchId: searchId,
+		});
+
+		return {
+			search: e.search,
+			results: resultData,
+			selectedRows: selectedRows,
+			partial: false,
+			searchId: searchId,
 		};
 	}
 
@@ -4576,7 +4685,13 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 		// Count the commits for these search results that are loaded in the graph
 		const commitsLoaded: { count: number } = { count: 0 };
-		if (this._graph?.ids != null) {
+		if (search.queryFilters?.type === 'wip') {
+			// `type:wip` results are synthetic WIP rows, not real commits — they never appear in
+			// `_graph.ids`, and the full set is enumerated up front (one per worktree). There are
+			// no commits to page in, so treat them all as loaded; otherwise filter mode pages
+			// through the entire history trying to "fill" the viewport with matches.
+			commitsLoaded.count = search.results.size;
+		} else if (this._graph?.ids != null) {
 			for (const sha of search.results.keys()) {
 				if (this._graph.ids.has(sha)) {
 					commitsLoaded.count++;

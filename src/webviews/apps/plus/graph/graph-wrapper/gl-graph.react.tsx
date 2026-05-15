@@ -642,6 +642,23 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 	const emptyConfig = useMemo(() => ({}) as unknown as NonNullable<typeof props.config>, []);
 	const config = useMemo(() => props.config ?? emptyConfig, [props.config, emptyConfig]);
 
+	// In filter mode, once the search result set is fully loaded there's nothing more for commit
+	// paging to surface — stop the GK component's `loadMoreCommitsIfNecessary` loop from paging
+	// through the entire history to "fill" the viewport. (For `type:wip` the synthetic result set
+	// is always reported as fully loaded, so this short-circuits immediately.)
+	const hasMoreCommits = useMemo(() => {
+		const results = props.searchResults;
+		if (
+			props.searchMode === 'filter' &&
+			results != null &&
+			!results.hasMore &&
+			results.commitsLoaded.count === results.count
+		) {
+			return false;
+		}
+		return props.paging?.hasMore;
+	}, [props.searchMode, props.searchResults, props.paging?.hasMore]);
+
 	// Memoize highlightedShas to avoid creating new object references
 	const highlightedShas = useMemo(() => {
 		if (props.searchResults == null) return undefined;
@@ -889,7 +906,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 			formatCommitDateTime={getGraphDateFormatter(config)}
 			getExternalIcon={getIconElementLibrary}
 			graphRows={props.rows ?? emptyRows}
-			hasMoreCommits={props.paging?.hasMore}
+			hasMoreCommits={hasMoreCommits}
 			hasMoreSearchResults={props.searchResults?.hasMore}
 			highlightedShas={highlightedShas}
 			highlightRowsOnRefHover={config.highlightRowsOnRefHover}
