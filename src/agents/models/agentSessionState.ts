@@ -1,4 +1,5 @@
 import type { AgentSession, AgentSessionPhase, AgentSessionStatus } from '@gitlens/agents/types.js';
+import { deriveNameFromPrompt } from '../utils/deriveNameFromPrompt.js';
 
 /**
  * Serialized snapshot of an `AgentSession` suitable for sending across the webview boundary.
@@ -39,10 +40,32 @@ export interface AgentSessionState {
 	readonly lastPrompt?: string;
 }
 
+function getPathBasename(path: string | undefined): string | undefined {
+	if (!path) return undefined;
+	const parts = path.split(/[/\\]/).filter(part => part.length > 0);
+	return parts.pop();
+}
+
+/**
+ * Resolves the user-facing name for a session. Prefers the harness-supplied `name`, then a
+ * heuristic derived from `firstPrompt`, then progressively coarser context fallbacks. Always
+ * returns a non-empty string so consumers don't need to repeat fallback logic.
+ */
+export function getSessionDisplayName(session: AgentSession, worktreeName: string | undefined): string {
+	return (
+		session.name ||
+		deriveNameFromPrompt(session.firstPrompt) ||
+		worktreeName ||
+		getPathBasename(session.worktreePath) ||
+		getPathBasename(session.cwd) ||
+		session.providerName
+	);
+}
+
 export function serializeAgentSession(session: AgentSession, worktreeName: string | undefined): AgentSessionState {
 	return {
 		id: session.id,
-		name: session.name,
+		name: getSessionDisplayName(session, worktreeName),
 		status: session.status,
 		phase: session.phase,
 		statusDetail: session.statusDetail,

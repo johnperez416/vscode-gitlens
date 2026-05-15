@@ -79,7 +79,8 @@ export interface PendingPermission {
 export interface AgentSession {
 	readonly id: string;
 	readonly providerId: string;
-	readonly name: string;
+	readonly providerName: string;
+	readonly name?: string;
 	readonly status: AgentSessionStatus;
 	readonly phase: AgentSessionPhase;
 	readonly statusDetail?: string;
@@ -96,6 +97,7 @@ export interface AgentSession {
 	readonly planFile?: string;
 	readonly isInWorkspace: boolean;
 	readonly lastPrompt?: string;
+	readonly firstPrompt?: string;
 }
 
 export interface AgentSessionProvider extends UnifiedDisposable {

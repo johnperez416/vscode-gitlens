@@ -154,4 +154,75 @@ suite('ClaudeCodeProvider', () => {
 			}
 		});
 	});
+
+	suite('firstPrompt propagation', () => {
+		test('first non-empty UserPromptSubmit populates firstPrompt', async () => {
+			const { callbacks, handlers } = createMockCallbacks();
+			const provider = new ClaudeCodeProvider(callbacks);
+			try {
+				provider.start(['/repo']);
+
+				const handler = handlers.get('agents/session')!;
+				await handler(sessionStart('s1', '/repo'), new URLSearchParams());
+				await handler(
+					{
+						event: 'UserPromptSubmit',
+						sessionId: 's1',
+						cwd: '/repo',
+						pid: process.pid,
+						prompt: 'what is 2+2?',
+						firstPrompt: 'what is 2+2?',
+					},
+					new URLSearchParams(),
+				);
+
+				assert.strictEqual(provider.sessions[0].firstPrompt, 'what is 2+2?');
+				assert.strictEqual(provider.sessions[0].lastPrompt, 'what is 2+2?');
+			} finally {
+				provider.dispose();
+			}
+		});
+
+		test('subsequent UserPromptSubmit preserves firstPrompt and updates lastPrompt', async () => {
+			const { callbacks, handlers } = createMockCallbacks();
+			const provider = new ClaudeCodeProvider(callbacks);
+			try {
+				provider.start(['/repo']);
+
+				const handler = handlers.get('agents/session')!;
+				await handler(sessionStart('s1', '/repo'), new URLSearchParams());
+				await handler(
+					{
+						event: 'UserPromptSubmit',
+						sessionId: 's1',
+						cwd: '/repo',
+						pid: process.pid,
+						prompt: 'what is 2+2?',
+						firstPrompt: 'what is 2+2?',
+					},
+					new URLSearchParams(),
+				);
+				await handler(
+					{
+						event: 'UserPromptSubmit',
+						sessionId: 's1',
+						cwd: '/repo',
+						pid: process.pid,
+						prompt: 'now do logging',
+						firstPrompt: 'what is 2+2?',
+					},
+					new URLSearchParams(),
+				);
+
+				assert.strictEqual(
+					provider.sessions[0].firstPrompt,
+					'what is 2+2?',
+					'firstPrompt must remain the first value',
+				);
+				assert.strictEqual(provider.sessions[0].lastPrompt, 'now do logging');
+			} finally {
+				provider.dispose();
+			}
+		});
+	});
 });

@@ -6,7 +6,7 @@ import type { Container } from '../container.js';
 import { createQuickPickSeparator } from '../quickpicks/items/common.js';
 import { registerCommand } from '../system/-webview/command.js';
 import type { AgentSessionState } from './models/agentSessionState.js';
-import { serializeAgentSession } from './models/agentSessionState.js';
+import { getSessionDisplayName, serializeAgentSession } from './models/agentSessionState.js';
 import type { AgentSession, AgentSessionProvider, PermissionDecision, PermissionSuggestion } from './provider.js';
 
 export class AgentStatusService implements Disposable {
@@ -292,7 +292,7 @@ export class AgentStatusService implements Disposable {
 				for (const s of workspaceSessions) {
 					const worktreeName = this.getWorktreeNameForSession(s);
 					items.push({
-						label: `$(robot) ${s.name}`,
+						label: `$(robot) ${getSessionDisplayName(s, worktreeName)}`,
 						description: s.status,
 						detail: worktreeName ? `worktree: ${worktreeName}` : undefined,
 						session: s,
@@ -304,7 +304,7 @@ export class AgentStatusService implements Disposable {
 				items.push(createQuickPickSeparator('Other workspaces'));
 				for (const s of externalSessions) {
 					items.push({
-						label: `$(robot) ${s.name}`,
+						label: `$(robot) ${getSessionDisplayName(s, this.getWorktreeNameForSession(s))}`,
 						description: s.status,
 						detail: s.workspacePath ?? undefined,
 						session: s,
@@ -359,7 +359,7 @@ export class AgentStatusService implements Disposable {
 			action = actions[0].action;
 		} else {
 			const actionPick = await window.showQuickPick(actions, {
-				placeHolder: `Action for ${session.name}`,
+				placeHolder: `Action for ${getSessionDisplayName(session, this.getWorktreeNameForSession(session))}`,
 			});
 			if (actionPick == null) return;
 			action = actionPick.action;

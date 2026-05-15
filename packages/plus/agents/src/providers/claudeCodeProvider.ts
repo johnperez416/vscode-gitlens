@@ -35,6 +35,7 @@ interface AgentSessionEvent {
 	notificationType?: string;
 	sessionName?: string;
 	prompt?: string;
+	firstPrompt?: string;
 	toolInput?: Record<string, unknown>;
 	permissionSuggestions?: PermissionSuggestion[];
 	hookInput?: Record<string, unknown>;
@@ -79,6 +80,7 @@ interface SessionFileData {
 	planFile?: string | null;
 	sessionName?: string | null;
 	prompt?: string | null;
+	firstPrompt?: string | null;
 }
 
 interface DiscoveryFile {
@@ -338,9 +340,12 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 			case 'UserPromptSubmit': {
 				const { index } = this.ensureSession(event.sessionId, eventContext);
 				if (event.prompt) {
+					const existing = this._sessions[index];
 					this._sessions[index] = {
-						...this._sessions[index],
+						...existing,
 						lastPrompt: truncate(event.prompt, 500),
+						firstPrompt:
+							existing.firstPrompt ?? (event.firstPrompt ? truncate(event.firstPrompt, 500) : undefined),
 					};
 				}
 				this.clearStalePermission(event.sessionId, 'UserPromptSubmit');
@@ -511,6 +516,7 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 					const subagent: AgentSession = {
 						id: event.agentId,
 						providerId: this.id,
+						providerName: this.name,
 						name: event.agentType ?? 'Subagent',
 						status: 'thinking',
 						phase: 'working',
@@ -725,7 +731,8 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 			this._sessions.push({
 				id: sessionId,
 				providerId: this.id,
-				name: sessionName || this.name,
+				providerName: this.name,
+				name: sessionName || undefined,
 				status: 'idle',
 				phase: getPhaseForStatus('idle'),
 				phaseSince: now,
@@ -884,6 +891,7 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 			const subagents: AgentSession[] | undefined = data.subagents?.map(sub => ({
 				id: sub.agentId,
 				providerId: this.id,
+				providerName: this.name,
 				name: sub.agentType ?? 'Subagent',
 				status: 'thinking',
 				phase: 'working' as const,
@@ -897,7 +905,8 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 			this._sessions.push({
 				id: data.sessionId,
 				providerId: this.id,
-				name: data.sessionName || this.name,
+				providerName: this.name,
+				name: data.sessionName || undefined,
 				status: status,
 				phase: phase,
 				phaseSince: activityDate,
@@ -909,6 +918,7 @@ export class ClaudeCodeProvider implements AgentSessionProvider {
 				planFile: data.planFile ?? undefined,
 				isInWorkspace: isInWorkspace,
 				lastPrompt: data.prompt ?? undefined,
+				firstPrompt: data.firstPrompt ?? undefined,
 				subagents: subagents,
 			});
 			changed = true;

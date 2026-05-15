@@ -85,6 +85,7 @@ suite('stateMachine', () => {
 				{
 					id: 'sub-1',
 					providerId: 'claudeCode',
+					providerName: 'Claude Code',
 					name: 'Subagent',
 					status: 'thinking',
 					phase: 'working',
