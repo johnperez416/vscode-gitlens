@@ -80,6 +80,14 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 			width: 100%;
 		}
 
+		/* Doubles the gap after the last group-1 icon (Agents) so the rail reads as two
+		   groups: Overview/Agents, then the view icons. 1.4rem here + the parent's 1.4rem
+		   flex gap = 2.8rem. (Applied on .item, not gl-tooltip, since gl-tooltip's host is
+		   display: contents and can't take margin.) */
+		.item.group-end {
+			margin-bottom: 1.4rem;
+		}
+
 		.item {
 			position: relative;
 			width: 100%;
@@ -339,6 +347,7 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 					active: isActive,
 					overview: icon.type === 'overview',
 					dimmed: !enabled,
+					'group-end': icon.type === 'agents',
 				})}
 				@click=${() => this.handleIconClick(icon)}
 				?disabled=${!enabled}
@@ -355,6 +364,7 @@ export class GlGraphSideBar extends SignalWatcher(LitElement) {
 		// Agents flow through reactive state, not the host counts IPC — read directly so the
 		// badge updates without paying the round-trip and skips the loading/error states.
 		if (icon.type === 'agents') return renderCount(this._state.agentSessions?.length || undefined);
+
 		if (this._actions?.state.countsLoading.get()) {
 			return html`<span class="count"><code-icon icon="loading" modifier="spin" size="9"></code-icon> </span>`;
 		}
