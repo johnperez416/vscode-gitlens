@@ -48,7 +48,11 @@ import type { Disposable } from '../../../shared/events.js';
 import type { ThemeChangeEvent } from '../../../shared/theme.js';
 import { onDidChangeTheme } from '../../../shared/theme.js';
 import { graphStateContext } from '../context.js';
-import { filterSecondariesForScope } from '../utils/wip.utils.js';
+import {
+	filterSecondariesForIncludeOnlyRefs,
+	filterSecondariesForScope,
+	shouldShowPrimaryWipRow,
+} from '../utils/wip.utils.js';
 import type { GlGraph } from './gl-graph.js';
 import type { GraphWrapperTheming } from './gl-graph.react.jsx';
 import './gl-graph.js';
@@ -195,27 +199,36 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 		this.ensureAndSelectCommit(e.detail.sha);
 	};
 
-	// Cache keyed by the quad (rows, wipMetadataBySha, workingTreeStats, scope) — any reference
-	// change invalidates. Scope must be in the key because the secondary-WIP scope filter below
-	// (`filterSecondariesForScope`) reads `scope.branchRef`/`upstreamRef`/`additionalBranchRefs`,
-	// so the cached result is stale when scope changes even if the row/metadata refs don't.
+	// Cache keyed by (rows, wipMetadataBySha, workingTreeStats, scope, branchesVisibility,
+	// includeOnlyRefs, branch.id) — any reference change invalidates. Scope must be in the key
+	// because `filterSecondariesForScope` reads `scope.branchRef`/`upstreamRef`/`additionalBranchRefs`;
+	// `branchesVisibility` + `includeOnlyRefs` + `currentBranchId` must also be in the key
+	// because the WIP-visibility helpers below
+	// (`filterSecondariesForIncludeOnlyRefs`, `shouldShowPrimaryWipRow`) read them when the
+	// scope picker is in a non-`all` mode (current/smart/favorited/agents).
 	private _decoratedRowsCache?: {
 		rows: GraphRow[] | undefined;
 		wipMetadataBySha: GraphWipMetadataBySha | undefined;
 		workingTreeStats: typeof graphStateContext.__context__.workingTreeStats;
 		scope: GraphScope | undefined;
-		result: GraphRow[] | undefined;
+		branchesVisibility: typeof graphStateContext.__context__.branchesVisibility;
+		includeOnlyRefs: typeof graphStateContext.__context__.includeOnlyRefs;
+		currentBranchId: string | undefined;
+		result: { rows: GraphRow[] | undefined; showPrimary: boolean };
 	};
 
 	// Injects a synthetic primary WIP row at [0] and per-worktree secondary WIP rows
 	// immediately after, so the GK component renders one row per worktree. The component's
 	// own auto-inject is skipped because rows[0] already has type `work-dir-changes`.
-	private getDecoratedRows(): GraphRow[] | undefined {
+	private getDecoratedRows(): { rows: GraphRow[] | undefined; showPrimary: boolean } {
 		const { graphState } = this;
 		const rows = graphState.rows;
 		const wipMetadataBySha = graphState.wipMetadataBySha;
 		const workingTreeStats = graphState.workingTreeStats;
 		const scope = graphState.scope;
+		const branchesVisibility = graphState.branchesVisibility;
+		const includeOnlyRefs = graphState.includeOnlyRefs;
+		const currentBranchId = graphState.branch?.id;
 
 		const cached = this._decoratedRowsCache;
 		if (
@@ -223,18 +236,24 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 			cached.rows === rows &&
 			cached.wipMetadataBySha === wipMetadataBySha &&
 			cached.workingTreeStats === workingTreeStats &&
-			cached.scope === scope
+			cached.scope === scope &&
+			cached.branchesVisibility === branchesVisibility &&
+			cached.includeOnlyRefs === includeOnlyRefs &&
+			cached.currentBranchId === currentBranchId
 		) {
 			return cached.result;
 		}
 
-		const filteredMetadata = filterSecondariesForScope(wipMetadataBySha, scope);
+		const showPrimary = shouldShowPrimaryWipRow(branchesVisibility, includeOnlyRefs, currentBranchId);
 
-		let result: GraphRow[] | undefined;
-		if (rows == null || filteredMetadata == null || Object.keys(filteredMetadata).length === 0) {
-			// Let the GK component handle the primary WIP auto-inject from workingTreeStats.
-			result = rows?.slice();
-		} else {
+		const filteredMetadata = filterSecondariesForIncludeOnlyRefs(
+			filterSecondariesForScope(wipMetadataBySha, scope),
+			branchesVisibility,
+			includeOnlyRefs,
+		);
+
+		let resultRows: GraphRow[] | undefined;
+		if (rows != null && filteredMetadata != null && Object.keys(filteredMetadata).length > 0) {
 			// The GK component mutates the passed array via unshift on each render, so rows[0] may
 			// already be a primary work-dir row from a previous pass. Strip it to avoid duplicates —
 			// we inject our own primary below with the same role.
@@ -290,7 +309,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 				}
 			}
 
-			const interleaved: GraphRow[] = [primary];
+			const interleaved: GraphRow[] = showPrimary ? [primary] : [];
 			for (let i = 0; i < realRows.length; i++) {
 				const atThisIdx = secondariesByParentIdx.get(i);
 				if (atThisIdx != null) {
@@ -299,14 +318,26 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 				interleaved.push(realRows[i]);
 			}
 
-			result = interleaved;
+			resultRows = interleaved;
+		} else if (!showPrimary && rows?.[0]?.type === 'work-dir-changes') {
+			// Strip a stale GK-injected primary from a prior render; we render no primary in
+			// this branch by also passing `wipVisibility='auto'` + `workingTreeStats=undefined`
+			// down to the GK component so it doesn't re-inject.
+			resultRows = rows.slice(1);
+		} else {
+			// Let the GK component handle the primary WIP auto-inject from workingTreeStats.
+			resultRows = rows?.slice();
 		}
 
+		const result = { rows: resultRows, showPrimary: showPrimary };
 		this._decoratedRowsCache = {
 			rows: rows,
 			wipMetadataBySha: wipMetadataBySha,
 			workingTreeStats: workingTreeStats,
 			scope: scope,
+			branchesVisibility: branchesVisibility,
+			includeOnlyRefs: includeOnlyRefs,
+			currentBranchId: currentBranchId,
 			result: result,
 		};
 		return result;
@@ -314,6 +345,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 
 	override render() {
 		const { graphState } = this;
+		const { rows: decoratedRows, showPrimary } = this.getDecoratedRows();
 
 		return html`<gl-graph
 			.setRef=${this.onSetRef}
@@ -332,7 +364,7 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 			nonce=${ifDefined(graphState.nonce)}
 			.paging=${graphState.paging}
 			.refsMetadata=${graphState.refsMetadata}
-			.rows=${this.getDecoratedRows()}
+			.rows=${decoratedRows}
 			.rowsStats=${graphState.rowsStats}
 			?rowsStatsLoading=${graphState.rowsStatsLoading}
 			.searchMode=${graphState.searchMode}
@@ -340,9 +372,10 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 			.selectedRows=${graphState.selectedRows}
 			.theming=${this.theming}
 			?windowFocused=${graphState.windowFocused}
-			.workingTreeStats=${graphState.workingTreeStats}
+			.workingTreeStats=${showPrimary ? graphState.workingTreeStats : undefined}
 			.wipMetadataBySha=${graphState.wipMetadataBySha}
 			.wipShasSettleDelayMs=${GlGraphWrapper.wipShasSettleDelayMs}
+			.wipVisibility=${showPrimary ? 'always' : 'auto'}
 			.scope=${graphState.scope}
 			@changecolumns=${this.onColumnsChanged}
 			@changerefsvisibility=${this.onRefsVisibilityChanged}

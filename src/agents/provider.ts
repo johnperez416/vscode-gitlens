@@ -5,6 +5,7 @@ export {
 	type AgentSessionProvider,
 	type AgentSessionStatus,
 	getPhaseForStatus,
+	isActiveAgentPhase,
 	type PendingPermission,
 	type PermissionDecision,
 	type PermissionSuggestion,

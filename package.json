@@ -1142,13 +1142,15 @@
 							"all",
 							"smart",
 							"current",
-							"favorited"
+							"favorited",
+							"agents"
 						],
 						"enumDescriptions": [
 							"Shows all branches",
 							"Shows only relevant branches",
 							"Shows only the current branch",
-							"Shows only favorited branches"
+							"Shows only favorited branches",
+							"Shows only branches associated with active agents (running or idle less than 24 hours)"
 						],
 						"default": "all",
 						"markdownDescription": "Specifies the visibility of branches on the _Commit Graph_",

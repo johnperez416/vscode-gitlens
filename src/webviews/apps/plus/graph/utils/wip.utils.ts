@@ -1,4 +1,6 @@
-import type { GraphScope, GraphWipMetadataBySha } from '../../../../plus/graph/protocol.js';
+import { hasKeys } from '@gitlens/utils/object.js';
+import type { GraphBranchesVisibility } from '../../../../../config.js';
+import type { GraphIncludeOnlyRefs, GraphScope, GraphWipMetadataBySha } from '../../../../plus/graph/protocol.js';
 
 /**
  * Filters secondary worktree WIP metadata for the active scope: drops any entry whose worktree
@@ -35,6 +37,73 @@ export function filterSecondariesForScope(
 	let dropped = false;
 	for (const [sha, meta] of Object.entries(wipMetadataBySha)) {
 		if (meta.branchRef != null && !scopeRefs.has(meta.branchRef)) {
+			dropped = true;
+			continue;
+		}
+		result[sha] = meta;
+	}
+	return dropped ? result : wipMetadataBySha;
+}
+
+/**
+ * Determines whether the primary "Working Changes" row (for the current worktree's branch)
+ * should render under the active `branchesVisibility` filter.
+ *
+ * - `'all'` (and absent): always show.
+ * - `'current'`, `'smart'`, `'favorited'`: these scopes always include the current branch by
+ *   construction, so this returns true in normal cases.
+ * - `'agents'`: only shows if the current branch is in the host-computed include set
+ *   (i.e. an active agent is running on the current branch's worktree).
+ *
+ * Empty `{}` is treated as "no filter" — same convention as `filterSecondariesForIncludeOnlyRefs`.
+ * If the current branch id is unknown (detached HEAD with a non-`'all'` scope), defaults to
+ * showing the primary — the user's local WIP still matters even when there's no branch to
+ * match against.
+ */
+export function shouldShowPrimaryWipRow(
+	branchesVisibility: GraphBranchesVisibility | undefined,
+	includeOnlyRefs: GraphIncludeOnlyRefs | undefined,
+	currentBranchId: string | undefined,
+): boolean {
+	if (branchesVisibility == null || branchesVisibility === 'all') return true;
+	if (includeOnlyRefs == null) return true;
+	if (currentBranchId == null) return true; // detached HEAD fallback — keep primary visible
+	if (!hasKeys(includeOnlyRefs)) return true; // empty `{}` = "no filter"
+	return includeOnlyRefs[currentBranchId] != null;
+}
+
+/**
+ * Filters secondary worktree WIP metadata for the active `branchesVisibility` mode: drops any
+ * entry whose worktree branch isn't part of the host-computed `includeOnlyRefs` set. Mirrors
+ * `filterSecondariesForScope`'s detached-worktree fall-through — entries with `branchRef`
+ * undefined pass through and defer to the graph component's SHA filter.
+ *
+ * No-op when `branchesVisibility` is `'all'` (or absent), when `includeOnlyRefs` is undefined,
+ * or when `includeOnlyRefs` is an empty object (the host's "no filter" sentinel, distinct from
+ * the `gk.empty-set-marker` "include nothing" sentinel which has one entry).
+ *
+ * The `gk.empty-set-marker` empty-state case is handled implicitly: its key is not a real
+ * branch ref, so every entry with a real `branchRef` gets dropped.
+ */
+export function filterSecondariesForIncludeOnlyRefs(
+	wipMetadataBySha: GraphWipMetadataBySha | undefined,
+	branchesVisibility: GraphBranchesVisibility | undefined,
+	includeOnlyRefs: GraphIncludeOnlyRefs | undefined,
+): GraphWipMetadataBySha | undefined {
+	if (wipMetadataBySha == null) return wipMetadataBySha;
+	if (branchesVisibility == null || branchesVisibility === 'all') return wipMetadataBySha;
+	if (includeOnlyRefs == null) return wipMetadataBySha;
+
+	const refIds = new Set(Object.keys(includeOnlyRefs));
+	// Empty `{}` means "no filter" (graph shows all) — match that semantics here so we don't
+	// silently drop every WIP row in detached-HEAD smart/current modes where the host returns
+	// `{ refs: {} }` because there's no current branch to anchor on.
+	if (!refIds.size) return wipMetadataBySha;
+
+	const result: GraphWipMetadataBySha = {};
+	let dropped = false;
+	for (const [sha, meta] of Object.entries(wipMetadataBySha)) {
+		if (meta.branchRef != null && !refIds.has(meta.branchRef)) {
 			dropped = true;
 			continue;
 		}

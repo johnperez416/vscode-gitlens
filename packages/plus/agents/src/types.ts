@@ -62,6 +62,15 @@ export function getPhaseForStatus(status: AgentSessionStatus): AgentSessionPhase
 	}
 }
 
+/**
+ * Returns whether the given phase represents an agent that is actively doing work or
+ * awaiting input (as opposed to fully idle). Uses an explicit allowlist so new phases
+ * default to "not active" rather than being silently treated as live.
+ */
+export function isActiveAgentPhase(phase: AgentSessionPhase): boolean {
+	return phase === 'working' || phase === 'waiting';
+}
+
 export interface PermissionSuggestion {
 	readonly type: string;
 	readonly tool?: string;

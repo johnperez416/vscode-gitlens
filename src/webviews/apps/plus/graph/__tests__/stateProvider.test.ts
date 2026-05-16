@@ -1,9 +1,18 @@
 import * as assert from 'assert';
-import type { GraphWipMetadataBySha } from '../../../../plus/graph/protocol.js';
+import type { emptySetMarker } from '@gitkraken/gitkraken-components';
+import type {
+	GraphIncludeOnlyRef,
+	GraphIncludeOnlyRefs,
+	GraphWipMetadataBySha,
+} from '../../../../plus/graph/protocol.js';
 import type { GetOverviewEnrichmentResponse } from '../../../../shared/overviewBranches.js';
 import type { AppState } from '../context.js';
 import { mergeWipMetadata, reconcileScopeMergeTarget } from '../stateProvider.js';
-import { filterSecondariesForScope } from '../utils/wip.utils.js';
+import {
+	filterSecondariesForIncludeOnlyRefs,
+	filterSecondariesForScope,
+	shouldShowPrimaryWipRow,
+} from '../utils/wip.utils.js';
 
 suite('mergeWipMetadata', () => {
 	test('returns undefined when incoming is undefined', () => {
@@ -274,3 +283,135 @@ suite('filterSecondariesForScope', () => {
 		assert.strictEqual(result, meta);
 	});
 });
+
+suite('filterSecondariesForIncludeOnlyRefs', () => {
+	const branchRef = '/repo|heads/feature';
+	const otherRef = '/repo|heads/other';
+
+	test("returns input unchanged when branchesVisibility is 'all'", () => {
+		const meta: GraphWipMetadataBySha = { 'worktree-wip::/a': entry('a', 'sha1', branchRef) };
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'all', refsFor(branchRef));
+		assert.strictEqual(result, meta);
+	});
+
+	test('returns input unchanged when branchesVisibility is undefined', () => {
+		const meta: GraphWipMetadataBySha = { 'worktree-wip::/a': entry('a', 'sha1', branchRef) };
+		const result = filterSecondariesForIncludeOnlyRefs(meta, undefined, refsFor(branchRef));
+		assert.strictEqual(result, meta);
+	});
+
+	test('returns input unchanged when includeOnlyRefs is undefined', () => {
+		const meta: GraphWipMetadataBySha = { 'worktree-wip::/a': entry('a', 'sha1', branchRef) };
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'agents', undefined);
+		assert.strictEqual(result, meta);
+	});
+
+	test('returns input unchanged when includeOnlyRefs is empty {} (no-filter sentinel)', () => {
+		// Detached-HEAD smart/current modes send `{ refs: {} }` from the host. The graph
+		// component treats empty `{}` as "no filter" — we must match that here so we don't
+		// silently drop every secondary WIP.
+		const meta: GraphWipMetadataBySha = {
+			'worktree-wip::/a': entry('a', 'sha1', branchRef),
+			'worktree-wip::/b': entry('b', 'sha2', otherRef),
+		};
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'smart', {});
+		assert.strictEqual(result, meta);
+	});
+
+	test('returns input unchanged when metadata is undefined', () => {
+		const result = filterSecondariesForIncludeOnlyRefs(undefined, 'agents', refsFor(branchRef));
+		assert.strictEqual(result, undefined);
+	});
+
+	test('keeps entries whose branchRef is in the include set', () => {
+		const meta: GraphWipMetadataBySha = { 'worktree-wip::/a': entry('a', 'sha1', branchRef) };
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'agents', refsFor(branchRef));
+		assert.strictEqual(result, meta, 'no entries dropped → same reference');
+	});
+
+	test('drops entries whose branchRef is not in the include set', () => {
+		const meta: GraphWipMetadataBySha = {
+			'worktree-wip::/a': entry('a', 'sha1', branchRef),
+			'worktree-wip::/b': entry('b', 'sha2', otherRef),
+		};
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'agents', refsFor(branchRef));
+		assert.notStrictEqual(result, meta);
+		assert.ok(result?.['worktree-wip::/a']);
+		assert.strictEqual(result?.['worktree-wip::/b'], undefined);
+	});
+
+	test('drops all real-branch entries when only the empty-set marker is present', () => {
+		const meta: GraphWipMetadataBySha = {
+			'worktree-wip::/a': entry('a', 'sha1', branchRef),
+			'worktree-wip::/b': entry('b', 'sha2', otherRef),
+		};
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'agents', {
+			['gk.empty-set-marker' satisfies typeof emptySetMarker]: {} as unknown as GraphIncludeOnlyRef,
+		});
+		assert.deepStrictEqual(result, {}, 'every real-branch entry dropped');
+	});
+
+	test('keeps detached worktrees (branchRef undefined) — defers to SHA filter', () => {
+		const meta: GraphWipMetadataBySha = { 'worktree-wip::/detached': entry('detached', 'sha1') };
+		const result = filterSecondariesForIncludeOnlyRefs(meta, 'agents', refsFor(branchRef));
+		assert.strictEqual(result, meta, 'detached entry passes through unchanged');
+	});
+});
+
+suite('shouldShowPrimaryWipRow', () => {
+	const currentBranchId = '/repo|heads/feature';
+
+	test("returns true when branchesVisibility is 'all'", () => {
+		assert.strictEqual(shouldShowPrimaryWipRow('all', refsFor('/repo|heads/other'), currentBranchId), true);
+	});
+
+	test('returns true when branchesVisibility is undefined', () => {
+		assert.strictEqual(shouldShowPrimaryWipRow(undefined, refsFor('/repo|heads/other'), currentBranchId), true);
+	});
+
+	test('returns true when includeOnlyRefs is undefined', () => {
+		assert.strictEqual(shouldShowPrimaryWipRow('agents', undefined, currentBranchId), true);
+	});
+
+	test('returns true when includeOnlyRefs is empty {} (no-filter sentinel)', () => {
+		assert.strictEqual(shouldShowPrimaryWipRow('smart', {}, currentBranchId), true);
+	});
+
+	test('returns true when currentBranchId is in the include set', () => {
+		assert.strictEqual(shouldShowPrimaryWipRow('agents', refsFor(currentBranchId), currentBranchId), true);
+	});
+
+	test('returns false when currentBranchId is not in the include set (agents mode w/ no agent on current)', () => {
+		assert.strictEqual(shouldShowPrimaryWipRow('agents', refsFor('/repo|heads/other'), currentBranchId), false);
+	});
+
+	test('returns false when only the empty-set marker is present', () => {
+		assert.strictEqual(
+			shouldShowPrimaryWipRow(
+				'agents',
+				{ ['gk.empty-set-marker' satisfies typeof emptySetMarker]: {} as unknown as GraphIncludeOnlyRef },
+				currentBranchId,
+			),
+			false,
+		);
+	});
+
+	test('returns true when currentBranchId is unknown (detached HEAD fallback)', () => {
+		assert.strictEqual(shouldShowPrimaryWipRow('agents', refsFor('/repo|heads/other'), undefined), true);
+	});
+});
+
+function refsFor(...ids: string[]): GraphIncludeOnlyRefs {
+	const result: GraphIncludeOnlyRefs = {};
+	for (const id of ids) {
+		// Parse '{repoPath}|heads/{name}' into name + type; simple split-based parser to
+		// keep the test fixture free of complex regex APIs.
+		const pipe = id.indexOf('|');
+		const remainder = pipe >= 0 ? id.slice(pipe + 1) : id;
+		const slash = remainder.indexOf('/');
+		const type = (slash >= 0 ? remainder.slice(0, slash) : 'heads') as GraphIncludeOnlyRef['type'];
+		const name = slash >= 0 ? remainder.slice(slash + 1) : remainder;
+		result[id] = { id: id, name: name, type: type };
+	}
+	return result;
+}

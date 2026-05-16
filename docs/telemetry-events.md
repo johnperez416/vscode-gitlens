@@ -2484,8 +2484,8 @@ or
 
 ```typescript
 {
-  'branchesVisibility.new': 'all' | 'smart' | 'current' | 'favorited',
-  'branchesVisibility.old': 'all' | 'smart' | 'current' | 'favorited',
+  'branchesVisibility.new': 'all' | 'smart' | 'current' | 'favorited' | 'agents',
+  'branchesVisibility.old': 'all' | 'smart' | 'current' | 'favorited' | 'agents',
   'context.repository.closed': boolean,
   'context.repository.folder.scheme': string,
   'context.repository.id': string,
@@ -2821,7 +2821,7 @@ or
   'context.config.allowMultiple': boolean,
   'context.config.autoFetch.enabled': boolean,
   'context.config.avatars': boolean,
-  'context.config.branchesVisibility': 'all' | 'smart' | 'current' | 'favorited',
+  'context.config.branchesVisibility': 'all' | 'smart' | 'current' | 'favorited' | 'agents',
   'context.config.commitOrdering': 'date' | 'author-date' | 'topo',
   'context.config.dateFormat': string,
   'context.config.dateStyle': 'absolute' | 'relative',

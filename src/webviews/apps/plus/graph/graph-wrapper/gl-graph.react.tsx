@@ -80,6 +80,13 @@ export type GraphWrapperProps = Pick<
 	> & {
 		theming?: GraphWrapperTheming;
 		wipShasSettleDelayMs?: number;
+		/**
+		 * Controls whether the GK component auto-injects the primary "Working Changes" row.
+		 * `'always'` is the default (matches previous behavior); `'auto'` defers to
+		 * `workingTreeStats` (and shows nothing when those are undefined) so the host can
+		 * suppress the primary row when the current branch is out of scope.
+		 */
+		wipVisibility?: 'always' | 'auto';
 	};
 
 export interface GraphWrapperEvents {
@@ -981,7 +988,7 @@ export const GlGraphReact = memo((initProps: GraphWrapperInitProps) => {
 			themeOpacityFactor={props.theming?.themeOpacityFactor}
 			useAuthorInitialsForAvatars={!config.avatars}
 			workDirStats={props.workingTreeStats}
-			wipVisibility="always"
+			wipVisibility={props.wipVisibility ?? 'always'}
 			wipNodeMetadataBySha={props.wipMetadataBySha}
 			wipShasSettleDelayMs={props.wipShasSettleDelayMs}
 			scope={props.scope}

@@ -68,6 +68,7 @@ import {
 import { PromiseCache } from '@gitlens/utils/promiseCache.js';
 import { Stopwatch } from '@gitlens/utils/stopwatch.js';
 import type { AgentSessionState } from '../../../agents/models/agentSessionState.js';
+import { isActiveAgentPhase } from '../../../agents/provider.js';
 import type { CreatePullRequestActionContext, OpenPullRequestActionContext } from '../../../api/gitlens.d.js';
 import { getAvatarUri } from '../../../avatars.js';
 import { parseCommandContext } from '../../../commands/commandContext.utils.js';
@@ -593,6 +594,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 	// user-facing source is `git.autofetchPeriod`; we clamp here so that a pathological value
 	// (e.g. 1) can't turn into a fetch storm.
 	private static readonly autoFetchMinSeconds = 60;
+
+	// Idle window for the `agents` branches-visibility scope. Sessions whose last activity
+	// is within this window (or whose status is not `idle`) qualify their worktree's branch
+	// for inclusion in the graph.
+	private static readonly agentBranchesIdleThresholdMs = 24 * 60 * 60 * 1000;
 
 	private get graphRowProcessor(): GlGraphRowProcessor {
 		return (this._graphRowProcessor ??= new GlGraphRowProcessor(
@@ -2174,6 +2180,14 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 
 	private onAgentSessionsChanged(sessions: AgentSessionState[]): void {
 		void this.host.notify(DidChangeAgentSessionsNotification, { sessions: sessions });
+
+		// Agent membership drives the `agents` branches-visibility ref set, so any change to
+		// the live session list needs to recompute the included refs and push a fresh
+		// visibility notification to the webview.
+		const repoPath = this.repository?.path ?? this._graph?.repoPath;
+		if (this.getBranchesVisibility(this.getFiltersByRepo(repoPath)) === 'agents') {
+			void this.notifyDidChangeRefsVisibility();
+		}
 	}
 
 	@ipcRequest(GetWipStatsRequest)
@@ -5474,6 +5488,19 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				}
 				break;
 			}
+			case 'agents': {
+				refs = this.getAgentBranchRefs(graph);
+				if (!refs.size) {
+					return {
+						// Create an empty set to say we want to include nothing
+						refs: {
+							['gk.empty-set-marker' satisfies typeof emptySetMarker]: {} as unknown as GraphRefOptData,
+						},
+						continuation: continuation,
+					};
+				}
+				break;
+			}
 			default:
 				break;
 		}
@@ -6146,6 +6173,41 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			'graph:filtersByRepo',
 			updateRecordValue(filtersByRepo, repoPath, { ...filtersByRepo?.[repoPath], ...updates }),
 		);
+	}
+
+	/**
+	 * Resolves the include-only ref set for the `agents` branches-visibility scope. Qualifying
+	 * agents are those whose `phase` is active (working or waiting) OR whose last activity is
+	 * within the `agentBranchesIdleThresholdMs` window. Branches are matched to agents by
+	 * worktree path.
+	 */
+	private getAgentBranchRefs(graph: GitGraph): Map<string, GraphIncludeOnlyRef> {
+		const refs = new Map<string, GraphIncludeOnlyRef>();
+		const sessions = this.container.agentStatus?.getSerializedSessions();
+		if (!sessions?.length) return refs;
+
+		const now = Date.now();
+		const qualifyingPaths = new Set<string>();
+		for (const s of sessions) {
+			if (s.worktree?.path == null) continue;
+			// `Math.max(0, …)` clamps clock-skew (future-dated timestamps) so a stale clock
+			// can't pin a session as permanently "recent".
+			const recent =
+				s.lastActivityTimestamp != null &&
+				Math.max(0, now - s.lastActivityTimestamp) < GraphWebviewProvider.agentBranchesIdleThresholdMs;
+			if (isActiveAgentPhase(s.phase) || recent) {
+				qualifyingPaths.add(s.worktree.path);
+			}
+		}
+		if (qualifyingPaths.size === 0) return refs;
+
+		for (const branch of graph.branches.values()) {
+			const worktree = branch.worktree;
+			if (worktree && qualifyingPaths.has(worktree.path)) {
+				refs.set(branch.id, convertBranchToIncludeOnlyRef(branch));
+			}
+		}
+		return refs;
 	}
 
 	private async getVisibleRefs(

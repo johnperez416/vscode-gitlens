@@ -44,7 +44,7 @@ declare global {
 	}
 }
 
-type DisplayedMode = 'all' | 'current' | 'smart' | 'favorited' | 'scoped';
+type DisplayedMode = 'all' | 'current' | 'smart' | 'favorited' | 'agents' | 'scoped';
 
 export function getDisplayedMode(graphState: typeof graphStateContext.__context__): DisplayedMode {
 	if (graphState.scope != null) return 'scoped';
@@ -171,6 +171,11 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 				label = 'Favorites';
 				tooltip = 'Showing Favorited Branches Only';
 				break;
+			case 'agents':
+				icon = 'robot';
+				label = 'Agents';
+				tooltip = 'Showing Agent Branches Only';
+				break;
 			case 'scoped':
 				icon = 'eye';
 				label = scopedName ?? 'Scoped';
@@ -232,6 +237,14 @@ export class GlGraphScopePopover extends SignalWatcher(LitElement) {
 					'wand',
 					'Smart Branches',
 					'Shows only relevant branches — includes the current branch, its upstream, and its base or target branch',
+					mode,
+					this.repo?.virtual ?? false,
+				)}
+				${this.renderModeMenuItem(
+					'agents',
+					'robot',
+					'Agent Branches',
+					'Shows only branches with currently running agents or agents idle for less than 24 hours',
 					mode,
 					this.repo?.virtual ?? false,
 				)}

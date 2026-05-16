@@ -113,6 +113,9 @@ export class GlGraph extends LitElement {
 	@property({ type: Number, attribute: 'wip-shas-settle-delay-ms' })
 	wipShasSettleDelayMs?: number;
 
+	@property({ type: String, attribute: 'wip-visibility' })
+	wipVisibility?: GraphWrapperProps['wipVisibility'];
+
 	@property({ type: Object })
 	scope?: GraphWrapperProps['scope'];
 
@@ -198,6 +201,7 @@ export class GlGraph extends LitElement {
 				workingTreeStats: this.workingTreeStats,
 				wipMetadataBySha: this.wipMetadataBySha,
 				wipShasSettleDelayMs: this.wipShasSettleDelayMs,
+				wipVisibility: this.wipVisibility,
 				scope: this.scope,
 
 				onChangeColumns: this.handleChangeColumns,
