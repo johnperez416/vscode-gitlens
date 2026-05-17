@@ -332,6 +332,8 @@ import {
 	ChooseFileRequest,
 	ChooseRefRequest,
 	ChooseRepositoryCommand,
+	createSecondaryWipSha,
+	createWipSha,
 	DidChangeAgentSessionsNotification,
 	DidChangeAvatarsNotification,
 	DidChangeBranchStateNotification,
@@ -377,7 +379,6 @@ import {
 	GetWipStatsRequest,
 	isSecondaryWipSha,
 	JumpToHeadRequest,
-	makeSecondaryWipSha,
 	OpenPullRequestDetailsCommand,
 	ResetGraphFiltersCommand,
 	ResolveGraphScopeRequest,
@@ -654,7 +655,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				},
 			},
 			this.container.integrations.onDidChangeConnectionState(this.onIntegrationConnectionChanged, this),
-			this.container.agentStatus?.onDidChangeSerializedSessions(this.onAgentSessionsChanged, this) ?? {
+			this.container.agentStatus?.onDidChangeSessions(this.onAgentSessionsChanged, this) ?? {
 				dispose: () => {},
 			},
 			this.container.agentStatus?.onDidChangeHooksInstallState(
@@ -2498,6 +2499,11 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				webviewItem += '+detached';
 			}
 
+			// The graph row this worktree's WIP anchors to — must mirror `getWipMetadataBySha`:
+			// the worktree at the graph's repo path is the primary `uncommitted` row, others get a
+			// secondary-wip sha (only when they actually have a row, i.e. non-bare with a sha).
+			const wipSha = w.type === 'bare' ? undefined : createWipSha(w.path, graph.repoPath);
+
 			// Base context — `+working` is appended in the webview when the async hasChanges resolves.
 			const context: GraphSidebarWorktree['context'] =
 				w.branch != null
@@ -2538,6 +2544,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 				isDefault: w.isDefault,
 				locked: w.locked !== false,
 				opened: w.workspaceFolder != null,
+				wipSha: wipSha,
 				status: w.branch?.status,
 				upstream: w.branch?.upstream?.name,
 				tracking: w.branch?.upstream?.state,
@@ -5732,7 +5739,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 		if (this.repository == null) return undefined;
 
 		const worktrees = await this.repository.git.worktrees?.getWorktrees(toAbortSignal(cancellation));
-		if (worktrees == null || worktrees.length === 0) return undefined;
+		if (!worktrees?.length) return undefined;
 
 		// All known worktrees other than the primary (which is already covered by workingTreeStats).
 		// Emit row-anchor metadata only; workDirStats are fetched on-demand via GetWipStatsRequest
@@ -5747,7 +5754,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			// Detached worktrees have no `wt.branch`; leaving `branchRef` undefined defers them
 			// to the graph component's SHA filter.
 			const branchName = wt.branch?.name;
-			result[makeSecondaryWipSha(wt.path)] = {
+			result[createSecondaryWipSha(wt.path)] = {
 				repoPath: wt.path,
 				parentSha: wt.sha,
 				label: wt.name,
@@ -6193,8 +6200,7 @@ export class GraphWebviewProvider implements WebviewProvider<State, State, Graph
 			// `Math.max(0, …)` clamps clock-skew (future-dated timestamps) so a stale clock
 			// can't pin a session as permanently "recent".
 			const recent =
-				s.lastActivityTimestamp != null &&
-				Math.max(0, now - s.lastActivityTimestamp) < GraphWebviewProvider.agentBranchesIdleThresholdMs;
+				Math.max(0, now - s.lastActivity.getTime()) < GraphWebviewProvider.agentBranchesIdleThresholdMs;
 			if (isActiveAgentPhase(s.phase) || recent) {
 				qualifyingPaths.add(s.worktree.path);
 			}

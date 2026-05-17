@@ -1,93 +1,109 @@
-import type { AgentSession, AgentSessionPhase, AgentSessionStatus } from '@gitlens/agents/types.js';
+import type { AgentSession } from '@gitlens/agents/types.js';
+import { basename, normalizePath } from '@gitlens/utils/path.js';
+import type { Shape } from '@gitlens/utils/types.js';
 import { deriveNameFromPrompt } from '../utils/deriveNameFromPrompt.js';
 
 /**
- * Serialized snapshot of an `AgentSession` suitable for sending across the webview boundary.
- *
- * Webviews and other consumers that don't have direct access to the host-side `AgentSession`
- * (with its `Date` instances and provider references) read this DTO instead.
+ * Live host-side resolution of the session's worktree, serialized into {@link AgentSessionState}
+ * per snapshot so `git checkout` / worktree renames / upstream changes flow to the UI without
+ * the agent restarting. Path is the only stable key; everything else is a snapshot.
  */
-export interface AgentSessionState {
-	readonly id: string;
-	readonly name: string;
-	readonly status: AgentSessionStatus;
-	readonly phase: AgentSessionPhase;
-	readonly statusDetail?: string;
-	/**
-	 * Worktree the session lives in. `path` is the stable matching key (full normalized
-	 * worktree directory path). `name` is the live display label resolved at serialization
-	 * time from the loaded `Repository`'s worktrees — for branch-type worktrees that's the
-	 * branch name; for detached/bare it's the canonical display form. Recomputed each
-	 * serialization, never persisted on the host `AgentSession`.
-	 */
-	readonly worktree?: {
-		readonly path: string;
-		readonly name?: string;
+export interface AgentSessionWorktreeState {
+	/** Full normalized worktree directory path. Stable matching key, always present. */
+	readonly path: string;
+	/** Display label — for branch-type worktrees that's the branch name; for detached/bare
+	 *  the canonical display form (`(bare)` / `basename (shortSha)`). */
+	readonly name?: string;
+	/** Worktree kind, straight off `GitWorktree.type`. */
+	readonly type?: 'bare' | 'detached' | 'branch';
+	/** True iff this is the repo's default (primary) worktree, not a named one. */
+	readonly isDefault?: boolean;
+	/** Branch metadata, present only for branch-type worktrees. `name` is the branch's
+	 *  display name; `upstreamName` is the raw `origin/foo` form — consumers build the
+	 *  `upstreamRef` via `getBranchId(workspacePath, true, upstreamName)`. */
+	readonly branch?: {
+		readonly name: string;
+		readonly upstreamName?: string;
 	};
-	readonly isInWorkspace: boolean;
-	readonly hasPermissionRequest: boolean;
-	readonly subagentCount: number;
-	readonly workspacePath?: string;
-	readonly cwd?: string;
-	readonly lastActivityTimestamp?: number;
-	readonly phaseSinceTimestamp?: number;
-	readonly pendingPermissionDetail?: {
-		readonly toolName: string;
-		readonly toolDescription: string;
-		readonly toolInputDescription?: string;
-		readonly hasSuggestions?: boolean;
-	};
-	readonly lastPrompt?: string;
-}
-
-function getPathBasename(path: string | undefined): string | undefined {
-	if (!path) return undefined;
-	const parts = path.split(/[/\\]/).filter(part => part.length > 0);
-	return parts.pop();
 }
 
 /**
+ * Wire DTO for an {@link AgentSession}. Near-1:1 projection via {@link Shape} so webviews see the
+ * rich session shape (provider, pendingPermission with suggestions, prompts, planFile, dates,
+ * isSubagent/parentId, etc.) without hand-projecting every field.
+ *
+ * Three deliberate divergences from `Shape<AgentSession>`:
+ *  - **`subagents` → `subagentCount`** — only the count badge consumes them today. Sending the
+ *    recursive subagent tree (each with its own pendingPermission/lastPrompt) would bloat every
+ *    snapshot push for a UI that doesn't walk them. `isSubagent` and `parentId` still flow
+ *    through, so consumers can tell whether the root session is itself a subagent and which
+ *    parent it belongs to. Flip when there's a real subagent-tree surface.
+ *  - **`worktree` is host-composed** from `session.worktreePath` + the host-only
+ *    `_worktreeNameByPath` cache. Webviews can't resolve the worktree's display name themselves
+ *    so the host fills it in here.
+ *  - **`displayName` is added** as the cascade-resolved label ({@link getSessionDisplayName}).
+ *    Computed once host-side so every consumer renders the same name without duplicating the
+ *    cascade — the raw harness-supplied `name?: string` field still flows through for callers
+ *    that want to distinguish "harness-named" from "fallback-named" sessions.
+ */
+export type AgentSessionState = Omit<Shape<AgentSession>, 'subagents'> & {
+	readonly displayName: string;
+	readonly subagentCount: number;
+	readonly worktree?: AgentSessionWorktreeState;
+};
+
+/**
  * Resolves the user-facing name for a session. Prefers the harness-supplied `name`, then a
- * heuristic derived from `firstPrompt`, then progressively coarser context fallbacks. Always
+ * heuristic derived from `firstPrompt`, then the same heuristic on `lastPrompt` (so resumed/
+ * headless sessions with no first prompt still get a content-derived label), then progressively
+ * coarser context fallbacks. Location-based fallbacks (worktree, cwd) are rendered as `On <X>`
+ * so a row labeled `On main` reads as a location anchor rather than a session topic. Always
  * returns a non-empty string so consumers don't need to repeat fallback logic.
  */
 export function getSessionDisplayName(session: AgentSession, worktreeName: string | undefined): string {
-	return (
-		session.name ||
-		deriveNameFromPrompt(session.firstPrompt) ||
+	const name = session.name || deriveNameFromPrompt(session.firstPrompt) || deriveNameFromPrompt(session.lastPrompt);
+	if (name) return name;
+
+	// normalizePath collapses backslashes and trailing slashes so basename (POSIX) returns the
+	// final segment on either platform.
+	const location =
 		worktreeName ||
-		getPathBasename(session.worktreePath) ||
-		getPathBasename(session.cwd) ||
-		session.providerName
-	);
+		(session.worktreePath ? basename(normalizePath(session.worktreePath)) : undefined) ||
+		(session.cwd ? basename(normalizePath(session.cwd)) : undefined);
+	if (location) return `On ${location}`;
+
+	return session.providerName;
 }
 
-export function serializeAgentSession(session: AgentSession, worktreeName: string | undefined): AgentSessionState {
+/** Host-side worktree resolution passed to {@link serializeAgentSession} — the same fields that
+ *  end up on {@link AgentSessionWorktreeState} minus `path` (which comes from `session.worktreePath`).
+ *  Pass `undefined` when the worktree hasn't been resolved yet (cold cache); the DTO carries `path`
+ *  alone so consumers still get a stable matching key. */
+export interface AgentSessionWorktreeMetadata {
+	readonly name: string;
+	readonly type: 'bare' | 'detached' | 'branch';
+	readonly isDefault: boolean;
+	readonly branch?: { readonly name: string; readonly upstreamName?: string };
+}
+
+export function serializeAgentSession(
+	session: AgentSession,
+	worktree: AgentSessionWorktreeMetadata | undefined,
+): AgentSessionState {
+	const { subagents, ...rest } = session;
 	return {
-		id: session.id,
-		name: getSessionDisplayName(session, worktreeName),
-		status: session.status,
-		phase: session.phase,
-		statusDetail: session.statusDetail,
-		worktree: session.worktreePath != null ? { path: session.worktreePath, name: worktreeName } : undefined,
-		isInWorkspace: session.isInWorkspace,
-		hasPermissionRequest: session.pendingPermission != null,
-		subagentCount: session.subagents?.length ?? 0,
-		workspacePath: session.workspacePath,
-		cwd: session.cwd,
-		lastActivityTimestamp: session.lastActivity.getTime(),
-		phaseSinceTimestamp: session.phaseSince.getTime(),
-		pendingPermissionDetail:
-			session.pendingPermission != null
+		...rest,
+		displayName: getSessionDisplayName(session, worktree?.name),
+		subagentCount: subagents?.length ?? 0,
+		worktree:
+			session.worktreePath != null
 				? {
-						toolName: session.pendingPermission.toolName,
-						toolDescription: session.pendingPermission.toolDescription,
-						toolInputDescription: session.pendingPermission.toolInputDescription,
-						hasSuggestions:
-							session.pendingPermission.suggestions != null &&
-							session.pendingPermission.suggestions.length > 0,
+						path: session.worktreePath,
+						name: worktree?.name,
+						type: worktree?.type,
+						isDefault: worktree?.isDefault,
+						branch: worktree?.branch,
 					}
 				: undefined,
-		lastPrompt: session.lastPrompt,
 	};
 }

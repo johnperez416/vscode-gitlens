@@ -28,10 +28,12 @@ export function getAgentCategoryLabel(category: AgentSessionCategory): string {
 }
 
 /** "Last active …" granularity helper used by the graph details panel and the graph agents
- *  sidebar panel — short-and-stable formatting (no seconds past 1 minute). The agent-status pill
- *  has its own slightly more granular variant inline. */
-export function formatAgentElapsed(timestamp: number | undefined): string | undefined {
-	if (timestamp == null) return undefined;
+ *  sidebar panel — short-and-stable formatting (no seconds past 1 minute). Accepts either a
+ *  `Date` (the wire-shape's `phaseSince`/`lastActivity` fields) or a numeric timestamp. The
+ *  agent-status pill has its own slightly more granular variant inline. */
+export function formatAgentElapsed(value: Date | number | undefined): string | undefined {
+	if (value == null) return undefined;
+	const timestamp = typeof value === 'number' ? value : value.getTime();
 	const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
 	if (seconds < 60) return `${seconds}s`;
 	const minutes = Math.floor(seconds / 60);
@@ -48,29 +50,36 @@ export function describeAgentSession(
 	session: AgentSessionState,
 	category: AgentSessionCategory,
 	elapsed: string | undefined,
-	options: { awaitingPrefix?: 'long' | 'short'; idleFallback?: 'lastActive' | 'lastPrompt' } = {},
+	options: { awaitingPrefix?: 'long' | 'short'; idleFallback?: 'lastActive' | 'lastPrompt' | 'none' } = {},
 ): string | undefined {
 	const awaitingPrefix = options.awaitingPrefix ?? 'long';
 	const idleFallback = options.idleFallback ?? 'lastActive';
-	const detail = session.pendingPermissionDetail;
+	const permission = session.pendingPermission;
 
-	if (category === 'needs-input' && detail != null) {
-		if (detail.toolName == null) return 'Awaiting permission';
+	if (category === 'needs-input' && permission != null) {
+		if (permission.toolName == null) return 'Awaiting permission';
 		const prefix = awaitingPrefix === 'long' ? 'Awaiting permission:' : 'Awaiting:';
-		return `${prefix} ${detail.toolName}${detail.toolDescription ? ` — ${detail.toolDescription}` : ''}`;
+		return `${prefix} ${permission.toolName}${permission.toolDescription ? ` — ${permission.toolDescription}` : ''}`;
 	}
 	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
 		return `Running ${session.statusDetail}`;
 	}
+	if (idleFallback === 'none') return undefined;
 	if (idleFallback === 'lastActive' && elapsed != null) return `Last active ${elapsed} ago`;
 	return session.lastPrompt || undefined;
 }
 
 /** Canonical sort order for agent sessions across every UI surface. Category-actionability first
- *  (needs-input → working → idle), then most-recent activity within a category, then alphabetical
- *  by name. Applied once at each state-entry point so all consumers — banners, pills, cards,
- *  hovers — render the same order. Actionable always wins: a fresh idle session never outranks a
- *  session that's actually waiting on you. */
+ *  (needs-input → working → idle), then most-recent phase entry within a category, then
+ *  alphabetical by name. Applied once at each state-entry point so all consumers — banners,
+ *  pills, cards, hovers — render the same order. Actionable always wins: a fresh idle session
+ *  never outranks a session that's actually waiting on you.
+ *
+ *  Within-phase key is `phaseSince` (when this phase started) rather than `lastActivity` (the
+ *  noisy tool-event tick) — that way working/waiting rows stay put while the agent works,
+ *  instead of leapfrogging each other on every status update. The semantic reads naturally for
+ *  every phase: "most-recently started working", "most-recently started waiting", "most-recently
+ *  went idle" — which is also the order the user last interacted with each session in. */
 export function sortAgentSessions(sessions: readonly AgentSessionState[]): AgentSessionState[] {
 	return sessions.toSorted((a, b) => {
 		const ra = phaseRank[a.phase];
@@ -78,14 +87,14 @@ export function sortAgentSessions(sessions: readonly AgentSessionState[]): Agent
 		if (ra !== rb) {
 			return ra - rb;
 		}
-		const ta = a.lastActivityTimestamp ?? a.phaseSinceTimestamp ?? 0;
-		const tb = b.lastActivityTimestamp ?? b.phaseSinceTimestamp ?? 0;
 
+		const ta = a.phaseSince.getTime();
+		const tb = b.phaseSince.getTime();
 		if (ta !== tb) {
 			return tb - ta;
 		}
 
-		return (a.name ?? '').localeCompare(b.name ?? '');
+		return a.displayName.localeCompare(b.displayName);
 	});
 }
 

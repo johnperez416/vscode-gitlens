@@ -1,4 +1,5 @@
 import { flow } from '@lit-labs/virtualizer/layouts/flow.js';
+import type { TemplateResult } from 'lit';
 import { css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
@@ -188,18 +189,18 @@ export class GlTreeView extends GlElement {
 				border: 1px solid;
 			}
 
-			/* Phase-tinted robot icon for agent leaves. Tokens mirror those used by
-			   gl-details-agent-status and gl-agent-status-pill so the sidebar leaf reads as
-			   the same status surface. code-icon's :host inherits color from its parent, so
-			   styling the element here flows through to its rendered glyph. */
+			/* Phase-tinted agent icon — pulls from the shared --gl-agent-* palette defined in
+			   theme.scss so leaf, tooltip, pill, and details panel all dereference the same set
+			   of variables. code-icon's :host inherits color from its parent, so styling the
+			   element here flows through to its rendered glyph. */
 			code-icon.tree-icon-agent {
-				color: var(--vscode-descriptionForeground);
+				color: var(--gl-agent-idle-color);
 			}
 			code-icon.tree-icon-agent--working {
-				color: var(--vscode-progressBar-background);
+				color: var(--gl-agent-working-color);
 			}
 			code-icon.tree-icon-agent--waiting {
-				color: var(--vscode-editorWarning-foreground);
+				color: var(--gl-agent-waiting-color);
 			}
 		`,
 	];
@@ -275,7 +276,7 @@ export class GlTreeView extends GlElement {
 	private _unhoverTimer?: ReturnType<typeof setTimeout>;
 
 	@state()
-	private _hoveredTooltip?: string;
+	private _hoveredTooltip?: string | TemplateResult;
 
 	@state()
 	private _hoveredAnchor?: HTMLElement | { getBoundingClientRect: () => Omit<DOMRect, 'toJSON'> };
@@ -487,12 +488,17 @@ export class GlTreeView extends GlElement {
 		}
 
 		if (icon.type === 'agent') {
-			// Phase classes are defined in this component's static styles; the base
-			// `tree-icon-agent` class supplies the idle (descriptionForeground) color and the
-			// modifier overrides it for working / waiting.
+			// Phase-driven glyph AND color so the leaf telegraphs state at a glance — color alone
+			// is a single-axis signal and fails for color-blind scanning. Idle keeps the Claude
+			// brand asterisk (default state retains provider identity); working spins a `sync`
+			// glyph as an activity cue; waiting flips to `warning` as a call-to-action. Colors
+			// come from the shared --gl-agent-* palette via this component's static styles.
+			const phaseIcon = icon.phase === 'working' ? 'sync' : icon.phase === 'waiting' ? 'warning' : 'claude';
+			const modifier = icon.phase === 'working' ? 'spin' : undefined;
 			return html`<code-icon
 				slot="icon"
-				icon="claude"
+				icon="${phaseIcon}"
+				modifier=${ifDefined(modifier)}
 				class="tree-icon-agent tree-icon-agent--${icon.phase}"
 			></code-icon>`;
 		}
@@ -745,7 +751,9 @@ export class GlTreeView extends GlElement {
 						.distance=${12}
 					>
 						<div slot="content" class="hover-content">
-							<gl-markdown density="compact" .markdown=${this._hoveredTooltip ?? ''}></gl-markdown>
+							${typeof this._hoveredTooltip === 'string'
+								? html`<gl-markdown density="compact" .markdown=${this._hoveredTooltip}></gl-markdown>`
+								: this._hoveredTooltip}
 						</div>
 					</gl-popover>`
 				: nothing}

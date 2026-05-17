@@ -100,6 +100,13 @@
 	--gl-stat-modified: var(--vscode-gitDecoration-modifiedResourceForeground, var(--vscode-charts-yellow, #bf8700));
 	--gl-stat-removed: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red, #cf222e));
 
+	/* Agent phase colors — own palette (NOT SCM/gitDecoration tokens, which semantically belong
+	   to file change states). Phase names match the AgentSessionPhase enum so every agent surface
+	   (sidebar leaf, tooltip, pill, details panel) can dereference one set of variables. */
+	--gl-agent-working-color: var(--vscode-charts-green, #2da44e);
+	--gl-agent-waiting-color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow, #bf8700));
+	--gl-agent-idle-color: var(--vscode-descriptionForeground);
+
 	/* Unified scope/filter chip indicator colors — bg/border use the *-color (translucent via
 	   color-mix); text uses *-text-color so light themes can pair a vibrant tint with much
 	   darker readable text. By default both resolve to the same color. */

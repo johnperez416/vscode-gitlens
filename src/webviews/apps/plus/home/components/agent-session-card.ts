@@ -154,7 +154,7 @@ export class GlAgentSessionCard extends LitElement {
 			<div class="session">
 				<code-icon icon="robot" title="Agent"></code-icon>
 				<gl-agent-status-pill .session=${session}></gl-agent-status-pill>
-				<span class="session__name">${session.name}</span>
+				<span class="session__name">${session.displayName}</span>
 				${session.subagentCount > 0
 					? html`<span class="session__subagents">
 							<code-icon icon="organization" title="Subagents"></code-icon>

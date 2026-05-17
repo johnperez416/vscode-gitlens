@@ -2,7 +2,6 @@ import { consume } from '@lit/context';
 import { SignalWatcher } from '@lit-labs/signals';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { HierarchicalItem } from '@gitlens/utils/array.js';
 import { makeHierarchical } from '@gitlens/utils/array.js';
 import { fromNow } from '@gitlens/utils/date.js';
@@ -19,9 +18,8 @@ import type {
 	GraphSidebarTag,
 	GraphSidebarWorktree,
 } from '../../../../plus/graph/protocol.js';
-import { makeSecondaryWipSha } from '../../../../plus/graph/protocol.js';
+import { createWipSha } from '../../../../plus/graph/protocol.js';
 import {
-	agentTooltip,
 	branchTooltip,
 	remoteTooltip,
 	stashTooltip,
@@ -31,7 +29,6 @@ import {
 import {
 	agentPhaseToCategory,
 	describeAgentSession,
-	findOverviewBranchForSession,
 	formatAgentElapsed,
 	getAgentCategoryLabel,
 } from '../../../shared/agentUtils.js';
@@ -47,10 +44,10 @@ import type {
 import { ContextMenuProxyController } from '../../../shared/controllers/context-menu-proxy.js';
 import type { AppState } from '../context.js';
 import { graphStateContext } from '../context.js';
-import { getOverviewBranchSelectionSha } from '../utils/branchSelection.utils.js';
 import { sidebarActionsContext } from './sidebarContext.js';
 import type { SidebarActions } from './sidebarState.js';
 import '../overview/graph-overview.js';
+import './agent-tooltip.js';
 import '../../../shared/components/button.js';
 import '../../../shared/components/code-icon.js';
 import '../../../shared/components/hooks-banner.js';
@@ -111,12 +108,20 @@ export interface GraphSidebarPanelSelectEventDetail {
 	sha: string;
 }
 
-type SidebarItemContext = [sha: string | undefined];
+/** Scope-to-branch payload optionally carried by a sidebar leaf's context tuple. When present
+ *  the panel select handler dispatches `gl-graph-scope-to-branch` in addition to the row-select
+ *  event, matching the focus behavior of overview cards. Only the agent leaves populate it today. */
+export interface SidebarItemScope {
+	branchName: string;
+	upstreamName?: string;
+}
+
+type SidebarItemContext = [sha: string | undefined, scope?: SidebarItemScope];
 
 interface LeafProps {
 	label: string;
 	filterText?: string;
-	tooltip?: string;
+	tooltip?: TreeModel<SidebarItemContext>['tooltip'];
 	icon: TreeModel<SidebarItemContext>['icon'];
 	description?: string;
 	context: SidebarItemContext;
@@ -636,10 +641,13 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					w => (w.isDefault || w.opened || !w.branch ? [w.name] : w.branch.split('/')),
 					(w, isTree) => this.toWorktreeLeaf(w, isTree),
 				);
-			case 'agents':
-				return useTree
-					? this.buildAgentTree(data.items)
-					: data.items.map(a => leafToTreeModel(this.toAgentLeaf(a), `agent:${a.id}`, 1));
+			case 'agents': {
+				if (useTree) return this.buildAgentTree(data.items);
+				const graphAnchor = this.resolveGraphAnchorContext();
+				return data.items.map(a =>
+					leafToTreeModel(this.toAgentLeaf(a, this.resolveAgentAnchor(a, graphAnchor)), `agent:${a.id}`, 1),
+				);
+			}
 			default:
 				return [];
 		}
@@ -775,7 +783,7 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			tooltip: worktreeTooltip(w),
 			icon: w.branch != null ? { type: 'branch', status: w.status, hasChanges: w.hasChanges } : 'git-commit',
 			description: formatWorktreeDescription(w),
-			context: [w.isDefault ? uncommitted : makeSecondaryWipSha(w.uri)] as SidebarItemContext,
+			context: [w.wipSha] as SidebarItemContext,
 			decorations: [
 				...(trackingDecorations(w.tracking) ?? []),
 				...(w.opened ? [{ type: 'icon' as const, icon: 'check', label: 'Active' }] : []),
@@ -788,9 +796,40 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		};
 	}
 
-	private toAgentLeaf(session: AgentSessionState): LeafProps {
+	/** The graph's repo and its family path. `path` is whatever the graph is showing (could be a
+	 *  named worktree); `family` is `commonPath ?? path` — the parent that a session's
+	 *  `workspacePath` (always the common path of its own repo) compares against to test "same
+	 *  repo family". Without this, a graph viewing a worktree would fail to match sessions
+	 *  running in the parent or a sibling worktree of the same repo. */
+	private resolveGraphAnchorContext(): { repoPath: string; family: string } | undefined {
+		const repo = this._state.repositories?.find(r => r.id === this._state.selectedRepository);
+		if (repo == null) return undefined;
+		return { repoPath: repo.path, family: repo.commonPath ?? repo.path };
+	}
+
+	/** Resolves the session's WIP-row sha + branch-scope payload. Only same-family sessions get a
+	 *  sha — a cross-repo session would otherwise drive `ensureAndSelectCommit` to scan the graph
+	 *  for a synthetic id that doesn't exist in it. Same gate stops a future scope-on-click from
+	 *  re-targeting the graph to a foreign branch. */
+	private resolveAgentAnchor(
+		session: AgentSessionState,
+		graph: { repoPath: string; family: string } | undefined,
+	): { wipSha?: string; scope?: SidebarItemScope } {
+		const worktreePath = session.worktree?.path;
+		const sameFamily = graph != null && session.workspacePath === graph.family;
+		if (!sameFamily) return {};
+		return {
+			wipSha: worktreePath != null ? createWipSha(worktreePath, graph.repoPath) : undefined,
+			scope:
+				session.worktree?.branch != null
+					? { branchName: session.worktree.branch.name, upstreamName: session.worktree.branch.upstreamName }
+					: undefined,
+		};
+	}
+
+	private toAgentLeaf(session: AgentSessionState, anchor: { wipSha?: string; scope?: SidebarItemScope }): LeafProps {
 		const category = agentPhaseToCategory[session.phase];
-		const elapsed = formatAgentElapsed(session.phaseSinceTimestamp);
+		const elapsed = formatAgentElapsed(session.phaseSince);
 		const phaseLabel = getAgentCategoryLabel(category);
 		// Description = last prompt; otherwise the describeSession line for needs-input / working
 		// (`Awaiting: tool` / `Running tool`). The "Last active …" fallback is intentionally
@@ -802,15 +841,15 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 				idleFallback: 'lastPrompt',
 			});
 
-		const matchingBranch = findOverviewBranchForSession(this._state.overview, session);
-		const sha =
-			matchingBranch != null
-				? getOverviewBranchSelectionSha(matchingBranch, this._state.overviewWip?.[matchingBranch.id])
-				: undefined;
+		// `anchor.wipSha`/`anchor.scope` are pre-computed in `buildAgentTree` — all sessions in a
+		// group share workspace + worktree, so they share the same anchor. Avoids recomputing the
+		// graphRepo lookup + same-family test per leaf on every snapshot push.
+		const sha = anchor.wipSha;
+		const scope = anchor.scope;
 
-		const detail = session.pendingPermissionDetail;
-		const canResolve = category === 'needs-input' && session.isInWorkspace && detail != null;
-		const showAlwaysAllow = canResolve && detail.hasSuggestions === true;
+		const permission = session.pendingPermission;
+		const canResolve = category === 'needs-input' && session.isInWorkspace && permission != null;
+		const showAlwaysAllow = canResolve && permission.suggestions != null && permission.suggestions.length > 0;
 
 		const actions: TreeItemAction[] = [];
 		if (canResolve) {
@@ -842,44 +881,54 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 			arguments: [session.id],
 		});
 
-		// Phase decoration uses the muted-text kind so the textual phase reads alongside the icon
-		// color, giving us a non-color signal for the same status (a11y safety net).
+		// Phase decoration uses agent-* kinds so the textual phase color matches the leaf's
+		// agent icon — both pulled from the shared `--gl-agent-*` palette in theme.scss.
 		const decorations: TreeItemDecoration[] = [
 			{
 				type: 'text',
 				label: phaseLabel + (elapsed != null ? ` · ${elapsed}` : ''),
-				kind: category === 'needs-input' ? 'modified' : category === 'working' ? 'untracked' : 'muted',
+				kind:
+					category === 'needs-input'
+						? 'agent-waiting'
+						: category === 'working'
+							? 'agent-working'
+							: 'agent-idle',
 				position: 'before',
 			},
 		];
 
 		return {
-			label: session.name,
-			tooltip: agentTooltip(session, matchingBranch),
-			filterText: `${session.name} ${session.lastPrompt ?? ''}`.trim(),
+			label: session.displayName,
+			tooltip: html`<gl-agent-tooltip .sessionId=${session.id}></gl-agent-tooltip>`,
+			filterText: `${session.displayName} ${session.lastPrompt ?? ''}`.trim(),
 			icon: { type: 'agent', phase: session.phase },
 			description: description,
-			context: [sha] as SidebarItemContext,
+			context: [sha, scope] as SidebarItemContext,
 			decorations: decorations,
 			actions: actions,
 		};
 	}
 
 	/** Tree-mode build for the agents panel: groups sessions by `(workspacePath, worktreePath)` so
-	 *  all sessions in the same worktree nest under a single parent. The label is derived live —
-	 *  from the matching overview branch when the worktree is in the current graph's repo,
-	 *  otherwise from the session's transient `worktree.name` (resolved host-side per
-	 *  serialization) — so `git checkout` updates display without restarting the agent. Group
-	 *  order preserves the input's actionability sort (needs-input → working → idle) by tracking
-	 *  each group's first appearance index in the source list. */
+	 *  all sessions in the same worktree nest under a single parent. The label is the session's
+	 *  transient `worktree.name` (resolved host-side per serialization, so `git checkout` updates
+	 *  display without restarting the agent), falling back to the worktree directory basename or
+	 *  `Unattached` for sessions with no worktree. Group order preserves the input's actionability
+	 *  sort (needs-input → working → idle) by tracking each group's first appearance index in the
+	 *  source list. */
 	private buildAgentTree(items: readonly AgentSessionState[]): TreeModel<SidebarItemContext>[] {
 		if (items.length === 0) return [];
+
+		const graphAnchor = this.resolveGraphAnchorContext();
 
 		interface Group {
 			key: string;
 			workspacePath: string | undefined;
 			worktreePath: string | undefined;
 			firstIndex: number;
+			name: string;
+			type: 'worktree' | 'folder';
+			anchor: { wipSha?: string; scope?: SidebarItemScope };
 			sessions: AgentSessionState[];
 		}
 
@@ -893,6 +942,12 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					workspacePath: session.workspacePath,
 					worktreePath: session.worktree?.path,
 					firstIndex: index,
+					name:
+						session.worktree?.name ??
+						(session.worktree?.path ? basename(session.worktree.path) : 'Unattached'),
+					type: session.worktree ? 'worktree' : 'folder',
+					// Sessions in a group share workspace + worktree → share the same anchor.
+					anchor: this.resolveAgentAnchor(session, graphAnchor),
 					sessions: [],
 				};
 				groups.set(key, group);
@@ -903,26 +958,9 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		return [...groups.values()]
 			.sort((a, b) => a.firstIndex - b.firstIndex)
 			.map(group => {
-				const children = group.sessions.map(s => leafToTreeModel(this.toAgentLeaf(s), `agent:${s.id}`, 2));
-
-				const firstSession = group.sessions[0];
-				const matchingBranch = findOverviewBranchForSession(this._state.overview, firstSession);
-				const sha =
-					matchingBranch != null
-						? getOverviewBranchSelectionSha(matchingBranch, this._state.overviewWip?.[matchingBranch.id])
-						: undefined;
-
-				// Non-default worktree if the matching branch identifies one, or the session is in
-				// a worktree path distinct from the repo's main path.
-				const hasWorktree =
-					(matchingBranch?.worktree != null && !matchingBranch.worktree.isDefault) ||
-					(group.worktreePath != null && group.worktreePath !== group.workspacePath);
-
-				const label =
-					matchingBranch?.name ??
-					firstSession.worktree?.name ??
-					(group.worktreePath ? basename(group.worktreePath) : undefined) ??
-					'Unattached';
+				const children = group.sessions.map(s =>
+					leafToTreeModel(this.toAgentLeaf(s, group.anchor), `agent:${s.id}`, 2),
+				);
 
 				// Description hints at the physical worktree directory when distinct from the
 				// label (rare-but-real: same branch checked out in two worktrees).
@@ -936,11 +974,11 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 					expanded: true,
 					path: `agent-group:${group.key}`,
 					level: 1,
-					label: label,
-					icon: { type: 'branch' as const, status: matchingBranch?.status, worktree: hasWorktree },
-					description: description !== label ? description : undefined,
+					label: group.name,
+					icon: group.type === 'worktree' ? { type: 'branch' as const, worktree: true } : 'folder',
+					description: description !== group.name ? description : undefined,
 					checkable: false,
-					context: [sha] as SidebarItemContext,
+					context: [group.anchor.wipSha, group.anchor.scope] as SidebarItemContext,
 					children: children,
 				};
 			});
@@ -1125,6 +1163,20 @@ export class GlGraphSidebarPanel extends SignalWatcher(LitElement) {
 		const context = e.detail.context;
 		const sha = context?.[0];
 		if (sha == null) return;
+
+		// Scope first so the graph's visible row set updates before we ask it to position to the
+		// WIP row — overview-card clicks do the same order. Agent leaves are the only producer
+		// of `scope` today; other panels (branches/tags/stashes/etc.) leave it undefined.
+		const scope = context?.[1];
+		if (scope != null) {
+			this.dispatchEvent(
+				new CustomEvent<{ branchName: string; upstreamName?: string }>('gl-graph-scope-to-branch', {
+					detail: { branchName: scope.branchName, upstreamName: scope.upstreamName },
+					bubbles: true,
+					composed: true,
+				}),
+			);
+		}
 
 		this.dispatchEvent(
 			new CustomEvent<GraphSidebarPanelSelectEventDetail>('gl-graph-sidebar-panel-select', {

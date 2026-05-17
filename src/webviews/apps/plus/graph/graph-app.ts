@@ -28,6 +28,7 @@ import {
 	GetRowHoverRequest,
 	GetWipStatsRequest,
 	isSecondaryWipSha,
+	isWipSha,
 	UpdateGraphConfigurationCommand,
 } from '../../../plus/graph/protocol.js';
 import type { CustomEventType } from '../../shared/components/element.js';
@@ -532,6 +533,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 				@gl-graph-sidebar-panel-select=${this.handleSidebarPanelSelect}
 				@gl-graph-overview-branch-selected=${this.handleOverviewBranchSelected}
 				@gl-graph-overview-recent-threshold-change=${this.handleOverviewRecentThresholdChange}
+				@gl-graph-scope-to-branch=${this.handleScopeToBranchFromHeader}
 			></gl-graph-sidebar-panel>
 			<div slot="end" class="graph__graph-content">${this.renderGraphMain()}</div>
 		</gl-split-panel>`;
@@ -752,8 +754,7 @@ export class GraphApp extends SignalWatcher(LitElement) {
 			const { single, multi } = this.activeSelection;
 			const selectionCount = multi != null ? multi.shas.length : single != null ? 1 : 0;
 			const selectedSha = single?.sha;
-			const selectionUncommitted =
-				selectedSha === uncommitted || (selectedSha?.startsWith('worktree-wip::') ?? false);
+			const selectionUncommitted = isWipSha(selectedSha);
 			const host = this.graphState.webviewId === 'gitlens.graph' ? 'editor' : 'panel';
 			const location = this.graphState.config?.detailsLocation === 'bottom' ? 'bottom' : 'right';
 			this._telemetry.sendEvent({
@@ -966,7 +967,13 @@ export class GraphApp extends SignalWatcher(LitElement) {
 	}
 
 	private handleScopeToBranchFromHeader(e: CustomEvent<{ branchName: string; upstreamName?: string }>) {
-		const repoPath = this.fallbackRepoPath;
+		// Branches in the graph's row index are *family-scoped* — built with the parent repo's
+		// `commonPath`, not whatever worktree happens to be the displayed `path`. If the graph is
+		// showing a named worktree, `fallbackRepoPath` would return the worktree's path; building
+		// `branchRef` with that produces a synthetic id that won't match any row. Resolve the
+		// family path the same way the sidebar agent-leaf gate does.
+		const selected = this.graphState.repositories?.find(r => r.id === this.graphState.selectedRepository);
+		const repoPath = selected != null ? (selected.commonPath ?? selected.path) : this.fallbackRepoPath;
 		if (repoPath == null) return;
 
 		const { branchName, upstreamName } = e.detail;

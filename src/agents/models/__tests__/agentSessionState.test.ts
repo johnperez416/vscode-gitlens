@@ -37,12 +37,29 @@ suite('getSessionDisplayName', () => {
 		assert.strictEqual(getSessionDisplayName(session, 'feature-x'), 'Fix the login bug');
 	});
 
+	test('falls back to a lastPrompt-derived name when firstPrompt is missing', () => {
+		const session = makeSession({
+			lastPrompt: 'please rename the foo helper',
+			worktreePath: '/repo/.worktrees/feature-x',
+			cwd: '/Users/me/repo',
+		});
+		assert.strictEqual(getSessionDisplayName(session, 'feature-x'), 'Rename the foo helper');
+	});
+
+	test('prefers firstPrompt over lastPrompt when both yield names', () => {
+		const session = makeSession({
+			firstPrompt: 'implement search',
+			lastPrompt: 'fix the typo',
+		});
+		assert.strictEqual(getSessionDisplayName(session, undefined), 'Implement search');
+	});
+
 	test('falls back to the resolved worktree name when prompt yields nothing', () => {
 		const session = makeSession({
 			worktreePath: '/repo/.worktrees/feature-x',
 			cwd: '/Users/me/repo',
 		});
-		assert.strictEqual(getSessionDisplayName(session, 'feature-x'), 'feature-x');
+		assert.strictEqual(getSessionDisplayName(session, 'feature-x'), 'On feature-x');
 	});
 
 	test('falls back to the worktree path basename when no resolved name', () => {
@@ -50,22 +67,22 @@ suite('getSessionDisplayName', () => {
 			worktreePath: '/repo/.worktrees/feature-x',
 			cwd: '/Users/me/repo',
 		});
-		assert.strictEqual(getSessionDisplayName(session, undefined), 'feature-x');
+		assert.strictEqual(getSessionDisplayName(session, undefined), 'On feature-x');
 	});
 
 	test('falls back to the cwd basename when no worktree info', () => {
 		const session = makeSession({ cwd: '/Users/me/code/my-project' });
-		assert.strictEqual(getSessionDisplayName(session, undefined), 'my-project');
+		assert.strictEqual(getSessionDisplayName(session, undefined), 'On my-project');
 	});
 
 	test('handles trailing separators on cwd', () => {
 		const session = makeSession({ cwd: '/Users/me/code/my-project/' });
-		assert.strictEqual(getSessionDisplayName(session, undefined), 'my-project');
+		assert.strictEqual(getSessionDisplayName(session, undefined), 'On my-project');
 	});
 
 	test('handles Windows-style cwd separators', () => {
 		const session = makeSession({ cwd: 'D:\\PROJ\\GKGL\\vscode-gitlens' });
-		assert.strictEqual(getSessionDisplayName(session, undefined), 'vscode-gitlens');
+		assert.strictEqual(getSessionDisplayName(session, undefined), 'On vscode-gitlens');
 	});
 
 	test('falls back to the provider name when nothing else is available', () => {

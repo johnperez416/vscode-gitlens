@@ -1,3 +1,4 @@
+import type { TemplateResult } from 'lit';
 import type { AgentSessionPhase } from '@gitlens/agents/types.js';
 import type { GitFileStatus } from '@gitlens/git/models/fileStatus.js';
 import type { DraftPatchFileChange } from '../../../../../plus/drafts/models/drafts.js';
@@ -53,7 +54,17 @@ export interface TreeItemDecorationIcon extends TreeItemDecorationBase {
 	icon: string;
 }
 
-export type TreeItemDecorationKind = 'added' | 'deleted' | 'modified' | 'untracked' | 'renamed' | 'conflict' | 'muted';
+export type TreeItemDecorationKind =
+	| 'added'
+	| 'deleted'
+	| 'modified'
+	| 'untracked'
+	| 'renamed'
+	| 'conflict'
+	| 'muted'
+	| 'agent-working'
+	| 'agent-waiting'
+	| 'agent-idle';
 
 export interface TreeItemDecorationText extends TreeItemDecorationBase {
 	type: 'text';
@@ -100,7 +111,10 @@ interface TreeModelBase<Context = any[]> extends TreeItemBase {
 	actions?: TreeItemAction[];
 	decorations?: TreeItemDecoration[];
 	contextData?: unknown;
-	tooltip?: string;
+	/** Hover tooltip. A `string` is rendered as markdown (via `gl-markdown`); a Lit `TemplateResult`
+	 *  is rendered directly, bypassing markdown — letting callers produce richer layouts with
+	 *  their own scoped styles when a markdown string would be too constrained. */
+	tooltip?: string | TemplateResult;
 	filterText?: string;
 	matched?: boolean;
 }

@@ -14,6 +14,7 @@ import { html, LitElement } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
 import { ifDefined } from 'lit/directives/if-defined.js';
 import type { GitGraphRowType } from '@gitlens/git/models/graph.js';
+import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { GitCommitReachability } from '@gitlens/git/providers/commits.js';
 import { filterMap } from '@gitlens/utils/array.js';
 import { getCssMixedColorValue, getCssOpacityColorValue, getCssVariable } from '@gitlens/utils/color.js';
@@ -416,6 +417,16 @@ export class GlGraphWrapper extends SignalWatcher(LitElement) {
 	 * carries the updated selection so the graph renders it automatically.
 	 */
 	ensureAndSelectCommit(sha: string): void {
+		// The primary WIP row is synthesized client-side (see `decoratedRows` above) with the
+		// literal sha `'work-dir-changes'`, NOT the `uncommitted` revision constant. Callers that
+		// hand us `uncommitted` (sidebar panel, overview cards, anywhere referring to "the WIP")
+		// would otherwise miss the row in both the fast-path lookup and the host-side EnsureRow
+		// fallback (which can't load a synthetic id either) — normalize once here so every caller
+		// can use either form.
+		if (sha === uncommitted) {
+			sha = 'work-dir-changes';
+		}
+
 		// Fast path — row already loaded
 		if (this.ref?.getCommits([sha])?.length) {
 			this.ref.selectCommits([sha], { ensureVisible: true });

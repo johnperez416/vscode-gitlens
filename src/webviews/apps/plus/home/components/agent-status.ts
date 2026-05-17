@@ -127,7 +127,7 @@ export class GlAgentStatus extends SignalWatcher(LitElement) {
 		return html`
 			<div class="session">
 				<gl-agent-status-pill .session=${session}></gl-agent-status-pill>
-				<span class="session__name">${session.name}</span>
+				<span class="session__name">${session.displayName}</span>
 				${context != null
 					? html`<span class="session__context" title=${context.tooltip ?? context.text}
 							>${context.text}</span

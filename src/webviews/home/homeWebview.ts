@@ -225,9 +225,7 @@ export class HomeWebviewProvider implements WebviewProvider<State, State, HomeWe
 
 					const wire = () => {
 						serviceSubscription?.dispose();
-						serviceSubscription = this.container.agentStatus?.onDidChangeSerializedSessions(state =>
-							buffered(state),
-						);
+						serviceSubscription = this.container.agentStatus?.onDidChangeSessions(state => buffered(state));
 					};
 
 					wire();

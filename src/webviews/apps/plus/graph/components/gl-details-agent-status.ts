@@ -1,9 +1,15 @@
 import type { PropertyValueMap } from 'lit';
 import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { AgentSessionPhase } from '../../../../../agents/provider.js';
 import { createCommandLink } from '../../../../../system/commands.js';
 import type { AgentSessionState } from '../../../../home/protocol.js';
+import type { AgentSessionCategory } from '../../../shared/agentUtils.js';
+import {
+	agentPhaseToCategory,
+	describeAgentSession,
+	formatAgentElapsed,
+	getAgentCategoryLabel,
+} from '../../../shared/agentUtils.js';
 import { elementBase } from '../../../shared/components/styles/lit/base.css.js';
 import '../../../shared/components/chips/action-chip.js';
 import '../../../shared/components/code-icon.js';
@@ -11,14 +17,7 @@ import '../../../shared/components/button.js';
 import '../../../shared/components/overlays/popover.js';
 import '../../../shared/components/overlays/tooltip.js';
 
-type Category = 'working' | 'needs-input' | 'idle';
 type ExpandState = 'closed' | 'partial' | 'expanded';
-
-const phaseToCategory: Record<AgentSessionPhase, Category> = {
-	working: 'working',
-	waiting: 'needs-input',
-	idle: 'idle',
-};
 
 /** Cap on cluster dots in the section heading. Beyond this, an `+N` overflow chip takes the slot
  *  so the heading width stays bounded. */
@@ -38,61 +37,11 @@ const expandIcon: Record<ExpandState, string> = {
 	expanded: 'chevron-down',
 };
 
-const expandVisibleCategories: Record<ExpandState, ReadonlySet<Category>> = {
-	closed: new Set<Category>(['needs-input']),
-	partial: new Set<Category>(['needs-input', 'working']),
-	expanded: new Set<Category>(['needs-input', 'working', 'idle']),
+const expandVisibleCategories: Record<ExpandState, ReadonlySet<AgentSessionCategory>> = {
+	closed: new Set<AgentSessionCategory>(['needs-input']),
+	partial: new Set<AgentSessionCategory>(['needs-input', 'working']),
+	expanded: new Set<AgentSessionCategory>(['needs-input', 'working', 'idle']),
 };
-
-function formatElapsed(timestamp: number | undefined): string | undefined {
-	if (timestamp == null) return undefined;
-	const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-	if (seconds < 60) return `${seconds}s`;
-	const minutes = Math.floor(seconds / 60);
-	if (minutes < 60) return `${minutes}m`;
-	const hours = Math.floor(minutes / 60);
-	const remainingMinutes = minutes % 60;
-	return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-}
-
-function categoryLabel(category: Category): string {
-	switch (category) {
-		case 'needs-input':
-			return 'Needs input';
-		case 'working':
-			return 'Working';
-		case 'idle':
-			return 'Idle';
-	}
-}
-
-/** Builds the per-session "what is it doing" line. needs-input → awaiting tool; working tool_use →
- *  current tool; otherwise last-active timestamp or the most-recent prompt. Card detail uses the
- *  long "Awaiting permission:" prefix; the compact hover row uses just "Awaiting:". The hover row
- *  also drops the "Last active …" fallback in favor of `lastPrompt` since elapsed is shown
- *  separately in the phase badge. */
-function describeSession(
-	session: AgentSessionState,
-	category: Category,
-	elapsed: string | undefined,
-	options: { awaitingPrefix?: 'long' | 'short'; idleFallback?: 'lastActive' | 'lastPrompt' | 'none' } = {},
-): string | undefined {
-	const awaitingPrefix = options.awaitingPrefix ?? 'long';
-	const idleFallback = options.idleFallback ?? 'lastActive';
-	const detail = session.pendingPermissionDetail;
-
-	if (category === 'needs-input' && detail != null) {
-		if (detail.toolName == null) return 'Awaiting permission';
-		const prefix = awaitingPrefix === 'long' ? 'Awaiting permission:' : 'Awaiting:';
-		return `${prefix} ${detail.toolName}${detail.toolDescription ? ` — ${detail.toolDescription}` : ''}`;
-	}
-	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
-		return `Running ${session.statusDetail}`;
-	}
-	if (idleFallback === 'none') return undefined;
-	if (idleFallback === 'lastActive' && elapsed != null) return `Last active ${elapsed} ago`;
-	return session.lastPrompt || undefined;
-}
 
 declare global {
 	interface HTMLElementTagNameMap {
@@ -530,7 +479,7 @@ export class GlDetailsAgentStatus extends LitElement {
 		const visibleCats = expandVisibleCategories[this._expand];
 		let count = 0;
 		for (const s of sessions) {
-			if (visibleCats.has(phaseToCategory[s.phase])) {
+			if (visibleCats.has(agentPhaseToCategory[s.phase])) {
 				count++;
 			}
 		}
@@ -539,9 +488,9 @@ export class GlDetailsAgentStatus extends LitElement {
 
 	/* ---------- Section (heading + cards list) ---------- */
 
-	private renderSection(sessions: AgentSessionState[], counts: Record<Category, number>): unknown {
+	private renderSection(sessions: AgentSessionState[], counts: Record<AgentSessionCategory, number>): unknown {
 		const visibleCats = expandVisibleCategories[this._expand];
-		const visible = sessions.filter(s => visibleCats.has(phaseToCategory[s.phase]));
+		const visible = sessions.filter(s => visibleCats.has(agentPhaseToCategory[s.phase]));
 
 		return html`
 			<div class="section">
@@ -553,7 +502,7 @@ export class GlDetailsAgentStatus extends LitElement {
 		`;
 	}
 
-	private renderSectionHeading(sessions: AgentSessionState[], counts: Record<Category, number>): unknown {
+	private renderSectionHeading(sessions: AgentSessionState[], counts: Record<AgentSessionCategory, number>): unknown {
 		const state = this._expand;
 		const visibleDots = sessions.slice(0, maxClusterDots);
 		const overflow = sessions.length - visibleDots.length;
@@ -574,7 +523,7 @@ export class GlDetailsAgentStatus extends LitElement {
 							${visibleDots.map(
 								s =>
 									html`<span
-										class=${`section__cluster-dot section__cluster-dot--${phaseToCategory[s.phase]}`}
+										class=${`section__cluster-dot section__cluster-dot--${agentPhaseToCategory[s.phase]}`}
 									></span>`,
 							)}
 							${overflow > 0
@@ -608,7 +557,7 @@ export class GlDetailsAgentStatus extends LitElement {
 		}
 	}
 
-	private renderCountsSummary(counts: Record<Category, number>): unknown {
+	private renderCountsSummary(counts: Record<AgentSessionCategory, number>): unknown {
 		const parts: unknown[] = [];
 		if (counts['needs-input'] > 0) {
 			parts.push(html`<strong>${counts['needs-input']} need input</strong>`);
@@ -631,10 +580,10 @@ export class GlDetailsAgentStatus extends LitElement {
 	}
 
 	private renderHoverRow(session: AgentSessionState): unknown {
-		const category = phaseToCategory[session.phase];
-		const elapsed = formatElapsed(session.phaseSinceTimestamp);
-		const phaseLabel = categoryLabel(category);
-		const detail = describeSession(session, category, elapsed, {
+		const category = agentPhaseToCategory[session.phase];
+		const elapsed = formatAgentElapsed(session.phaseSince);
+		const phaseLabel = getAgentCategoryLabel(category);
+		const detail = describeAgentSession(session, category, elapsed, {
 			awaitingPrefix: 'short',
 			idleFallback: 'lastPrompt',
 		});
@@ -642,7 +591,7 @@ export class GlDetailsAgentStatus extends LitElement {
 		return html`
 			<div class="section__hover-row">
 				<span class=${`section__hover-dot section__hover-dot--${category}`}></span>
-				<span class="section__hover-name" title=${session.name}>${session.name}</span>
+				<span class="section__hover-name" title=${session.displayName}>${session.displayName}</span>
 				<span class=${`section__hover-phase section__hover-phase--${category}`}>
 					${phaseLabel}${elapsed != null ? ` · ${elapsed}` : ''}
 				</span>
@@ -652,27 +601,26 @@ export class GlDetailsAgentStatus extends LitElement {
 	}
 
 	private renderCard(session: AgentSessionState): unknown {
-		const category = phaseToCategory[session.phase];
-		const elapsed = formatElapsed(session.phaseSinceTimestamp);
-		const phaseLabel = categoryLabel(category);
+		const category = agentPhaseToCategory[session.phase];
+		const elapsed = formatAgentElapsed(session.phaseSince);
+		const phaseLabel = getAgentCategoryLabel(category);
 		// Cards drop the "Last active" / lastPrompt fallback — elapsed surfaces in the phase
 		// tooltip, and lastPrompt has its own dedicated `card__prompt` row below.
-		const detailLine = describeSession(session, category, elapsed, {
+		const detailLine = describeAgentSession(session, category, elapsed, {
 			awaitingPrefix: 'long',
 			idleFallback: 'none',
 		});
 		const phaseContent = html`${phaseLabel}${elapsed != null ? html` · ${elapsed}` : nothing}`;
 		const phaseTooltip = elapsed != null ? `Last active ${elapsed} ago` : undefined;
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
-		const canResolve =
-			category === 'needs-input' && session.isInWorkspace && session.pendingPermissionDetail != null;
+		const canResolve = category === 'needs-input' && session.isInWorkspace && session.pendingPermission != null;
 
 		return html`
 			<div class=${`card card--${category}`}>
 				<div class="card__rail">${this.renderCardRail(category)}</div>
 				<div class="card__body">
 					<div class="card__title-row">
-						<span class="card__name" title=${session.name}>${session.name}</span>
+						<span class="card__name" title=${session.displayName}>${session.displayName}</span>
 						${phaseTooltip != null
 							? html`<gl-tooltip content=${phaseTooltip} placement="bottom">
 									<span class=${`card__phase card__phase--${category}`}>${phaseContent}</span>
@@ -698,7 +646,7 @@ export class GlDetailsAgentStatus extends LitElement {
 
 	/** Rail content for the card. needs-input gets a warning glyph; working gets a spinning sync —
 	 *  matches the prior banner icon-circle treatment. Idle keeps the small dot. */
-	private renderCardRail(category: Category): unknown {
+	private renderCardRail(category: AgentSessionCategory): unknown {
 		if (category === 'needs-input') {
 			return html`<span class="card__icon"><code-icon icon="warning"></code-icon></span>`;
 		}
@@ -713,8 +661,8 @@ export class GlDetailsAgentStatus extends LitElement {
 	 *  are visible inline. Only called when `canResolve` is true, so the no-detail branch is
 	 *  unreachable. */
 	private renderCardActions(session: AgentSessionState): unknown {
-		const detail = session.pendingPermissionDetail;
-		if (detail == null) return nothing;
+		const permission = session.pendingPermission;
+		if (permission == null) return nothing;
 
 		const allowHref = createCommandLink('gitlens.agents.resolvePermission', {
 			sessionId: session.id,
@@ -724,7 +672,7 @@ export class GlDetailsAgentStatus extends LitElement {
 			sessionId: session.id,
 			decision: 'deny' as const,
 		});
-		const showAlwaysAllow = detail.hasSuggestions === true;
+		const showAlwaysAllow = permission.suggestions != null && permission.suggestions.length > 0;
 		const alwaysAllowHref = showAlwaysAllow
 			? createCommandLink('gitlens.agents.resolvePermission', {
 					sessionId: session.id,
@@ -751,10 +699,10 @@ export class GlDetailsAgentStatus extends LitElement {
 		`;
 	}
 
-	private tally(sessions: AgentSessionState[]): Record<Category, number> {
-		const counts: Record<Category, number> = { working: 0, 'needs-input': 0, idle: 0 };
+	private tally(sessions: AgentSessionState[]): Record<AgentSessionCategory, number> {
+		const counts: Record<AgentSessionCategory, number> = { working: 0, 'needs-input': 0, idle: 0 };
 		for (const s of sessions) {
-			counts[phaseToCategory[s.phase]]++;
+			counts[agentPhaseToCategory[s.phase]]++;
 		}
 		return counts;
 	}

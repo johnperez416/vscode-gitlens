@@ -1,10 +1,6 @@
 import { shortenRevision } from '@gitlens/git/utils/revision.utils.js';
 import { formatIndicators, formatTrackingTooltip } from '@gitlens/git/utils/tooltip.utils.js';
 import { formatDate, fromNow } from '@gitlens/utils/date.js';
-import { basename } from '@gitlens/utils/path.js';
-import type { AgentSessionState } from '../../../agents/models/agentSessionState.js';
-import { agentPhaseToCategory, formatAgentElapsed, getAgentCategoryLabel } from '../../apps/shared/agentUtils.js';
-import type { OverviewBranch } from '../../shared/overviewBranches.js';
 import type {
 	GraphSidebarBranch,
 	GraphSidebarRemote,
@@ -122,72 +118,5 @@ export function remoteTooltip(r: GraphSidebarRemote): string {
 	if (r.url) {
 		tooltip += `\n\n${r.url}`;
 	}
-	return tooltip;
-}
-
-/** Markdown tooltip for an agent leaf in the graph sidebar. Top section identifies the session
- *  (name + phase + elapsed, then the related branch/worktree). Remaining content — last prompt,
- *  current tool, or pending permission request — is divider-separated below.
- *  Action affordances stay on the row (revealed on hover) so we don't duplicate them here. */
-export function agentTooltip(session: AgentSessionState, matchingBranch: OverviewBranch | undefined): string {
-	const category = agentPhaseToCategory[session.phase];
-	const phaseLabel = getAgentCategoryLabel(category);
-	const elapsed = formatAgentElapsed(session.phaseSinceTimestamp);
-
-	const phaseIcon =
-		category === 'needs-input' ? '$(warning)' : category === 'working' ? '$(sync)' : '$(circle-filled)';
-
-	const headerParts = [phaseLabel];
-	if (elapsed != null) {
-		headerParts.push(elapsed);
-	}
-
-	let tooltip = `${phaseIcon} **${session.name}** — ${headerParts.join(' · ')}`;
-
-	// Branch line — derived live from the matched overview branch (the session's worktree's
-	// currently-checked-out branch). For worktrees the overview doesn't know about (cross-repo /
-	// cross-workspace sessions), fall back to the session's live `worktree.name` populated host-
-	// side at serialization time. The worktree disambiguator is the directory basename when it
-	// differs from the label.
-	const label = matchingBranch?.name ?? session.worktree?.name;
-	const worktreePath = matchingBranch?.worktree?.path ?? session.worktree?.path;
-	if (label != null) {
-		let branchLine = `$(git-branch) \`${label}\``;
-		const worktreeBasename = worktreePath != null ? basename(worktreePath) : undefined;
-		if (worktreeBasename && worktreeBasename !== label) {
-			branchLine += ` — _worktree: ${worktreeBasename}_`;
-		}
-		tooltip += `\\\n${branchLine}`;
-	} else if (worktreePath) {
-		tooltip += `\\\n_${basename(worktreePath)}_`;
-	}
-
-	const sections: string[] = [];
-
-	if (session.lastPrompt) {
-		sections.push(session.lastPrompt);
-	}
-
-	if (category === 'working' && session.status === 'tool_use' && session.statusDetail) {
-		sections.push(session.statusDetail);
-	}
-
-	const detail = session.pendingPermissionDetail;
-	if (category === 'needs-input' && detail != null) {
-		const requestParts = [`\`${detail.toolName}\``];
-		if (detail.toolDescription) {
-			requestParts.push(`— ${detail.toolDescription}`);
-		}
-		let request = requestParts.join(' ');
-		if (detail.toolInputDescription) {
-			request += `\\\n${detail.toolInputDescription}`;
-		}
-		sections.push(request);
-	}
-
-	for (const section of sections) {
-		tooltip += `\n\n---\n\n${section}`;
-	}
-
 	return tooltip;
 }

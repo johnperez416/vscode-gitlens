@@ -5,7 +5,7 @@ import { getSettledValue } from '@gitlens/utils/promise.js';
 import type { Container } from '../container.js';
 import { createQuickPickSeparator } from '../quickpicks/items/common.js';
 import { registerCommand } from '../system/-webview/command.js';
-import type { AgentSessionState } from './models/agentSessionState.js';
+import type { AgentSessionState, AgentSessionWorktreeMetadata } from './models/agentSessionState.js';
 import { getSessionDisplayName, serializeAgentSession } from './models/agentSessionState.js';
 import type { AgentSession, AgentSessionProvider, PermissionDecision, PermissionSuggestion } from './provider.js';
 
@@ -20,25 +20,28 @@ export class AgentStatusService implements Disposable {
 	 */
 	readonly onDidChangeHooksInstallState = this._onDidChangeHooksInstallState.event;
 
-	private readonly _onDidChangeSerializedSessions = new EventEmitter<AgentSessionState[]>();
+	private readonly _onDidChangeSessions = new EventEmitter<AgentSessionState[]>();
 	/**
-	 * Fires only when the serialized session snapshot has actually changed (deep equality on the
+	 * Fires only when the session snapshot has actually changed (deep equality on the
 	 * wire-shape). Lets multiple webviews subscribe without each re-implementing dedup against
 	 * the noisier `onDidChange` event.
 	 */
-	readonly onDidChangeSerializedSessions = this._onDidChangeSerializedSessions.event;
+	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
 	private _lastSerialized: string = '';
 
 	/**
-	 * Transient cache of `worktreePath -> live GitWorktree.name`. Populated by
+	 * Transient cache of `worktreePath -> live GitWorktree metadata`. Populated by
 	 * `refreshWorktreeNameCache()` via `getWorktrees()` on the parent repo, which is cached by
 	 * the git layer (keyed by `commonPath`, invalidated on `heads`/`remotes`/`worktrees`).
-	 * Never persisted on `AgentSession` — the name is the worktree's *current* identity so
-	 * `git checkout` updates display without restarting.
+	 * Never persisted on `AgentSession` — every field is the worktree's *current* identity so
+	 * `git checkout` / worktree renames / upstream changes flow to the UI without restarting.
 	 */
-	private readonly _worktreeNameByPath = new Map<string, string>();
-	private _worktreeRefreshPromise: Promise<void> | undefined;
+	private readonly _worktreeNameByPath = new Map<string, AgentSessionWorktreeMetadata>();
+	private _worktreeRefreshPromise: Promise<boolean> | undefined;
+	/** Stable signature of the session worktree path set resolved by the last refresh. Lets the
+	 *  noisy `onDidChangeSessions` trigger skip the refresh when only phase/activity changed. */
+	private _resolvedWorktreePathsKey: string | undefined;
 
 	private readonly _disposables: Disposable[] = [];
 	private readonly _providers: AgentSessionProvider[];
@@ -52,9 +55,29 @@ export class AgentStatusService implements Disposable {
 		for (const provider of this._providers) {
 			this._disposables.push(
 				provider.onDidChangeSessions(() => {
+					// Always fire the cheap _onDidChange so non-name consumers (badge counts, agent
+					// status row) stay snappy.
 					this._onDidChange.fire();
-					this.maybeFireSerializedChange();
-					void this.refreshWorktreeNameCache();
+
+					// If any session has a worktree path we haven't resolved yet, defer the rich
+					// snapshot publish until the refresh completes so webviews don't paint with a
+					// cold-fallback name (`On <path-basename>`) and then re-paint a moment later
+					// with the proper branch name. The refresh publishes itself when metadata
+					// changed; we only fire here when it didn't (couldn't resolve the path) or
+					// failed, so the new session is never permanently swallowed.
+					if (this.hasUnresolvedWorktreePaths()) {
+						this.refreshWorktreeNameCache().then(
+							changed => {
+								if (!changed) {
+									this.maybeFireSessionsChanged();
+								}
+							},
+							() => this.maybeFireSessionsChanged(),
+						);
+					} else {
+						this.maybeFireSessionsChanged();
+						this.refreshWorktreeNameCacheIfSessionsChanged();
+					}
 				}),
 			);
 		}
@@ -95,7 +118,7 @@ export class AgentStatusService implements Disposable {
 		}
 		this._onDidChange.dispose();
 		this._onDidChangeHooksInstallState.dispose();
-		this._onDidChangeSerializedSessions.dispose();
+		this._onDidChangeSessions.dispose();
 	}
 
 	private async invalidateHooksState(): Promise<void> {
@@ -115,20 +138,55 @@ export class AgentStatusService implements Disposable {
 	}
 
 	getSerializedSessions(): AgentSessionState[] {
-		return this.sessions.map(s => serializeAgentSession(s, this.getWorktreeNameForSession(s)));
+		return this.sessions.map(s => serializeAgentSession(s, this.getWorktreeMetadataForSession(s)));
 	}
 
-	private getWorktreeNameForSession(session: AgentSession): string | undefined {
+	private getWorktreeMetadataForSession(session: AgentSession): AgentSessionWorktreeMetadata | undefined {
 		if (session.worktreePath == null) return undefined;
 		return this._worktreeNameByPath.get(session.worktreePath);
 	}
 
-	private maybeFireSerializedChange(): void {
+	private maybeFireSessionsChanged(): void {
 		const serialized = this.getSerializedSessions();
 		const stringified = JSON.stringify(serialized);
 		if (stringified === this._lastSerialized) return;
+
 		this._lastSerialized = stringified;
-		this._onDidChangeSerializedSessions.fire(serialized);
+		this._onDidChangeSessions.fire(serialized);
+	}
+
+	/** True iff at least one session has a `worktreePath` we haven't resolved metadata for yet.
+	 *  Used to defer the snapshot publish for brand-new paths so the webview never paints the
+	 *  cold-fallback name first; resolved paths skip the deferral and publish immediately. */
+	private hasUnresolvedWorktreePaths(): boolean {
+		for (const s of this.sessions) {
+			if (s.worktreePath != null && !this._worktreeNameByPath.has(s.worktreePath)) return true;
+		}
+		return false;
+	}
+
+	/** Order-independent signature of the set of session worktree paths. The worktree-name cache
+	 *  depends only on this set — not on session phase/activity — so it gates the noisy trigger. */
+	private getSessionWorktreePathsKey(): string {
+		const paths: string[] = [];
+		for (const s of this.sessions) {
+			if (s.worktreePath != null) {
+				paths.push(s.worktreePath);
+			}
+		}
+		return paths.sort().join('\0');
+	}
+
+	/**
+	 * Gated entry point for the `onDidChangeSessions` trigger, which fires on every phase/activity
+	 * tick. Skips the refresh entirely when the set of session worktree paths is unchanged —
+	 * checkout-driven name changes still arrive via the `onDidChangeRepository` trigger, which
+	 * calls `refreshWorktreeNameCache()` directly.
+	 */
+	private refreshWorktreeNameCacheIfSessionsChanged(): void {
+		if (this.getSessionWorktreePathsKey() === this._resolvedWorktreePathsKey) return;
+
+		void this.refreshWorktreeNameCache();
 	}
 
 	/**
@@ -136,31 +194,41 @@ export class AgentStatusService implements Disposable {
 	 * per parent repo (the underlying cache means repeated calls within a stable repo are free).
 	 * Updates `_worktreeNameByPath` and fires `onDidChangeSerializedSessions` if anything changed.
 	 * Concurrent calls dedupe to a single in-flight refresh.
+	 *
+	 * Resolves to `true` iff metadata changed and the snapshot was published — callers who need
+	 * to publish unconditionally (e.g. the deferred-publish path) can skip a redundant fire when
+	 * this returns true.
 	 */
-	private refreshWorktreeNameCache(): Promise<void> {
+	private refreshWorktreeNameCache(): Promise<boolean> {
 		if (this._worktreeRefreshPromise != null) return this._worktreeRefreshPromise;
 
 		this._worktreeRefreshPromise = (async () => {
+			let changed = false;
 			try {
-				// Group session worktree paths by parent repo path so we make one
-				// `getWorktrees()` call per parent (not per worktree).
+				// Capture the path set this run resolves so the noisy session trigger can skip
+				// no-op refreshes; the `finally` re-checks it to catch paths that appeared while
+				// this run was in-flight (it snapshots `this.sessions` synchronously below).
+				this._resolvedWorktreePathsKey = this.getSessionWorktreePathsKey();
+
+				// `session.workspacePath` is already the parent (common) path — resolved host-side
+				// by the agent provider. Used directly so we don't go through `getRepository()`,
+				// which is workspace-folder-scoped and skips agents whose common path isn't an
+				// open workspace folder.
 				const worktreePathsByParent = new Map<string, Set<string>>();
 				const referencedWorktreePaths = new Set<string>();
 				for (const s of this.sessions) {
-					if (s.worktreePath == null) continue;
-					const repo = this.container.git.getRepository(s.worktreePath);
-					if (repo == null) continue;
-					const parentPath = repo.isWorktree && repo.commonPath ? repo.commonPath : repo.path;
-					let set = worktreePathsByParent.get(parentPath);
+					if (s.worktreePath == null || s.workspacePath == null) continue;
+
+					let set = worktreePathsByParent.get(s.workspacePath);
 					if (set == null) {
 						set = new Set<string>();
-						worktreePathsByParent.set(parentPath, set);
+						worktreePathsByParent.set(s.workspacePath, set);
 					}
+
 					set.add(s.worktreePath);
 					referencedWorktreePaths.add(s.worktreePath);
 				}
 
-				let changed = false;
 				// Prune entries for worktrees no session lives in anymore.
 				for (const key of [...this._worktreeNameByPath.keys()]) {
 					if (!referencedWorktreePaths.has(key)) {
@@ -183,20 +251,44 @@ export class AgentStatusService implements Disposable {
 					if (value == null) continue;
 					for (const wt of value.worktrees) {
 						if (!value.paths.has(wt.path)) continue;
+						const next: AgentSessionWorktreeMetadata = {
+							name: wt.name,
+							type: wt.type,
+							isDefault: wt.isDefault,
+							branch:
+								wt.type === 'branch' && wt.branch != null
+									? {
+											name: wt.branch.name,
+											// `upstream.name` is the raw `origin/foo` form; consumers reconstruct
+											// the full upstreamRef via `getBranchId(workspacePath, true, name)`.
+											upstreamName:
+												wt.branch.upstream != null && !wt.branch.upstream.missing
+													? wt.branch.upstream.name
+													: undefined,
+										}
+									: undefined,
+						};
 						const existing = this._worktreeNameByPath.get(wt.path);
-						if (existing !== wt.name) {
-							this._worktreeNameByPath.set(wt.path, wt.name);
+						if (!isSameWorktreeMetadata(existing, next)) {
+							this._worktreeNameByPath.set(wt.path, next);
 							changed = true;
 						}
 					}
 				}
 
 				if (changed) {
-					this.maybeFireSerializedChange();
+					this.maybeFireSessionsChanged();
 				}
 			} finally {
 				this._worktreeRefreshPromise = undefined;
+				// A session worktree path may have appeared/changed while this run was in-flight
+				// (it snapshotted `this.sessions` at the top, and `_worktreeRefreshPromise`
+				// deduped any calls since). Re-run if the set no longer matches what we resolved.
+				if (this.getSessionWorktreePathsKey() !== this._resolvedWorktreePathsKey) {
+					void this.refreshWorktreeNameCache();
+				}
 			}
+			return changed;
 		})();
 
 		return this._worktreeRefreshPromise;
@@ -290,7 +382,7 @@ export class AgentStatusService implements Disposable {
 			if (workspaceSessions.length > 0) {
 				items.push(createQuickPickSeparator('This workspace'));
 				for (const s of workspaceSessions) {
-					const worktreeName = this.getWorktreeNameForSession(s);
+					const worktreeName = this.getWorktreeMetadataForSession(s)?.name;
 					items.push({
 						label: `$(robot) ${getSessionDisplayName(s, worktreeName)}`,
 						description: s.status,
@@ -304,7 +396,7 @@ export class AgentStatusService implements Disposable {
 				items.push(createQuickPickSeparator('Other workspaces'));
 				for (const s of externalSessions) {
 					items.push({
-						label: `$(robot) ${getSessionDisplayName(s, this.getWorktreeNameForSession(s))}`,
+						label: `$(robot) ${getSessionDisplayName(s, this.getWorktreeMetadataForSession(s)?.name)}`,
 						description: s.status,
 						detail: s.workspacePath ?? undefined,
 						session: s,
@@ -359,7 +451,7 @@ export class AgentStatusService implements Disposable {
 			action = actions[0].action;
 		} else {
 			const actionPick = await window.showQuickPick(actions, {
-				placeHolder: `Action for ${getSessionDisplayName(session, this.getWorktreeNameForSession(session))}`,
+				placeHolder: `Action for ${getSessionDisplayName(session, this.getWorktreeMetadataForSession(session)?.name)}`,
 			});
 			if (actionPick == null) return;
 			action = actionPick.action;
@@ -427,4 +519,15 @@ export class AgentStatusService implements Disposable {
 			}
 		}
 	}
+}
+
+/** Field-by-field equality for the worktree metadata cache. Keeps the refresh's `changed` flag
+ *  precise (and `maybeFireSerializedChange`'s JSON-diff downstream rare) without paying for
+ *  per-worktree `JSON.stringify` round-trips on the host hot path. */
+function isSameWorktreeMetadata(a: AgentSessionWorktreeMetadata | undefined, b: AgentSessionWorktreeMetadata): boolean {
+	if (a == null) return false;
+	if (a.name !== b.name || a.type !== b.type || a.isDefault !== b.isDefault) return false;
+	if (a.branch == null) return b.branch == null;
+	if (b.branch == null) return false;
+	return a.branch.name === b.branch.name && a.branch.upstreamName === b.branch.upstreamName;
 }

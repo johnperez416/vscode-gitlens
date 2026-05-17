@@ -36,6 +36,7 @@ import type {
 	GitTagReference,
 } from '@gitlens/git/models/reference.js';
 import type { ProviderReference } from '@gitlens/git/models/remoteProvider.js';
+import { uncommitted } from '@gitlens/git/models/revision.js';
 import type { SearchQuery } from '@gitlens/git/models/search.js';
 import type { RepositoryVisibility } from '@gitlens/git/providers/types.js';
 import type { DateTimeFormat } from '@gitlens/utils/date.js';
@@ -58,18 +59,26 @@ import type {
 import type { TimelinePeriod, TimelineSliceBy } from '../timeline/protocol.js';
 
 /** Prefix for synthetic row ids + shas that represent a secondary-worktree WIP row. */
-export const secondaryWipShaPrefix = 'worktree-wip::';
+const secondaryWipShaPrefix = 'worktree-wip::';
 
-export function isSecondaryWipSha(sha: string): boolean {
-	return sha.startsWith(secondaryWipShaPrefix);
+export function createSecondaryWipSha(path: string): string {
+	return `${secondaryWipShaPrefix}${path}`;
+}
+
+export function createWipSha(path: string, repoPath: string): string {
+	return path === repoPath ? uncommitted : createSecondaryWipSha(path);
 }
 
 export function getSecondaryWipPath(sha: string): string {
 	return sha.slice(secondaryWipShaPrefix.length);
 }
 
-export function makeSecondaryWipSha(path: string): string {
-	return `${secondaryWipShaPrefix}${path}`;
+export function isSecondaryWipSha(sha: string | undefined): boolean {
+	return sha?.startsWith(secondaryWipShaPrefix) ?? false;
+}
+
+export function isWipSha(sha: string | undefined): boolean {
+	return sha === uncommitted || isSecondaryWipSha(sha);
 }
 
 export type { GraphRefType } from '@gitkraken/gitkraken-components';
@@ -728,6 +737,9 @@ export interface GraphSidebarWorktree {
 	isDefault: boolean;
 	locked: boolean;
 	opened: boolean;
+	/** The graph row id this worktree's WIP anchors to: `uncommitted` for the graph's primary
+	 *  worktree, a secondary-wip sha for others, or undefined when the worktree has no WIP row. */
+	wipSha?: string;
 	hasChanges?: boolean;
 	status?: string;
 	upstream?: string;

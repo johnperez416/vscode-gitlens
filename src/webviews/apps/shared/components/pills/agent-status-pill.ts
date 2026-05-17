@@ -22,9 +22,9 @@ interface AgentPillSummary {
 	sessions: readonly AgentSessionState[];
 }
 
-function formatElapsed(timestamp: number | undefined): string | undefined {
-	if (timestamp == null) return undefined;
-
+function formatElapsed(value: Date | number | undefined): string | undefined {
+	if (value == null) return undefined;
+	const timestamp = typeof value === 'number' ? value : value.getTime();
 	const seconds = Math.floor((Date.now() - timestamp) / 1000);
 	if (seconds < 60) return `${seconds}s`;
 
@@ -461,7 +461,7 @@ export class GlAgentStatusPill extends LitElement {
 	 *  tool context) but drops the action row to avoid duplicating the inline buttons.
 	 *
 	 *  Falls back to compact rendering when `needs-input` cannot resolve inline (`!isInWorkspace`
-	 *  or no `pendingPermissionDetail`) — a full-width pill with no actions would be a dead-end.
+	 *  or no `pendingPermission`) — a full-width pill with no actions would be a dead-end.
 	 *
 	 *  Ignored in summary mode — summary pills never surface inline actions. */
 	@property({ type: Boolean, reflect: true })
@@ -490,8 +490,8 @@ export class GlAgentStatusPill extends LitElement {
 
 		const category = agentPhaseToCategory[session.phase];
 		const label = getAgentCategoryLabel(category);
-		const detail = session.pendingPermissionDetail;
-		const canResolve = category === 'needs-input' && session.isInWorkspace && detail != null;
+		const permission = session.pendingPermission;
+		const canResolve = category === 'needs-input' && session.isInWorkspace && permission != null;
 
 		return html`
 			<gl-popover placement="bottom" hoist>
@@ -533,7 +533,7 @@ export class GlAgentStatusPill extends LitElement {
 	/** Phase column is retained per row because the elapsed-time suffix is the per-session
 	 *  signal — every row shares the category, but each carries its own "how long". */
 	private renderSummaryRow(session: AgentSessionState, category: AgentSessionCategory): unknown {
-		const elapsed = formatAgentElapsed(session.phaseSinceTimestamp);
+		const elapsed = formatAgentElapsed(session.phaseSince);
 		const phaseLabel = getAgentCategoryLabel(category);
 		const detail = describeAgentSession(session, category, elapsed, {
 			awaitingPrefix: 'short',
@@ -543,7 +543,7 @@ export class GlAgentStatusPill extends LitElement {
 		return html`
 			<div class="hover-summary-row">
 				<span class=${`hover-summary-row__dot hover-summary-row__dot--${category}`}></span>
-				<span class="hover-summary-row__name" title=${session.name}>${session.name}</span>
+				<span class="hover-summary-row__name" title=${session.displayName}>${session.displayName}</span>
 				<span class=${`hover-summary-row__phase hover-summary-row__phase--${category}`}>
 					${phaseLabel}${elapsed != null ? ` · ${elapsed}` : ''}
 				</span>
@@ -579,7 +579,7 @@ export class GlAgentStatusPill extends LitElement {
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
 		if (category === 'needs-input' && canResolve) {
-			const detail = session.pendingPermissionDetail!;
+			const permission = session.pendingPermission!;
 			const allowHref = createCommandLink('gitlens.agents.resolvePermission', {
 				sessionId: session.id,
 				decision: 'allow' as const,
@@ -588,13 +588,14 @@ export class GlAgentStatusPill extends LitElement {
 				sessionId: session.id,
 				decision: 'deny' as const,
 			});
-			const alwaysAllowHref = detail.hasSuggestions
-				? createCommandLink('gitlens.agents.resolvePermission', {
-						sessionId: session.id,
-						decision: 'allow' as const,
-						alwaysAllow: true,
-					})
-				: undefined;
+			const alwaysAllowHref =
+				permission.suggestions != null && permission.suggestions.length > 0
+					? createCommandLink('gitlens.agents.resolvePermission', {
+							sessionId: session.id,
+							decision: 'allow' as const,
+							alwaysAllow: true,
+						})
+					: undefined;
 
 			return html`
 				<action-nav class="pill__actions" @mousedown=${this.onActionMouseDown}>
@@ -613,13 +614,13 @@ export class GlAgentStatusPill extends LitElement {
 	}
 
 	private renderWorkingHover(session: AgentSessionState, omitActions: boolean): unknown {
-		const elapsed = formatElapsed(session.phaseSinceTimestamp);
+		const elapsed = formatElapsed(session.phaseSince);
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
 		return html`
 			<div class="hover-header">
 				<span class="hover-header__dot hover-header__dot--working"></span>
-				<span class="hover-header__text">${session.name}</span>
+				<span class="hover-header__text">${session.displayName}</span>
 				${elapsed != null ? html`<span class="hover-header__elapsed">${elapsed}</span>` : nothing}
 			</div>
 			${session.lastPrompt
@@ -652,11 +653,11 @@ export class GlAgentStatusPill extends LitElement {
 	}
 
 	private renderNeedsInputHover(session: AgentSessionState, omitActions: boolean): unknown {
-		const elapsed = formatElapsed(session.phaseSinceTimestamp);
-		const detail = session.pendingPermissionDetail;
+		const elapsed = formatElapsed(session.phaseSince);
+		const permission = session.pendingPermission;
 		const openHref = createCommandLink('gitlens.agents.openSession', JSON.stringify(session.id));
 
-		const canResolve = session.isInWorkspace && detail != null;
+		const canResolve = session.isInWorkspace && permission != null;
 		const allowHref = canResolve
 			? createCommandLink('gitlens.agents.resolvePermission', {
 					sessionId: session.id,
@@ -664,7 +665,7 @@ export class GlAgentStatusPill extends LitElement {
 				})
 			: undefined;
 		const alwaysAllowHref =
-			canResolve && detail.hasSuggestions
+			canResolve && permission.suggestions != null && permission.suggestions.length > 0
 				? createCommandLink('gitlens.agents.resolvePermission', {
 						sessionId: session.id,
 						decision: 'allow' as const,
@@ -681,7 +682,7 @@ export class GlAgentStatusPill extends LitElement {
 		return html`
 			<div class="hover-header">
 				<span class="hover-header__dot hover-header__dot--needs-input"></span>
-				<span class="hover-header__text">${session.name}</span>
+				<span class="hover-header__text">${session.displayName}</span>
 				${elapsed != null ? html`<span class="hover-header__elapsed">${elapsed}</span>` : nothing}
 			</div>
 			${session.lastPrompt
@@ -692,21 +693,21 @@ export class GlAgentStatusPill extends LitElement {
 						</div>
 					`
 				: nothing}
-			${detail != null
+			${permission != null
 				? html`
 						<div class="hover-section">
 							<span class="hover-section__label">Request</span>
 							<div class="hover-code">
-								${detail.toolName}${detail.toolDescription
-									? html` &mdash; ${detail.toolDescription}`
+								${permission.toolName}${permission.toolDescription
+									? html` &mdash; ${permission.toolDescription}`
 									: nothing}
 							</div>
 						</div>
-						${detail.toolInputDescription
+						${permission.toolInputDescription
 							? html`
 									<div class="hover-section">
 										<span class="hover-section__label">Context</span>
-										<span class="hover-section__value">${detail.toolInputDescription}</span>
+										<span class="hover-section__value">${permission.toolInputDescription}</span>
 									</div>
 								`
 							: nothing}
@@ -776,7 +777,7 @@ export class GlAgentStatusPill extends LitElement {
 		return html`
 			<div class="hover-header">
 				<span class="hover-header__dot hover-header__dot--idle"></span>
-				<span class="hover-header__text">${session.name}</span>
+				<span class="hover-header__text">${session.displayName}</span>
 			</div>
 			${session.lastPrompt
 				? html`
